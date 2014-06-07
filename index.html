@@ -31,37 +31,48 @@
     <!-- MAIN CONTENT -->
     <div id="main_content_wrap" class="outer">
       <section id="main_content" class="inner">
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+        <h1>
+<a name="des-metrics-quantitative-metrics-from-discrete-event-simulation-models" class="anchor" href="#des-metrics-quantitative-metrics-from-discrete-event-simulation-models"><span class="octicon octicon-link"></span></a>DES Metrics: Quantitative Metrics from Discrete Event Simulation Models</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<h2>
+<a name="overview" class="anchor" href="#overview"><span class="octicon octicon-link"></span></a>Overview</h2>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
-</code></pre>
+<p>This project is designed to capture run time metrics of Discrete Event Simulation (DES)
+models in order to evaluate quantitatively the event dependencies found therein.  While
+the initial goals are to learn more about the structure and nature of the simulation
+models and their suitability for parallelism.  Opportunities for learning about the
+simulation models in order to draw any meaningful conclusions about them will also be
+incorporated.  For example, anything we can learn about relationships between simulation
+objects that could be used to derive strategies for static analysis and model
+transformation/optimization by mechanized tools would also be a highly desirable
+objective.  Ideally the approach will capture the profile data in a generic intermediate
+representation so that the captured data can analyzed from a large number of DES
+simulation tools.  While initially we will develop tools and methods to study individual
+simulation models, the ultimate goal will be to figure out how to bring information
+together from multiple simulation models to draw conclusions on the common characteristics
+of, in particular large, simulation models.  Initially we will focus on the capture and
+analysis of event data.</p>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<p>This project is developed from a PDES centric view.  In particular, we use term
+"simulation object" throughout which is not necessarily a strict construct within a
+sequential simulator.  However, we will stick with this it will help us to effectively
+organize and structure our profile data and analysis activities in ways that will be most
+useful for us and our parallel simulation work.</p>
 
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<h2>
+<a name="strategy" class="anchor" href="#strategy"><span class="octicon octicon-link"></span></a>Strategy</h2>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<p>The general strategy will be to instrument existing simulators to capture event data for
+offline analysis.  Ideally we will use a wide array of different discrete event simulators
+containing simulation models written by others (and ideally, domain experts from across
+multiple disciplines).  This will require that we have source code to the simulator or
+programming cooperation from the community of the target simulation engine.</p>
 
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
-
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
-
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
-
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
-
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
-
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<p>The second (larger) part of this project is the data analysis activity.  The objective of
+this is to discover meaningful understandings of the characteristics of the simulation
+models.  While there are specific analysis results that we expect to see in this phase, as
+we advance our studies in this space, we are likely to expand the types of analyses that
+performed.</p>
       </section>
     </div>
 
