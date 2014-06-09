@@ -37,3 +37,18 @@ number (the x-axis index) of events.
 
 ![number_of_sim_objects_executing_x_events](./graphs/number_of_sim_objects_executing_x_events.pdf)
 
+
+## Available Parallelism
+
+### Total Events Available at Each Scheduling Step
+
+Assuming a unit time execution time for all events and that all available events are
+executed at once, this plot should show the number of scheduling cycles with X events
+available for execution.  The x-axis cntains the range of events available (1-n where n is
+the max found) and the y-axis shows the number of scheduling cycles that number of events
+was available.
+
+
+## Lookahead
+
+Must lookup the formal definition of this.

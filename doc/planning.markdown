@@ -138,6 +138,9 @@ important first items we should attempt to extract should focus on:
    5a. Measured as frequency
    5b: Measured as a function of frequency/delta of send/receive times
 
+6. Interesting cycles between simulation objects.  Basically can we uncover any
+   interesting patterns in the populations ot events and simulation objects?  
+
 I am also developing a separate markdown file (file indexTemplate.markdown in this
 directory) that we can use as the basis for (i) defining the specific graphs to begin
 implementing and (ii) that will also serve as the basis for viewing the results in a web
