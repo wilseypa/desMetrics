@@ -146,6 +146,8 @@ directory) that we can use as the basis for (i) defining the specific graphs to 
 implementing and (ii) that will also serve as the basis for viewing the results in a web
 browser. 
 
+We might also want to broaden this to look for patterns in models that scale.  For now I
+suggest we put this on the back burner and focus on direct analysis for the moment.  
 
 ### Approach
 
