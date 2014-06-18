@@ -165,15 +165,15 @@ what each image is actually depicting.
 Lastly, I propose that we use rigid directory structuring to maintain our JSON source,
 markdown source, and output graphics.  Initially I propose the following structure
 
-`
-<name of simulation tool>
+```AsciiDoc
+<name of simulation tool> 
       |
-<name of simulation model>  ... <additional directories for each model studied in that tool>
-      |
-<graphs> <json file> <markdown file> <markdown output>
-      |
-<many output files from our analysis tool>
-`
+<name of simulation model>  ... <additional directories for each model studied in that tool> 
+      | 
+<graphs> <json file> <markdown file> <markdown output> 
+      | 
+<many output files from our analysis tool> 
+```
 
 I will develop a separate example of a file that we might use as the markdown driver.
 
