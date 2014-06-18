@@ -21,10 +21,11 @@ characteristics of, in particular large, simulation models.  Initially we will f
 the capture and analysis of event data.
 
 This project is developed from a PDES centric view. In particular, we use term "simulation
-object" throughout which is not necessarily a strict construct within a sequential
-simulator.  However, we will stick with this it will help us to effectively organize and
-structure our profile data and analysis activities in ways that will be most useful for us
-and our parallel simulation work.  
+object" (also known in the PDES community as Logical Process or LP) throughout which is
+not necessarily a strict construct within a sequential simulator.  However, we will stick
+with this it will help us to effectively organize and structure our profile data and
+analysis activities in ways that will be most useful for us and our parallel simulation
+work.
 
 
 ## Strategy
