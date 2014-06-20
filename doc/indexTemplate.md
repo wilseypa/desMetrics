@@ -23,32 +23,103 @@ objects.
 ### Total Number of Events Executed by the Simulation Objects
 
 This is an x-y chart that summarizes the total events processed in the simulation.
-The x-axis containing the simulation objects and y-axis containing the total number of 
-events that simulation object executes.
+
+* x-axis: labeled "Simulation Objects", enumerates the names of the simulation objects
+  in the model.  
+
+* y-axis: labeled "Total Number of Events", show the total number of events that are
+  to be executed by the corresponding simulation object.
+
+* Computed as: for each simulation object, simply sum the number of events that are
+  with a "destination_object" field corresponding to that simulation object.
 
 ![total_executed_events_by_sim_object](./graphs/total_executed_events_by_sim_object.pdf)
 
 ### Number of Simulation Objects Executing X Events
 
-This an x-y chart that shows the number of simulation objects that process X events.  The
-x-axis contains the range of events (from minimum to maximum) executed by any simulation
-object in the model.  The y-axis shows the number of simulation objects that process that
-number (the x-axis index) of events.
+This an x-y chart that shows the number of simulation objects that process X events.  
+
+* x-axis: labeled "Number of Events Executed" contains the integer range of events (from
+  minimum to maximum) executed by any simulation object in the model.  For example, assume
+  that N is the minimum number of events executed by a simulation object and M is the
+  maximum number of events excuted by a simulation object, then the x-axis will be the
+  range N:M.
+
+* y-axis: labeled "Number of Simulation Objects Executing X Events" shows the number of
+  simulation objects that process that total number (the x-axis index) of events.
+
+* Computed as: for each X, show the number of simulation objects that execute X total
+  events. 
 
 ![number_of_sim_objects_executing_x_events](./graphs/number_of_sim_objects_executing_x_events.pdf)
 
 
 ## Available Parallelism
 
-### Total Events Available at Each Scheduling Step
+### Total Events Available for Execution at Each Event Scheduling Cycle
 
 Assuming a unit time execution time for all events and that all available events are
 executed at once, this plot should show the number of scheduling cycles with X events
-available for execution.  The x-axis cntains the range of events available (1-n where n is
-the max found) and the y-axis shows the number of scheduling cycles that number of events
-was available.
+available for execution.  
+
+* x-axis: labeled "Scheduling Cycle Number".  Enumerating the schedling cycles 1:N.
+
+* y-axis, labeled "Number of Events Available for Execution".  Contains the range of
+  events available.  The range of the x-axis is N:M, where N is the minimum number of
+  events found and M is the maximum number of events found.
+
+* Computed as: 
+  
+```AsciiDoc
+define a vector for each simulation as a vector ordered by receive_time, call this simulation_object[i].event_vector
+events_available = 0;
+forall i events_available[i] = 0;
+while (at least one simulation_objects_has_more_events) {
+  schedule_cycle = minimum_receive_time for the head event in all simulation_objects;
+  foreach i such that (simulation_object[i].event_vector.receive_time >= schedule_cycle and
+                       simulation_object[i].event_vector.receive_time < schedule_cycle) {
+    events_availble[schedule_cycle]++;
+    advance simulation_object[i] event_vector;
+  }
+}
+for i in range (1:schedule_cycle) {
+  plot 1,events_available[i];
+}
+```
+
+![events_available_for_execution_by_scheduling_cycle](./graphs/events_available_for_execution_by_scheduling_cycle.pdf)
+
+
+### Number of Event Cycles with X Events available for Execution.
+
+Assuming a unit time execution time for all events and that all available events are
+executed at once, this plot should show the number of scheduling cycles with X events
+available for execution.  
+
+* x-axis, labeled "Number of Events Available for Execution".  Contains the range of
+  events available.  The range of the x-axis is N:M, where N is the minimum number of
+  events found and M is the maximum number of events found.
+
+* y-axis: labeled "Number of Scheduling Cycles"  Shows the number of scheduling cycles
+  that number of events was available for execution.
+
+* Computed as: summarize results events_available from graph data showing "Events
+  Available for Execution by Scheduling Cycle".
+
+![scheduling_cycles_with_x_available_events](./graphs/scheduling_cycles_with_x_available_events.pdf)
+
 
 
 ## Lookahead
 
 Must lookup the formal definition of this.
+
+* x-axis: labeled "Simulation Objects", enumerates the names of the simulation objects
+  in the model.  
+
+* y-axis: labeled "Lookahead", showing (for each simulation object), the minimum, average,
+  and maximum lookahead for that simulation object.
+
+* Computed as:
+
+![lookahead_by_sim_object](./graphs/lookahead_by_sim_object.pdf)
