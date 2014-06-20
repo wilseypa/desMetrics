@@ -94,10 +94,12 @@ looks something like this:
     "simulation_objects" : [ "name of simulation object", "...." ],
 
     "events": [
-      "source_object" : "source object name",
-      "send_time" : <integer time>,
-      "destination_object" : "destination object name",
-      "receive_time" : <integer time>,
+      {
+        "source_object" : "source object name",
+        "send_time" : <integer time>,
+        "destination_object" : "destination object name",
+        "receive_time" : <integer time>,
+      },
       ]
     }
 
