@@ -73,19 +73,27 @@ available for execution.
 ```AsciiDoc
 define a vector for each simulation as a vector ordered by receive_time, call this simulation_object[i].event_vector
 events_available = 0;
+total_schedule_cycles = 0;
 forall i events_available[i] = 0;
 while (at least one simulation_objects_has_more_events) {
-  schedule_cycle = minimum_receive_time for the head event in all simulation_objects;
-  foreach i such that (simulation_object[i].event_vector.receive_time >= schedule_cycle and
-                       simulation_object[i].event_vector.send_time < schedule_cycle) {
-    events_availble[schedule_cycle]++;
+  schedule_time = minimum_receive_time for the head event in all simulation_objects;
+  foreach i such that (simulation_object[i].event_vector.receive_time >= schedule_time and
+                       simulation_object[i].event_vector.send_time < schedule_time) {
+    events_availble[schedule_time]++;
     advance simulation_object[i] event_vector;
   }
+  total_schedule_cycles++;
 }
-for i in range (1:schedule_cycle) {
+for i in range (1:schedule_time) {
   plot 1,events_available[i];
 }
 ```
+
+We need to preserve/report the total_schedule_cycles from the above algorithm.  It tells
+us the number of unit execution cycles through the critical path.  For now I suppose it
+could be displayed in the graph (if that is convenient).  Perhaps it will come up again in
+another graphic (I'm assuming so, but have to think on what other graphs we may want to
+generate). 
 
 ![events_available_for_execution_by_scheduling_cycle](./graphs/events_available_for_execution_by_scheduling_cycle.pdf)
 
