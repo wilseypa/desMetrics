@@ -77,7 +77,7 @@ forall i events_available[i] = 0;
 while (at least one simulation_objects_has_more_events) {
   schedule_cycle = minimum_receive_time for the head event in all simulation_objects;
   foreach i such that (simulation_object[i].event_vector.receive_time >= schedule_cycle and
-                       simulation_object[i].event_vector.receive_time < schedule_cycle) {
+                       simulation_object[i].event_vector.send_time < schedule_cycle) {
     events_availble[schedule_cycle]++;
     advance simulation_object[i] event_vector;
   }
