@@ -10,7 +10,7 @@ the initial goals are to learn more about the structure and nature of the simula
 models and their suitability for parallelism.  Opportunities for learning about the
 simulation models in order to draw any meaningful conclusions about them will also be
 incorporated.  For example, anything we can learn about relationships between simulation
-objects that could be used to derive strategies for static analysis and model
+LPs that could be used to derive strategies for static analysis and model
 transformation/optimization by mechanized tools would also be a highly desirable
 objective.  Ideally the approach will capture the profile data in a generic intermediate
 representation (e.g., JSON) so that the captured data can analyzed from a large number of
@@ -20,12 +20,11 @@ information together from multiple simulation models to draw conclusions on the 
 characteristics of, in particular large, simulation models.  Initially we will focus on
 the capture and analysis of event data.
 
-This project is developed from a PDES centric view. In particular, we use term "simulation
-object" (also known in the PDES community as Logical Process or LP) throughout which is
-not necessarily a strict construct within a sequential simulator.  However, we will stick
-with this it will help us to effectively organize and structure our profile data and
-analysis activities in ways that will be most useful for us and our parallel simulation
-work.
+This project is developed from a PDES centric view. In particular, we use term LP (Logical
+Process) throughout which is not necessarily a strict construct within a sequential
+simulator.  However, we will stick with this it will help us to effectively organize and
+structure our profile data and analysis activities in ways that will be most useful for us
+and our parallel simulation work.
 
 
 ## Strategy
@@ -40,29 +39,29 @@ The second (larger) part of this project is the data analysis activity. The obje
 this is to discover meaningful understandings of the characteristics of the simulation
 models. While there are specific analysis results that we expect to see in this phase, as
 we advance our studies in this space, we are likely to expand the types of analyses that
-performed.
+are performed.
 
 
 ## Data Capture
 
-The basic strategy is to profile DES models, capturing information about simulation
-objects, event generation, and relations among the events and simulation objects using a
-variety of DES simulation engines (sequential or parallel).  The captured data will be
-recorded in a JSON format and in addition to event data (recording the time that it is
-generated, what object generates it, what time it is destined to be processed, and the
-target object to process it), the capture file should have information about the
-simulation model, the simulation tool instrumented, the date/time the information was
-captured, and any significant configuration/command line arguments that were used to
-capture the data.  Ideally all of this information will be captured automatically,
-however, manual capture of the non-event data will be acceptable when necessary.
+The basic strategy is to profile DES models, capturing information about LPs, event
+generation, and relations among the events and LPs using a variety of DES simulation
+engines (sequential or parallel).  The captured data will be recorded in a JSON format and
+in addition to event data (recording the time that it is generated, what LP generates it,
+what time it is destined to be processed, and the target LP to process it), the capture
+file should have information about the simulation model, the simulation tool instrumented,
+the date/time the information was captured, and any significant configuration/command line
+arguments that were used to capture the data.  Ideally all of this information will be
+captured automatically, however, manual capture of the non-event data will be acceptable
+when necessary.
 
 JSON will be used to capture the profile data from the simulation models.  JSON is
 selected because it is easily processed, well-understood, and more compact than XML (YAML
 could also work, but the warped tools already use JSON for configuration, so it seems best
-to leverage our knowledge base with JSON).  
+to leverage our knowledge base with JSON).
 
 We must be careful in the capturing of this profile data.  What can we do to ensure that
-we've captured the correct data and that we've captured all of it (for example, if we
+we have captured the correct data and that we have captured all of it (for example, if we
 capture event data when the events are generated, we might miss any events that were
 initially populated in the input event queues prior to simulation start).  We need to see
 what we can do to validate the correctness and completeness of our profile data.  As a
@@ -74,8 +73,8 @@ check on the data to ensure at least its base integrity.
 
 While we should maintain a flexible plan for this format, initially we should capture the
 basic information about the tools, platform, and simulation model as well as the run time
-data itself.  Initially I suggest we simply capture base data and event information that
-looks something like this:
+data itself.  Initially I suggest we simply capture base data and event information in the
+following generic format: 
 
     {
     "simulator_name" : "warped, v5.0",
@@ -91,22 +90,18 @@ looks something like this:
     "configuration_information" : "any significant configuration information, even copying an entire configuration file",
 
     // optional, probably not needed as we can get this info from the "events" array
-    "simulation_objects" : [ "name of simulation object", "...." ],
+    "LPs" : [ "name of LP", "...." ],
 
     "events": [
-      {
-        "source_object" : "source object name",
-        "send_time" : <integer time>,
-        "destination_object" : "destination object name",
-        "receive_time" : <integer time>,
-      },
+      [ "source LP", <time>, "destination LP", <time> ]
       ]
     }
 
 Initially we should keep this simple and build on it as we better understand what we
-want/need to show in the reporting side of this.  I have included a copy of the
-warpedPingPong.json file in this doc directory as an initial example of a JSON file that
-we captured from the ping-pong model of warped.
+want/need to show in the reporting side of this.  I will be placing data files in my UC
+webpages (![DES Metrics data files](http://secs.ceas.uc.edu/~paw/research/desMetrics))
+from the various simulation tools that we instrument (warning: some of these files may be
+quite large).
 
 
 ## Analysis
@@ -131,23 +126,23 @@ important first items we should attempt to extract should focus on:
    2a. Highlight the critical path of events and any nearby paths.
    2b. Count and show independent event paths in the system.
 
-3. Irregularity/regularity of events processed by the various simulation objects.
+3. Irregularity/regularity of events processed by the various LPs.
 
 4. Lookahead (minimum, maximum, median, mode):
    4a. Across the entire model, and 
-   4b. Per simulation object.
+   4b. Per LP.
 
-5. Event communication density between simulation objects (probably displayed as a heatmap):
+5. Event communication density between LPs (probably displayed as a heatmap):
    5a. Measured as frequency
    5b: Measured as a function of frequency/delta of send/receive times
 
-6. Interesting cycles between simulation objects.  Basically can we uncover any
-   interesting patterns in the populations ot events and simulation objects?  
+6. Interesting cycles between LPs.  Basically can we uncover any
+   interesting patterns in the populations ot events and LPs?  
 
 I am also developing a separate markdown file (file indexTemplate.markdown in this
 directory) that we can use as the basis for (i) defining the specific graphs to begin
 implementing and (ii) that will also serve as the basis for viewing the results in a web
-browser. 
+browser.
 
 We might also want to broaden this to look for patterns in models that scale.  For now I
 suggest we put this on the back burner and focus on direct analysis for the moment.  
@@ -180,8 +175,8 @@ markdown source, and output graphics.  Initially I propose the following structu
 
 I will develop a separate example of a file that we might use as the markdown driver.
 
-I already have a representative JSON file from the ping-pong model in new warped.  We can
-begin working with that immediately.  I expect to instrument ROSS next to capture run time
-data from it.  We need to look for discrete event simulation engines/simulation models
-that we can instrument.
+We need to look for discrete event simulation engines/simulation models that we can
+instrument.  It may be difficult to capture data from sequential simulators that are not
+designed by groups engaged in parallel simulation as they may not easily breakdown into
+independent LPs exchanging event data.
 

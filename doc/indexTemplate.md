@@ -15,43 +15,39 @@ were generated from, the date of the capture, and the relevant command line argu
 configuration parameters are available [here](./graphs/model_summary.html).
 
 The following analysis activities are parallel simulation centric.  Thus, we assume, for
-example, that the discrete event simulation is composed of events processed by simulation
-objects. 
+example, that the discrete event simulation is composed of events processed by LPs.
 
 ## Event Execution Summaries
 
-### Total Number of Events Executed by the Simulation Objects
+### Total Number of Events Executed by the LPs
 
 This is an x-y chart that summarizes the total events processed in the simulation.
 
-* x-axis: labeled "Simulation Objects", enumerates the names of the simulation objects
-  in the model.  
+* x-axis: labeled "LPs", enumerates the names of the LPs in the model.
 
-* y-axis: labeled "Total Number of Events", show the total number of events that are
-  to be executed by the corresponding simulation object.
+* y-axis: labeled "Total Number of Events", show the total number of events that are to be
+  executed by the corresponding LP.
 
-* Computed as: for each simulation object, simply sum the number of events that are
-  with a "destination_object" field corresponding to that simulation object.
+* Computed as: for each LP, simply sum the number of events that are with a
+  "destination_LP" field corresponding to that LP.
 
-![total_executed_events_by_sim_object](./graphs/total_executed_events_by_sim_object.pdf)
+![total_executed_events_by_lp](./graphs/total_executed_events_by_lp.pdf)
 
-### Number of Simulation Objects Executing X Events
+### Number of LPs Executing X Events
 
-This an x-y chart that shows the number of simulation objects that process X events.  
+This an x-y chart that shows the number of LPs that process X events.  
 
 * x-axis: labeled "Number of Events Executed" contains the integer range of events (from
-  minimum to maximum) executed by any simulation object in the model.  For example, assume
-  that N is the minimum number of events executed by a simulation object and M is the
-  maximum number of events excuted by a simulation object, then the x-axis will be the
-  range N:M.
+  minimum to maximum) executed by any LP in the model.  For example, assume that N is the
+  minimum number of events executed by a LP and M is the maximum number of events excuted
+  by a LP, then the x-axis will be the range N:M.
 
-* y-axis: labeled "Number of Simulation Objects Executing X Events" shows the number of
-  simulation objects that process that total number (the x-axis index) of events.
+* y-axis: labeled "Number of LPs Executing X Events" shows the number of LPs that process
+  that total number (the x-axis index) of events.
 
-* Computed as: for each X, show the number of simulation objects that execute X total
-  events. 
+* Computed as: for each X, show the number of LPs that execute X total events.
 
-![number_of_sim_objects_executing_x_events](./graphs/number_of_sim_objects_executing_x_events.pdf)
+![number_of_lps_executing_x_events](./graphs/number_of_lps_executing_x_events.pdf)
 
 
 ## Available Parallelism
@@ -60,7 +56,7 @@ This an x-y chart that shows the number of simulation objects that process X eve
 
 Assuming a unit time execution time for all events and that all available events are
 executed at once, this plot should show the number of scheduling cycles with X events
-available for execution.  
+available for execution.
 
 * x-axis: labeled "Scheduling Cycle Number".  Enumerating the schedling cycles 1:N.
 
@@ -71,16 +67,15 @@ available for execution.
 * Computed as: 
   
 ```AsciiDoc
-define a vector for each simulation as a vector ordered by receive_time, call this simulation_object[i].event_vector
-events_available = 0;
+define a vector for each simulation as a vector ordered by receive_time, call this lp[i].event_vector
 total_schedule_cycles = 0;
 forall i events_available[i] = 0;
-while (at least one simulation_objects_has_more_events) {
-  schedule_time = minimum_receive_time for the head event in all simulation_objects;
-  foreach i such that (simulation_object[i].event_vector.receive_time >= schedule_time and
-                       simulation_object[i].event_vector.send_time < schedule_time) {
+while (at least one lps_has_more_events) {
+  schedule_time = minimum_receive_time for the head event in all lps;
+  foreach i such that (lp[i].event_vector.receive_time >= schedule_time and
+                       lp[i].event_vector.send_time < schedule_time) {
     events_availble[schedule_time]++;
-    advance simulation_object[i] event_vector;
+    advance lp[i] event_vector;
   }
   total_schedule_cycles++;
 }
@@ -93,7 +88,7 @@ We need to preserve/report the total_schedule_cycles from the above algorithm.  
 us the number of unit execution cycles through the critical path.  For now I suppose it
 could be displayed in the graph (if that is convenient).  Perhaps it will come up again in
 another graphic (I'm assuming so, but have to think on what other graphs we may want to
-generate). 
+generate).
 
 ![events_available_for_execution_by_scheduling_cycle](./graphs/events_available_for_execution_by_scheduling_cycle.pdf)
 
@@ -102,14 +97,14 @@ generate).
 
 Assuming a unit time execution time for all events and that all available events are
 executed at once, this plot should show the number of scheduling cycles with X events
-available for execution.  
+available for execution.
 
 * x-axis, labeled "Number of Events Available for Execution".  Contains the range of
   events available.  The range of the x-axis is N:M, where N is the minimum number of
   events found and M is the maximum number of events found.
 
-* y-axis: labeled "Number of Scheduling Cycles"  Shows the number of scheduling cycles
-  that number of events was available for execution.
+* y-axis: labeled "Number of Scheduling Cycles" Shows the number of scheduling cycles that
+  number of events was available for execution.
 
 * Computed as: summarize results events_available from graph data showing "Events
   Available for Execution by Scheduling Cycle".
@@ -122,12 +117,11 @@ available for execution.
 
 Must lookup the formal definition of this.
 
-* x-axis: labeled "Simulation Objects", enumerates the names of the simulation objects
-  in the model.  
+* x-axis: labeled "LPs", enumerates the names of the LPs in the model.
 
-* y-axis: labeled "Lookahead", showing (for each simulation object), the minimum, average,
-  and maximum lookahead for that simulation object.
+* y-axis: labeled "Lookahead", showing (for each LP), the minimum, average, and maximum
+  lookahead for that LP.
 
-* Computed as:
+* Computed as: to be determined.
 
-![lookahead_by_sim_object](./graphs/lookahead_by_sim_object.pdf)
+![lookahead_by_lp](./graphs/lookahead_by_lp.pdf)
