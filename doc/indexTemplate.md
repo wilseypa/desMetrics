@@ -67,15 +67,15 @@ available for execution.
 * Computed as: 
   
 ```AsciiDoc
-define a vector for each simulation as a vector ordered by receive_time, call this lp[i].event_vector
+let 1:N be the range of LPs in the simulation
+for each lp[i] in the simulation, let lp[i].event_queue be a queue of events destined for that LP
 total_schedule_cycles = 0;
-forall i events_available[i] = 0;
-while (at least one lps_has_more_events) {
-  schedule_time = minimum_receive_time for the head event in all lps;
-  foreach i such that (lp[i].event_vector.receive_time >= schedule_time and
-                       lp[i].event_vector.send_time < schedule_time) {
+forall i in 1:N events_available[i] = 0;
+while (at least one lp[i].event_queue.empty() != NULL) {
+  schedule_time = minimum { lp[i].event_queue.front().receive_time };
+  foreach i such that (lp[i].event_queue.front().send_time < schedule_time) {
     events_availble[schedule_time]++;
-    advance lp[i] event_vector;
+    lp[i].event_queue.pop();
   }
   total_schedule_cycles++;
 }
