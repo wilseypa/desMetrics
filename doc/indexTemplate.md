@@ -22,6 +22,8 @@ example, that the discrete event simulation is composed of events processed by L
 ### Total Number of Events Executed by the LPs
 
 This is an x-y chart that summarizes the total events processed in the simulation.
+Locally generated and remotely generated events will be summed and shaded separately on
+the bar for each LP.
 
 * x-axis: labeled "LPs", enumerates the names of the LPs in the model.
 
@@ -48,6 +50,7 @@ This an x-y chart that shows the number of LPs that process X events.
 * Computed as: for each X, show the number of LPs that execute X total events.
 
 ![number_of_lps_executing_x_events](./graphs/number_of_lps_executing_x_events.pdf)
+
 
 
 ## Available Parallelism
@@ -110,6 +113,19 @@ available for execution.
   Available for Execution by Scheduling Cycle".
 
 ![scheduling_cycles_with_x_available_events](./graphs/scheduling_cycles_with_x_available_events.pdf)
+
+
+### Chain Length of Events available for execution by LPi / Event Scheduling Cycle
+
+At each schedule cycle, how many events in the LP form a chain of events that could be
+excuted without interruption.  That is, for a scheduling cycle at schedule_time=t, that
+number of events at that LP have a send_time < t and a receive_time >= t.  
+
+How do we want to compute/represent this data to the user?
+
+How do we count/display locally generated vs remotely generated? Do we want to?
+
+Need to think on this one some more.
 
 
 
