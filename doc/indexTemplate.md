@@ -51,6 +51,14 @@ This an x-y chart that shows the number of LPs that process X events.
 
 ![number_of_lps_executing_x_events](./graphs/number_of_lps_executing_x_events.pdf)
 
+### Number of LPs Sending Events to LPi 
+
+Captured so that we can filter senders of less than X% (or X total) events.  In other
+words, LPi receives at least 3 events from these LPs, 10 (or 90% of it's processed) events
+from these LPs, etc.   
+
+### Number of Events Sent to LPi from LPj
+
 
 
 ## Available Parallelism
