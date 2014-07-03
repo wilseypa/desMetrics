@@ -91,7 +91,7 @@ while (at least one lp[i].event_queue.empty() != NULL) {
   total_schedule_cycles++;
 }
 for i in range (1:schedule_time) {
-  plot 1,events_available[i];
+  plot i,events_available[i];
 }
 ```
 
