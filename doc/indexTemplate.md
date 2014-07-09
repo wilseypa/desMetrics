@@ -1,6 +1,8 @@
 
 # desMetrics Analysis Results
 
+**I will replace the inline links with the nvd3 scripts later.**
+
 <!-- 
   this next paragraph assumes that the tools generate a file "model_summary.html" that
   contains information on the tool, simulation model, command line arguments, and
@@ -65,6 +67,9 @@ from these LPs, etc.
 
 ### Total Events Available for Execution at Each Event Scheduling Cycle
 
+**This data is just too massive to display/use.  We will use the summary data from the
+  next section instead.**
+
 Assuming a unit time execution time for all events and that all available events are
 executed at once, this plot should show the number of scheduling cycles with X events
 available for execution.
@@ -123,18 +128,16 @@ available for execution.
 ![scheduling_cycles_with_x_available_events](./graphs/scheduling_cycles_with_x_available_events.pdf)
 
 
-### Chain Length of Events available for execution by LPi / Event Scheduling Cycle
+### Chain Length of Events available for execution by LPi 
 
-At each schedule cycle, how many events in the LP form a chain of events that could be
-excuted without interruption.  That is, for a scheduling cycle at schedule_time=t, that
-number of events at that LP have a send_time < t and a receive_time >= t.  
-
-How do we want to compute/represent this data to the user?
-
-How do we count/display locally generated vs remotely generated? Do we want to?
-
-Need to think on this one some more.
-
+An event chain is the number of events in an LP that could be executed as a group.  That
+is, let t be the timestamp of a simulation cycle, how many events in the list of events
+for that LP have (i) send times less than t, (ii) receive times equal or greater than t,
+and (iii) that have not already been computed as part of an event chain (global chains are
+all events, local chains are only events that were sent by this LP).  Once a chain has
+been identified, the next event chain to be examined begins at the next event follwing the
+last in the current chain (the simultaneous computation of local and remote event chains
+may prove difficult and may need to be done in separate passes over the data).
 
 
 ## Lookahead

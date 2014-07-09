@@ -41,6 +41,13 @@ models. While there are specific analysis results that we expect to see in this 
 we advance our studies in this space, we are likely to expand the types of analyses that
 are performed.
 
+To be meaningful, we will need to study large simulation models.  In our preliminary
+studies, we have already discovered that the captured data and even the output analysis
+files can be quite large (easily reaching multiple GBytes of data.  We will have to learn
+how to manage this size problem.   First, we will have to work to determine what amount of
+runtime data is actually needed to capture meaningful results that properly characterize
+the properties of simulation models.  Second, we may have to adjust how we present our
+analysis results so that we have meaningful graphs and visuals to examine.
 
 ## Data Capture
 
@@ -67,6 +74,14 @@ initially populated in the input event queues prior to simulation start).  We ne
 what we can do to validate the correctness and completeness of our profile data.  As a
 (small) part of this validation step, the analysis tools should perform an initial sanity
 check on the data to ensure at least its base integrity.
+
+Finally, for instrumenting existing parallel simulation engines, this capture should be
+relatively straight forward.  However, for existing sequential models, it may be difficult
+to instrument the simulation isolate the communicating LPs of a simulation model.
+However, even for parallel simulation models, we may find that the LPs are artificially
+partitioned into larger objects that could actually be broken down into multiple LPs.
+This may negatively affect our analysis results.  Not sure what we can do about this, but
+it is definitely something that we need to be aware of and to comment on.
 
 
 ### The JSON Format
@@ -151,30 +166,90 @@ suggest we put this on the back burner and focus on direct analysis for the mome
 ### Approach
 
 For this part of the project, I propose to develop/use a python-based tool to import the
-JSON file and produce various graphs/data for analysis.  I do not care if we use the
-python tool to simply produce ASCII tabular data (and, optionally, csv files) that can be
-processed by gnuplot scripts or other tools (but given the size of the problem, it is
-critical that the plotting event be scriptable), or if we generate the graphical results
-(as pdf) directly from the python analysis program.  Using pdf as scalar vector format for
-our graphical data should make it easy to render in computer displays, webpages, and
-papers.  I also propose that we use a markdown file to organize the data into webpage
-images with affiliated descriptions so that the reader will have a solid understanding of
-what each image is actually depicting.
+JSON file and produce various graphs/data for analysis.  I am moving to a framework of
+displaying the analysis data using web based (javascript) data visualization tools based
+on the d3 visualization library.  In particular, I am exploring the use of nvd3 to
+visualize the data.  As a result the output of our analysis programs should also be
+formatted as JSON files that the nvd3 scripts can read.  I will continue to explore this
+option as we move forward with our analysis results.
 
-Lastly, I propose that we use rigid directory structuring to maintain our JSON source,
-markdown source, and output graphics.  Initially I propose the following structure
+Using nvd3, we should be able to create a generic index.html file (which I am also
+maintaining in this directory as indexTemplate.html) that uses markdown to organize the
+data into webpage images with affiliated descriptions so that the reader will have a solid
+understanding of what each graphic is actually depicting.
 
-```AsciiDoc
-<name of simulation tool> 
-      |
-<name of simulation model>  ... <additional directories for each model studied in that tool> 
-      | 
-<graphs> <json file> <markdown file> <markdown output> 
-      | 
-<many output files from our analysis tool> 
-```
+<!--
 
-I will develop a separate example of a file that we might use as the markdown driver.
+I do not care if we use the python tool to simply produce ASCII tabular data (and,
+optionally, csv files) that can be processed by gnuplot scripts or other tools (but given
+the size of the problem, it is critical that the plotting event be scriptable), or if we
+generate the graphical results (as pdf) directly from the python analysis program.  Using
+pdf as scalar vector format for our graphical data should make it easy to render in
+computer displays, webpages, and papers.  I also propose that we use a markdown file to
+organize the data into webpage images with affiliated descriptions so that the reader will
+have a solid understanding of what each image is actually depicting.
+
+-->
+
+### Analysis Output Formats
+
+#### LP Based Results
+
+Recording information about the LP total event processing results.  Number of local events (l_ev)
+is the number of events generated by the LP for itself.  Number of remote events (r_ev) is the
+number of events generated by other LPs for this LP.  Lookahead (lookah) is an array of
+(i) the minimum lookahead seen by the LP, (ii) the average lookahead by the LP, and (iii) the
+maximum lookahead seen by the LP.  We will add to this format as we better understand the
+LP specific data we want to capture.
+
+    [ 
+      { 
+        "name": "name of the LP", 
+        "l_ev": <number of local events>, 
+        "r_ev": <number of remote events>, 
+        "lookah": [<min>, <average>, <max>] 
+      },
+      { <repeated for each LP in the simulation> }
+    ];
+
+#### Event Chains
+
+An event chain is the number of events in an LP that could be executed as a group.  That
+is, let t be the timestamp of a simulation cycle, how many events in the list of events
+for that LP have (i) send times less than t, (ii) receive times equal or greater than t,
+and (iii) that have not already been computed as part of an event chain (global chains are
+all events, local chains are only events that were sent by this LP).  Once a chain has
+been identified, the next event chain to be examined begins at the next event follwing the
+last in the current chain (the simultaneous computation of local and remote event chains
+may prove difficult and may need to be done in separate passes over the data).
+
+    {
+      "local": [
+        [ 1, <number of local chains of length 1> ],
+        [ 2, <number of local chains of length 2> ],
+        [ ....repeat as necessary....], ],
+      "global": [
+        [ 1, <number of global chains of length 1> ],
+        [ 2, <number of global chains of length 2> ],
+        [ ....repeat as necessary....], ],
+    }
+
+
+#### Simulation Cycle Results on Parallelism
+
+Recording results from our analysis of simulation cycles.  I am not sure this will
+generalize much.  For now, the format is really quite simple
+
+    {
+      "total": <total number of simulation cycles>,
+      "summary": [ <min>, <average>, max ],
+      "values": [ 
+          [ 1,  <number of simulation cycles with 1 event available> ],
+          [ 2,  <number of simulation cycles with 2 events available> ],
+          [ ....repeat as necessary....]
+    }
+
+## Additional Notes
 
 We need to look for discrete event simulation engines/simulation models that we can
 instrument.  It may be difficult to capture data from sequential simulators that are not
