@@ -67,7 +67,6 @@ for i in range(len(objectList)):
 			else:
 				remoteEvents[i] = remoteEvents[i] + 1
 
-print("soma: %d" (sum(localEvents) + sum(remoteEvents)))
 lookahead = [0,0,0]
 your_json = '[ '
 for i in range(len(objectList)):
