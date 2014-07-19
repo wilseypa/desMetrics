@@ -108,7 +108,7 @@ following generic format:
     "LPs" : [ "name of LP", "...." ],
 
     "events": [
-      [ "source LP", <time>, "destination LP", <time> ],
+      [ "source LP", <send_time>, "destination LP", <receive_time> ],
         "....forall events processed...."
       ]
     }
