@@ -25,10 +25,11 @@ func main() {
 	// get a handle to the input file and import the json file
 	traceDataFile, err := os.Open(os.Args[1])
 	if err != nil { panic(err) }
+	fmt.Printf("Parsing input json file: %v\n",os.Args[1])
 	jsonParser := json.NewDecoder(traceDataFile)
 	err = jsonParser.Decode(&desTraceData); 
 	if err != nil { panic(err) }
-	fmt.Printf("%s\n %s\n %s\n %s\n", 
+	fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Command line used for capture: %s\n",
 		desTraceData.SimulatorName, 
 		desTraceData.ModelName, 
 		desTraceData.CaptureDate, 
@@ -58,7 +59,7 @@ func main() {
 	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
 
 	// verification prints
-	fmt.Printf("LP2Int: %v\n", mapLPNameToInt)
+//	fmt.Printf("LP2Int: %v\n", mapLPNameToInt)
 //	fmt.Printf("Int2LP: %v\n", mapIntToLPName)
 
 	// now we need to setup a data structure for events.  internally we're going to
@@ -95,6 +96,7 @@ func main() {
 	// in this step we will be looking at events seen at the receiving LP.  the first
 	// step it to store the event data into the lps by the receiving LP id.
 
+	fmt.Printf("Organizing data by receiving LPs.\n")
 	for _, traceEvent := range desTraceData.Events {
 		rLP := mapLPNameToInt[traceEvent.ReceiveLP]
 
@@ -121,6 +123,7 @@ func main() {
 	// reset the lpIndex pointers
 	for i := 0; i < numOfLPs; i++ {lpIndex[i] = -1}
 
+	fmt.Printf("Organizing data by sending LPs.\n")
 	for _, traceEvent := range desTraceData.Events {
 		sLP := mapLPNameToInt[traceEvent.SendLP]
 
