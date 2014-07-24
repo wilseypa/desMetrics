@@ -86,10 +86,6 @@ func main() {
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
 
-	// verification prints
-//	fmt.Printf("LP2Int: %v\n", mapLPNameToInt)
-//	fmt.Printf("Int2LP: %v\n", mapIntToLPName)
-
 	// now we need to partition the events by LP for our first analysis.  lps is an
 	// slice (of slices) that we will use to store the events associated with each LP.
 	// we have to define initial size and capacity limits to the go slices.  while we
@@ -159,27 +155,24 @@ func main() {
 		}
 	}
 
-	// check to ensure that all LPs receive at least one message
-	for i := 0; i < numOfLPs; i++ {
-		count := 0
-		for j := 0; j < numOfLPs; j++ {count = count + lpMatrix[i][j]}
-	}
+	// create the directory to store results if it is not already there
+	err =  os.MkdirAll ("analysisData", 0777)
+	if err != nil {panic(err)}
 
-	// dump summaries of local and remote events received
-	fmt.Printf("# LP, local, remote\n")
+	// write summaries of local and remote events received
+	outFile, err := os.Create("analysisData/eventsExecutedByLP.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile, "# LP, local, remote\n")
 	for i := 0; i < numOfLPs; i++ {
-		fmt.Printf("%v, ",mapIntToLPName[i])
+		fmt.Fprintf(outFile,"%v, ",mapIntToLPName[i])
 		rCount := 0
 		for j := 0; j < numOfLPs; j++ {if i != j {rCount = rCount + lpMatrix[i][j]}}
-		fmt.Printf("%v, %v\n",lpMatrix[i][i],rCount)
+		fmt.Fprintf(outFile,"%v, %v\n",lpMatrix[i][i],rCount)
 	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
 
-	// check to ensure that all LPs send at least one message
-	for i := 0; i < numOfLPs; i++ {
-		count := 0
-		for j := 0; j < numOfLPs; j++ {count = count + lpMatrix[j][i]}
-	}
 
 	// in this step we will be looking at events seen at the sending LPsd.  the first
 	// step it to store the event data into the lps by the sending LP id.
