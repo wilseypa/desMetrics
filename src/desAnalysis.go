@@ -146,7 +146,7 @@ func main() {
 	// column index is the sending LP and the entries are the number of events
 	// exchanged between them.  from this matrix, we will print out summary files.
 
-	fmt.Printf("Building a matrix storing the total events exchanged by the LPs.\n")
+	fmt.Printf("Computing local/remote events executed by LP.\n")
 	lpMatrix := make([][]int, numOfLPs)
 	for i := range lpMatrix {
 		lpMatrix[i] = make([]int,numOfLPs)
@@ -169,6 +169,52 @@ func main() {
 		for j := 0; j < numOfLPs; j++ {if i != j {rCount = rCount + lpMatrix[i][j]}}
 		fmt.Fprintf(outFile,"%v, %v\n",lpMatrix[i][i],rCount)
 	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
+	// event chains
+	fmt.Printf("Computing local/global event chains by LP.\n")
+	outFile, err = os.Create("analysisData/eventChainsLP.dat")
+	if err != nil {panic(err)}
+	localEventChain := make([][]int,numOfLPs)
+	for i := range localEventChain {localEventChain[i] = make([]int,10)}
+	globalEventChain := make([][]int,numOfLPs)
+	for i := range globalEventChain {globalEventChain[i] = make([]int,10)}
+	for i, lp := range lps {
+		if len(lp) == 0 {break}
+		fmt.Printf("Examining: %v %v %v\n",mapIntToLPName[i],len(lp),lp)
+		// local chain analysis
+		j := 0
+		for ; j < len(lp) ; {
+			for ; j < len(lp) && lp[j].companionLP != i ; j++ {}
+			if j < len(lp) && lp[j].companionLP == i {
+				k := j
+				for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime && lp[k].companionLP == i ; {k++}
+				if k-j-1 >= 10 {
+					localEventChain[i][9]++
+				} else {
+					localEventChain[i][k-j-1]++
+				}
+				j = j + k
+			}
+		}
+		// global chain analysis
+		j = 0
+		for ; j < len(lp) ; {
+			if j < len(lp) {
+				k := j
+				for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime ; {k++}
+				if k-j-1 >= 10 {
+					globalEventChain[i][9]++
+				} else {
+					globalEventChain[i][k-j-1]++
+				}
+				j = j + k
+			}
+		}
+		fmt.Fprintf(outFile,"%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
+	}
+
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
