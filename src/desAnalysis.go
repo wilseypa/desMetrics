@@ -108,7 +108,6 @@ func main() {
 	}
 
 	lpIndex := make([]int, numOfLPs)
-
 	for i := 0; i < numOfLPs; i++ {lpIndex[i] = -1}
 
 	// in this step we will be looking at events seen at the receiving LP.  the first
@@ -131,6 +130,7 @@ func main() {
 	}
 	// now we need to set the lengths of the slices in the LP data so we can use the
 	// go builtin len() function on them
+	fmt.Printf("Sizing the slices of the LP events.\n")
 	for i := range lps {
 		if lpIndex[i] != -1 {
 			lps[i] = lps[i][:lpIndex[i]+1]
@@ -154,7 +154,7 @@ func main() {
 	lpMatrix := make([][]int, numOfLPs)
 	for i := range lpMatrix {
 		lpMatrix[i] = make([]int,numOfLPs)
-		for j := 0; j <= lpIndex[i]; j++ {
+		for j := range lps[i] {
 			lpMatrix[i][lps[i][j].companionLP]++
 		}
 	}
@@ -163,7 +163,6 @@ func main() {
 	for i := 0; i < numOfLPs; i++ {
 		count := 0
 		for j := 0; j < numOfLPs; j++ {count = count + lpMatrix[i][j]}
-		if count == 0 {fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])}
 	}
 
 	// dump summaries of local and remote events received
@@ -180,7 +179,6 @@ func main() {
 	for i := 0; i < numOfLPs; i++ {
 		count := 0
 		for j := 0; j < numOfLPs; j++ {count = count + lpMatrix[j][i]}
-		if count == 0 {fmt.Printf("WARNING: LP %v sent zero messages.\n", mapIntToLPName[i])}
 	}
 
 	// in this step we will be looking at events seen at the sending LPsd.  the first
@@ -209,6 +207,7 @@ func main() {
 
 	// now we need to set the lengths of the slices in the LP data so we can use the
 	// go builtin len() function on them
+	fmt.Printf("Sizing the slices of the LP events.\n")
 	for i := range lps {
 		if lpIndex[i] != -1 {
 			lps[i] = lps[i][:lpIndex[i]+1]
