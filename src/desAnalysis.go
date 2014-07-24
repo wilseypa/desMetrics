@@ -181,14 +181,12 @@ func main() {
 	globalEventChain := make([][]int,numOfLPs)
 	for i := range globalEventChain {globalEventChain[i] = make([]int,10)}
 	for i, lp := range lps {
-		if len(lp) == 0 {break}
-		fmt.Printf("Examining: %v %v %v\n",mapIntToLPName[i],len(lp),lp)
 		// local chain analysis
 		j := 0
 		for ; j < len(lp) ; {
 			for ; j < len(lp) && lp[j].companionLP != i ; j++ {}
 			if j < len(lp) && lp[j].companionLP == i {
-				k := j
+				k := j + 1
 				for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime && lp[k].companionLP == i ; {k++}
 				if k-j-1 >= 10 {
 					localEventChain[i][9]++
@@ -201,18 +199,19 @@ func main() {
 		// global chain analysis
 		j = 0
 		for ; j < len(lp) ; {
-			if j < len(lp) {
-				k := j
-				for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime ; {k++}
-				if k-j-1 >= 10 {
-					globalEventChain[i][9]++
-				} else {
-					globalEventChain[i][k-j-1]++
-				}
-				j = j + k
+			k := j + 1
+			for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime ; {
+				k++
 			}
+			if k-j-1 >= 10 {
+				globalEventChain[i][9]++
+			} else {
+				globalEventChain[i][k-j-1]++
+			}
+			j = j + k
 		}
-		fmt.Fprintf(outFile,"%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
+		fmt.Printf("%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
+//		fmt.Fprintf(outFile,"%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
 	}
 
 	err = outFile.Close()
