@@ -3,7 +3,7 @@ package main
 import "fmt"
 import "os"
 import "log"
-//import "sort"
+import "sort"
 import "encoding/json"
 
 var desTraceData struct {
@@ -18,6 +18,31 @@ var desTraceData struct {
 		ReceiveTime float64  `json:"rTS"`
 	} `json:"events"`
 }
+
+// now we need to setup a data structure for events.  internally we're going to store LP
+// names with their integer map value.  since we're storing events into an array indexed
+// by the LP in question (sender or receiver), we will only store the other "companion" LP
+// internally
+type eventData struct {
+	companionLP int
+	sendTime float64
+	receiveTime float64
+}
+
+// i'm sure there is a way to combine these sorts with a common setup, but i don't know go
+// well enough to achieve it; we'll use this approach for now
+
+// functions to support sorting of the events by their receive time
+type byReceiveTime []eventData
+func (a byReceiveTime) Len() int           {return len(a)}
+func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
+func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
+
+// functions to support sorting of the events by their send time
+type bySendTime []eventData
+func (a bySendTime) Len() int           {return len(a)}
+func (a bySendTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
+func (a bySendTime) Less(i, j int) bool {return a[i].sendTime < a[j].sendTime}
 
 // assumes one argument that is the name of the trace file to use
 func main() {
@@ -65,17 +90,6 @@ func main() {
 //	fmt.Printf("LP2Int: %v\n", mapLPNameToInt)
 //	fmt.Printf("Int2LP: %v\n", mapIntToLPName)
 
-	// now we need to setup a data structure for events.  internally we're going to
-	// store LP names with their integer map value.
-
-	// since we're storing events into an array indexed by the LP in question (sender
-	// or receiver), we will only store the other "companion" LP internally
-
-	type eventData struct {
-		companionLP int
-		sendTime float64
-		receiveTime float64
-	}
 	// now we need to partition the events by LP for our first analysis.  lps is an
 	// slice (of slices) that we will use to store the events associated with each LP.
 	// we have to define initial size and capacity limits to the go slices.  while we
@@ -127,20 +141,10 @@ func main() {
 		//fmt.Printf("%v\n",lps[i])
 	}
 
-/*
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("Sorting the events in each LP by receive time.\n")
+	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
 
-	type byReceiveTime []eventData
-	func (a byReceiveTime) Len() int           {return len(a)}
-	func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
-	func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
-
-	for i := range lps {
-	fmt.Println(lps[i])
-	sort.Sort(byReceiveTime(lps[i]))
-	fmt.Println(lps[i])
-*/	
 	// on to analysis: we first consider local and remote events.  for this purpose,
 	// we'll compute a matrix of ints where the row index is the receiving LP and the
 	// column index is the sending LP and the entries are the number of events
@@ -214,5 +218,9 @@ func main() {
 		}
 		//fmt.Printf("%v\n",lps[i])
 	}
+	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
+	fmt.Printf("Sorting the events in each LP by send time.\n")
+	for i := range lps {sort.Sort(bySendTime(lps[i]))}
+
 	return
 }
