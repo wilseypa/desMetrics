@@ -4,6 +4,7 @@ import "fmt"
 import "os"
 import "log"
 import "sort"
+import "math"
 import "encoding/json"
 
 var desTraceData struct {
@@ -103,6 +104,8 @@ func main() {
 		lps[i] = make([]eventData,capOfLPEventSlice)
 	}
 
+	// we will use lpIndex throughout the program to keep a pointer for each LP to the
+	// event of interest for that LP
 	lpIndex := make([]int, numOfLPs)
 	for i := 0; i < numOfLPs; i++ {lpIndex[i] = -1}
 
@@ -173,6 +176,76 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
+	// events available for execution: here we will assume all events execute in unit
+	// time and evaluate the events as executable by simulation cycle.  basically we
+	// will advance the simulation time to the lowest receive time of events in all
+	// of the LPs and count the number of LPs that could potentially be executed at
+	// that time.  the general algorithm is outlined in the indexTemplate.md file for
+	// this project. 
+
+	// we will use lpIndex to point to the 
+
+	fmt.Printf("Computing event parallelism statistics.\n")
+	for i := range lps {lpIndex[i] = 0}
+	simCycle := 0
+	eventsAvailable := make([]int, len(desTraceData.Events))
+	maxEventsAvailable := 0
+	done := false
+	lpIndexToFixSameSendReceiveTime := 0
+	for ; done != true ; {
+		scheduleTime := math.MaxFloat64
+		done = true
+		// pickup the minimum receive time not yet processed
+		for i, lp := range lps {
+			if lpIndex[i] < len(lp) &&  lp[lpIndex[i]].receiveTime < scheduleTime {
+				scheduleTime = lp[lpIndex[i]].receiveTime
+				done = false
+				// because the ross data has events with the same send and
+				// receive times, we have to have an exception for that
+				// case of this algorithm doesn't terminate.  here we will
+				// record the LP index defining the schedule time and use
+				// that as an exception for the next part.....what a drag
+				lpIndexToFixSameSendReceiveTime =  i
+			}
+		}
+		// walk through and count the number of events available
+		if done == false {
+			for i, lp := range lps {
+				if lpIndex[i] < len(lp) &&  (lp[lpIndex[i]].sendTime < scheduleTime || 
+					// this is our special case
+					i ==  lpIndexToFixSameSendReceiveTime) {
+					eventsAvailable[simCycle]++
+					lpIndex[i]++
+				}
+			}
+			if maxEventsAvailable < eventsAvailable[simCycle] {maxEventsAvailable = eventsAvailable[simCycle]}
+			simCycle++
+		}
+	}
+
+	// while printing results let's also capture the number of simulation cycles with
+	// X events available
+	timesXeventsAvailable := make([]int,maxEventsAvailable)
+	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
+	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
+	for i := 0; i < simCycle; i++ {
+		fmt.Fprintf(outFile,"%v %v\n",i+1,eventsAvailable[i])
+		timesXeventsAvailable[eventsAvailable[i] - 1]++
+	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
+	// write out summary of events available
+	outFile, err = os.Create("analysisData/timesXeventsAvailable.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# times X events are available for execution\n")
+	fmt.Fprintf(outFile,"# X, num of occurrences\n")
+	for i := range timesXeventsAvailable {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXeventsAvailable[i])}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
 	// event chains are collections of events for execution at the LP that could
 	// potentially be executed together.  thus when examining an event with receive
 	// timestamp t, the chain is formed by all future (by receive time) events in that
@@ -192,8 +265,8 @@ func main() {
 	// computation
 
 	// compute the local and global event chains for each LP
-	eventChainLength := 5
 	fmt.Printf("Computing local, linked, and global event chains by LP.\n")
+	eventChainLength := 5
 	localEventChain := make([][]int,numOfLPs)
 	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
 	linkedEventChain := make([][]int,numOfLPs)
