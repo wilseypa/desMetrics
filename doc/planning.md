@@ -142,7 +142,8 @@ important first items we should attempt to extract should focus on:
    2a. Highlight the critical path of events and any nearby paths.
    2b. Count and show independent event paths in the system.
 
-3. Irregularity/regularity of events processed by the various LPs.
+3. Irregularity/regularity of events processed by the various LPs.  Especially if we can
+   capture data to help us develop partitioning strategies.
 
 4. Lookahead (minimum, maximum, median, mode):
    4a. Across the entire model, and 
