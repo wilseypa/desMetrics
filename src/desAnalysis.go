@@ -107,7 +107,7 @@ func main() {
 	// we will use lpIndex throughout the program to keep a pointer for each LP to the
 	// event of interest for that LP
 	lpIndex := make([]int, numOfLPs)
-	for i := 0; i < numOfLPs; i++ {lpIndex[i] = -1}
+	for i := range lps {lpIndex[i] = -1}
 
 	// in this step we will be looking at events seen at the receiving LP.  the first
 	// step it to store the event data into the lps by the receiving LP id.
@@ -149,7 +149,6 @@ func main() {
 	// column index is the sending LP and the entries are the number of events
 	// exchanged between them.  from this matrix, we will print out summary files.
 
-	fmt.Printf("Computing local/remote events executed by LP.\n")
 	lpMatrix := make([][]int, numOfLPs)
 	for i := range lpMatrix {
 		lpMatrix[i] = make([]int,numOfLPs)
@@ -162,19 +161,25 @@ func main() {
 	err =  os.MkdirAll ("analysisData", 0777)
 	if err != nil {panic(err)}
 
+	fmt.Printf("Computing the number local/remote events executed by each LP.\n")
 	// write summaries of local and remote events received
 	outFile, err := os.Create("analysisData/eventsExecutedByLP.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile, "# summary of local and remote events executed\n")
 	fmt.Fprintf(outFile, "# LP, local, remote\n")
-	for i := 0; i < numOfLPs; i++ {
+	for i := range lps {
 		fmt.Fprintf(outFile,"\"%v\", ",mapIntToLPName[i])
 		rCount := 0
-		for j := 0; j < numOfLPs; j++ {if i != j {rCount = rCount + lpMatrix[i][j]}}
+		for j := range lps {if i != j {rCount = rCount + lpMatrix[i][j]}}
 		fmt.Fprintf(outFile,"%v, %v\n",lpMatrix[i][i],rCount)
 	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
+
+	// let's take a look at the frequency of communication with others.  how many
+	// different LPs does each LP send messages to?
+	fmt.Printf("Computing the frequency of communication with other LPs.\n")
+
 
 	// events available for execution: here we will assume all events execute in unit
 	// time and evaluate the events as executable by simulation cycle.  basically we
@@ -392,7 +397,7 @@ func main() {
 	// step it to store the event data into the lps by the sending LP id.
 
 	// reset the lpIndex pointers and the length of slices to their capacity
-	for i := 0; i < numOfLPs; i++ {lpIndex[i] = -1}
+	for i := range lps {lpIndex[i] = -1}
 	for i := range lps {lps[i] = lps[i][:cap(lps[i])]}
 
 	fmt.Printf("Organizing data by sending LPs.\n")
