@@ -162,6 +162,7 @@ func main() {
 	// write summaries of local and remote events received
 	outFile, err := os.Create("analysisData/eventsExecutedByLP.dat")
 	if err != nil {panic(err)}
+	fmt.Fprintf(outFile, "# summary of local and remote events executed\n")
 	fmt.Fprintf(outFile, "# LP, local, remote\n")
 	for i := 0; i < numOfLPs; i++ {
 		fmt.Fprintf(outFile,"%v, ",mapIntToLPName[i])
@@ -172,14 +173,17 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	// event chains
+	// consider a locally linked chain computation.  that is, anything generated
+	// within the time frame of the chain should also be included in the chain length
+	// computation
+
+	// compute the local and global event chains for each LP
+	eventChainLength := 5
 	fmt.Printf("Computing local/global event chains by LP.\n")
-	outFile, err = os.Create("analysisData/eventChainsLP.dat")
-	if err != nil {panic(err)}
 	localEventChain := make([][]int,numOfLPs)
-	for i := range localEventChain {localEventChain[i] = make([]int,10)}
+	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
 	globalEventChain := make([][]int,numOfLPs)
-	for i := range globalEventChain {globalEventChain[i] = make([]int,10)}
+	for i := range globalEventChain {globalEventChain[i] = make([]int,eventChainLength)}
 	for i, lp := range lps {
 		// local chain analysis
 		j := 0
@@ -187,9 +191,9 @@ func main() {
 			for ; j < len(lp) && lp[j].companionLP != i ; j++ {}
 			if j < len(lp) && lp[j].companionLP == i {
 				k := j + 1
-				for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime && lp[k].companionLP == i ; {k++}
-				if k-j-1 >= 10 {
-					localEventChain[i][9]++
+				for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime && lp[k].companionLP == i ; {k++}
+				if k-j-1 >= eventChainLength {
+					localEventChain[i][eventChainLength - 1]++
 				} else {
 					localEventChain[i][k-j-1]++
 				}
@@ -200,23 +204,68 @@ func main() {
 		j = 0
 		for ; j < len(lp) ; {
 			k := j + 1
-			for ; k < len(lp) && lp[k].sendTime < lp[j].receiveTime ; {
+			for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime ; {
 				k++
 			}
-			if k-j-1 >= 10 {
-				globalEventChain[i][9]++
+			if k-j-1 >= eventChainLength {
+				globalEventChain[i][eventChainLength - 1]++
 			} else {
 				globalEventChain[i][k-j-1]++
 			}
 			j = j + k
 		}
-		fmt.Printf("%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
-//		fmt.Fprintf(outFile,"%v, %v, %v\n",mapIntToLPName[i],localEventChain[i],globalEventChain[i])
 	}
-
+	
+	// write local event chains for each LP
+	outFile, err = os.Create("analysisData/localEventChainsByLP.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"local event chains by LP\n")
+	fmt.Fprintf(outFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
+	for i := range lps {
+		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
+		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",localEventChain[i][j])}
+		fmt.Fprintf(outFile,"\n")
+	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
+	// write global event chains for each LP
+	outFile, err = os.Create("analysisData/globalEventChainsByLP.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"global event chains by LP\n")
+	fmt.Fprintf(outFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
+	for i := range lps {
+		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
+		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",globalEventChain[i][j])}
+		fmt.Fprintf(outFile,"\n")
+	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
+// number of LPs with n event chains of length X
+// number of LPs with average event chains of length X
+
+	// not sure this will be useful or not, but let's save totals of the local and
+	// global event chains.  specifically we will sum the local/global event chains
+	// for all of the LPs in the system
+	eventChainSummary := make([][]int,2)
+	// store local event chain summary data here
+	eventChainSummary[0] = make([]int,eventChainLength)
+	// store global event chain summary data here
+	eventChainSummary[1] = make([]int,eventChainLength)
+	for i := range lps {
+		for j := 0; j < eventChainLength; j++ {
+			eventChainSummary[0][j] = eventChainSummary[0][j] + localEventChain[i][j]
+			eventChainSummary[1][j] = eventChainSummary[1][j] + globalEventChain[i][j]
+		}
+	}
+	outFile, err = os.Create("analysisData/eventChainsSummary.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"number of event chains of length X\n")
+	fmt.Fprintf(outFile,"# chain length, num of local chains, num of global chains\n")
+	for i := 0; i < eventChainLength; i++ {fmt.Fprintf(outFile,"%v, %v, %v\n",i+1,eventChainSummary[0][i],eventChainSummary[1][i])}
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
 
 	// in this step we will be looking at events seen at the sending LPsd.  the first
