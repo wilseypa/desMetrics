@@ -37,7 +37,7 @@ programming cooperation from the community of the target simulation engine.
 
 The second (larger) part of this project is the data analysis activity. The objective of
 this is to discover meaningful understandings of the characteristics of the simulation
-models. While there are specific analysis results that we expect to see in this phase, as
+models.  While there are specific analysis results that we expect to see in this phase, as
 we advance our studies in this space, we are likely to expand the types of analyses that
 are performed.
 
@@ -77,7 +77,7 @@ check on the data to ensure at least its base integrity.
 
 Finally, for instrumenting existing parallel simulation engines, this capture should be
 relatively straight forward.  However, for existing sequential models, it may be difficult
-to instrument the simulation isolate the communicating LPs of a simulation model.
+to instrument the simulation and isolate the communicating LPs of a simulation model.
 However, even for parallel simulation models, we may find that the LPs are artificially
 partitioned into larger objects that could actually be broken down into multiple LPs.
 This may negatively affect our analysis results.  Not sure what we can do about this, but
@@ -102,13 +102,13 @@ following generic format:
     "command_line_arguments" : "significant command line arguments",
 
     // optional, include as needed
-    "configuration_information" : "any significant configuration information, even copying an entire configuration file",
+    "configuration_information" : "any significant configuration information",
 
     // optional, probably not needed as we can get this info from the "events" array
     "LPs" : [ "name of LP", "...." ],
 
     "events": [
-      [ "source LP", <send_time>, "destination LP", <receive_time> ],
+      { "sLP":"source LP", "sTS": <send_time>, "rLP":"destination LP", "rTS":<receive_time> },
         "....forall events processed...."
       ]
     }
@@ -165,31 +165,17 @@ suggest we put this on the back burner and focus on direct analysis for the mome
 
 ### Approach
 
-For this part of the project, I propose to develop/use a python-based tool to import the
-JSON file and produce various graphs/data for analysis.  I am moving to a framework of
-displaying the analysis data using web based (javascript) data visualization tools based
-on the d3 visualization library.  In particular, I am exploring the use of nvd3 to
-visualize the data.  As a result the output of our analysis programs should also be
-formatted as JSON files that the nvd3 scripts can read.  I will continue to explore this
-option as we move forward with our analysis results.
-
-Using nvd3, we should be able to create a generic index.html file (which I am also
-maintaining in this directory as indexTemplate.html) that uses markdown to organize the
-data into webpage images with affiliated descriptions so that the reader will have a solid
-understanding of what each graphic is actually depicting.
-
-<!--
-
-I do not care if we use the python tool to simply produce ASCII tabular data (and,
-optionally, csv files) that can be processed by gnuplot scripts or other tools (but given
-the size of the problem, it is critical that the plotting event be scriptable), or if we
-generate the graphical results (as pdf) directly from the python analysis program.  Using
-pdf as scalar vector format for our graphical data should make it easy to render in
-computer displays, webpages, and papers.  I also propose that we use a markdown file to
-organize the data into webpage images with affiliated descriptions so that the reader will
-have a solid understanding of what each image is actually depicting.
-
--->
+For this part of the project, I propose to develop/use a tool to import the JSON file and
+produce various graphs/data for analysis.  The output of this analysis tool will be comma
+separated csv files that we can use for graphical visualization of the results.  Because
+of the size of these files, it will probably be necessary to use offline visualization
+tools to present the data.  Initial experiments with web-based javascript tools (e.g.,
+nvd3) have, so far, proven to be inadequate for this task.  In particular I am working up
+gnuplot scripts to convert the data to various formats for display in webpages (svg, pdf)
+and documents (pdf, eps).   I am also maintaining a file in this directory
+(indexTemplate.md) that uses markdown to organize the data into webpage images with
+affiliated descriptions so that the reader will have a solid understanding of what each
+graphic is actually depicting. 
 
 ### Analysis Output Formats
 
@@ -213,6 +199,8 @@ LP specific data we want to capture.
     ];
 
 #### Event Chains
+
+**This has all completely changed and needs to be updated**
 
 An event chain is the number of events in an LP that could be executed as a group.  That
 is, let t be the timestamp of a simulation cycle, how many events in the list of events
