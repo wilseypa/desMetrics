@@ -178,7 +178,60 @@ func main() {
 
 	// let's take a look at the frequency of communication with others.  how many
 	// different LPs does each LP send messages to?
-	fmt.Printf("Computing the frequency of communication with other LPs.\n")
+	fmt.Printf("Computing the number of LPs sent to to cover a percentage of total events sent.\n")
+	// first we need to transpose the matrix so we have senders in rows and receivers
+	// in columns
+	for i := range lps {
+		for j := i; j < len(lps); j++ {
+			tmp := lpMatrix[i][j]
+			lpMatrix[i][j] = lpMatrix[j][i]
+			lpMatrix[j][i] = tmp
+		}
+	}
+	// now we define a helper function to compute the number of LPs that an LP sends
+	// messages to to cover the number required
+	numOfLPsToCover := func(lpMatrix []int, numRequired int) int {
+		lpCount := 0
+		eventCount := 0
+		for i := range lpMatrix {
+			lpCount++
+			eventCount = eventCount + lpMatrix[i]
+			if eventCount >= numRequired {return lpCount}
+		}
+		panic("ERROR: something's amiss in this computation\n")
+	}
+	// next we have to sort the events sent by each sending LP (this means we no
+	// longer know the receiving LP); count the number of events sent by each LP; and
+	// dump the results
+	outFile, err = os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
+	fmt.Fprintf(outFile,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+	for i := range lps {
+		sort.Sort(sort.Reverse(sort.IntSlice(lpMatrix[i])))
+		totalEventsSent := 0
+		j := 0
+		for ; j < len(lps) && lpMatrix[i][j] != 0; j++ {
+			totalEventsSent = totalEventsSent + lpMatrix[i][j]
+		}
+		// determine number of events sent to reach each cutoff
+		cutoff1 := (totalEventsSent * 75) / 100 // a 75% cutoff
+		cutoff2 := (totalEventsSent * 80) / 100 // a 80% cutoff
+		cutoff3 := (totalEventsSent * 90) / 100 // a 90% cutoff
+		cutoff4 := (totalEventsSent * 95) / 100 // a 95% cutoff
+		if totalEventsSent != 0 {
+			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,
+				numOfLPsToCover(lpMatrix[i],cutoff1),
+				numOfLPsToCover(lpMatrix[i],cutoff2),
+				numOfLPsToCover(lpMatrix[i],cutoff3),
+				numOfLPsToCover(lpMatrix[i],cutoff4),
+				j+1)
+		} else {
+			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,0,0,0,0,0)
+		}
+	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
 
 	// events available for execution: here we will assume all events execute in unit
@@ -188,7 +241,8 @@ func main() {
 	// that time.  the general algorithm is outlined in the indexTemplate.md file for
 	// this project. 
 
-	// we will use lpIndex to point to the 
+	// we will use lpIndex to point to the current event not yet processed in a
+	// simulation cycle at each LP
 
 	fmt.Printf("Computing event parallelism statistics.\n")
 	for i := range lps {lpIndex[i] = 0}
