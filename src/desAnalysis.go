@@ -65,7 +65,6 @@ func main() {
 	// arrays/slices of LPs; while we're running through the event list, let's do what
 	// we can to verify the integrity of the data.  at this point all we can do is
 	// ensure that the send time is less than the receive time.  
-
 	fmt.Printf("Building LP maps and validating data.\n")
 	numOfLPs := 0
 	mapLPNameToInt := make(map[string]int)
@@ -96,7 +95,6 @@ func main() {
 	// starting point, we will assume that the events are approximately equally
 	// distributed among the LPs.  if this is not large enough, we will grow the slice
 	// in increments of 2048 additional elements.
-		
 	numOfTraceEvents := len(desTraceData.Events)
 	capOfLPEventSlice := numOfTraceEvents/numOfLPs
 	if capOfLPEventSlice < 2048 {capOfLPEventSlice = 2048}
@@ -112,7 +110,6 @@ func main() {
 
 	// in this step we will be looking at events seen at the receiving LP.  the first
 	// step it to store the event data into the lps by the receiving LP id.
-
 	fmt.Printf("Organizing data by receiving LPs.\n")
 	for _, traceEvent := range desTraceData.Events {
 		rLP := mapLPNameToInt[traceEvent.ReceiveLP]
@@ -213,25 +210,19 @@ func main() {
 		for ; j < len(lps) && lpMatrix[i][j] != 0; j++ {
 			totalEventsSent = totalEventsSent + lpMatrix[i][j]
 		}
-		// determine number of events sent to reach each cutoff
-		cutoff1 := (totalEventsSent * 75) / 100 // a 75% cutoff
-		cutoff2 := (totalEventsSent * 80) / 100 // a 80% cutoff
-		cutoff3 := (totalEventsSent * 90) / 100 // a 90% cutoff
-		cutoff4 := (totalEventsSent * 95) / 100 // a 95% cutoff
 		if totalEventsSent != 0 {
 			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,
-				numOfLPsToCover(lpMatrix[i],cutoff1),
-				numOfLPsToCover(lpMatrix[i],cutoff2),
-				numOfLPsToCover(lpMatrix[i],cutoff3),
-				numOfLPsToCover(lpMatrix[i],cutoff4),
-				j+1)
+				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 75) / 100), // 75% cutoff
+				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 80) / 100), // 80% cutoff
+				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 90) / 100), // 90% cutoff
+				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 95) / 100), // 95% cutoff
+				j+1) // 100% cutoff
 		} else {
 			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,0,0,0,0,0)
 		}
 	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-
 
 	// events available for execution: here we will assume all events execute in unit
 	// time and evaluate the events as executable by simulation cycle.  basically we
@@ -445,7 +436,7 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-
+/*
 	// in this step we will be looking at events seen at the sending LPsd.  the first
 	// step it to store the event data into the lps by the sending LP id.
 
@@ -485,6 +476,6 @@ func main() {
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("Sorting the events in each LP by send time.\n")
 	for i := range lps {sort.Sort(bySendTime(lps[i]))}
-
+*/
 	return
 }
