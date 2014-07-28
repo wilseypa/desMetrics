@@ -48,8 +48,7 @@ func (a bySendTime) Less(i, j int) bool {return a[i].sendTime < a[j].sendTime}
 // assumes one argument that is the name of the trace file to use
 func main() {
 	
-	// get a handle to the input file and import the json file
-	// get a handle to the input file and import the json file
+	// get a handle to the input file and import/parse the json file
 	traceDataFile, err := os.Open(os.Args[1])
 	if err != nil { panic(err) }
 	fmt.Printf("Parsing input json file: %v\n",os.Args[1])
@@ -74,30 +73,32 @@ func main() {
 		_,present := mapLPNameToInt[eventData.SendLP]
 		if !present {
 			mapLPNameToInt[eventData.SendLP] = numOfLPs
-			numOfLPs = numOfLPs + 1
+			numOfLPs++
 		}
 		_,present = mapLPNameToInt[eventData.ReceiveLP]
 		if !present {
 			mapLPNameToInt[eventData.ReceiveLP] = numOfLPs
-			numOfLPs = numOfLPs + 1
+			numOfLPs++
 		}
+		// we should require that the send time be strictly less than the receive
+		// time, but the ross (airport model) data actually has data with the
+		// send/receive times (and other sequential simulators are likely to have
+		// this as well), so we will weaken this constraint.
 		if eventData.SendTime > eventData.ReceiveTime {log.Panic("Event has send time greater than receive time: ", eventData)}
 	}
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
 
-	// now we need to partition the events by LP for our first analysis.  lps is an
-	// slice (of slices) that we will use to store the events associated with each LP.
-	// we have to define initial size and capacity limits to the go slices.  while we
-	// will include code to resize the slices, since they are large, let's try to
-	// start out with capacities that are sufficient.  as a starting point, we will
-	// assume that the events are approximately equally distributed among the LPs.
-	// however, we will assume that the distribution of events may be off by as much
-	// as 10%.  if this is not large enough, we will grow the slice in increments of
-	// 2048 additional elements.
+	// now we need to partition the events by LP for our analysis.  lps is an slice
+	// (of slices) that we will use to store the events associated with each LP.  we
+	// have to define initial size and capacity limits to the go slices.  as a
+	// starting point, we will assume that the events are approximately equally
+	// distributed among the LPs.  if this is not large enough, we will grow the slice
+	// in increments of 2048 additional elements.
 		
-	capOfLPEventSlice := int(len(desTraceData.Events)/numOfLPs + int(.1*float64((len(desTraceData.Events)/(numOfLPs)))))
+	numOfTraceEvents := len(desTraceData.Events)
+	capOfLPEventSlice := numOfTraceEvents/numOfLPs
 	if capOfLPEventSlice < 2048 {capOfLPEventSlice = 2048}
 	lps := make([][]eventData, numOfLPs)
 	for i := range lps {
@@ -106,7 +107,7 @@ func main() {
 
 	// we will use lpIndex throughout the program to keep a pointer for each LP to the
 	// event of interest for that LP
-	lpIndex := make([]int, numOfLPs)
+	lpIndex := make([]int, len(lps))
 	for i := range lps {lpIndex[i] = -1}
 
 	// in this step we will be looking at events seen at the receiving LP.  the first
@@ -137,7 +138,6 @@ func main() {
 			lps[i] = lps[i][:0]
 			fmt.Printf("WARNING: LP \"%v\" recived zero messages.\n", mapIntToLPName[i])
 		}
-		//fmt.Printf("%v\n",lps[i])
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
@@ -145,13 +145,12 @@ func main() {
 	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
 
 	// on to analysis: we first consider local and remote events.  for this purpose,
-	// we'll compute a matrix of ints where the row index is the receiving LP and the
-	// column index is the sending LP and the entries are the number of events
+	// we'll compute a (square) matrix of ints where the row index is the receiving LP
+	// and the column index is the sending LP and the entries are the number of events
 	// exchanged between them.  from this matrix, we will print out summary files.
-
-	lpMatrix := make([][]int, numOfLPs)
-	for i := range lpMatrix {
-		lpMatrix[i] = make([]int,numOfLPs)
+	lpMatrix := make([][]int, len(lps))
+	for i := range lps {
+		lpMatrix[i] = make([]int,len(lps))
 		for j := range lps[i] {
 			lpMatrix[i][lps[i][j].companionLP]++
 		}
@@ -247,7 +246,7 @@ func main() {
 	fmt.Printf("Computing event parallelism statistics.\n")
 	for i := range lps {lpIndex[i] = 0}
 	simCycle := 0
-	eventsAvailable := make([]int, len(desTraceData.Events))
+	eventsAvailable := make([]int, numOfTraceEvents)
 	maxEventsAvailable := 0
 	done := false
 	lpIndexToFixSameSendReceiveTime := 0
@@ -326,11 +325,11 @@ func main() {
 	// compute the local and global event chains for each LP
 	fmt.Printf("Computing local, linked, and global event chains by LP.\n")
 	eventChainLength := 5
-	localEventChain := make([][]int,numOfLPs)
+	localEventChain := make([][]int,len(lps))
 	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
-	linkedEventChain := make([][]int,numOfLPs)
+	linkedEventChain := make([][]int,len(lps))
 	for i := range linkedEventChain {linkedEventChain[i] = make([]int,eventChainLength)}
-	globalEventChain := make([][]int,numOfLPs)
+	globalEventChain := make([][]int,len(lps))
 	for i := range globalEventChain {globalEventChain[i] = make([]int,eventChainLength)}
 	for i, lp := range lps {
 		// local chain analysis
