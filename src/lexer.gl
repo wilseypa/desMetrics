@@ -103,7 +103,8 @@ func Scan() (int, []byte) {
 \"[^\"]*\"	return STRING, inputBuffer
 \'[^\']*\'	return STRING, inputBuffer
 
-[0-9]+(\.[0-9]*)?	return NUMBER, inputBuffer
+[0-9]+(\.[0-9]*)?(e([+-])?[0-9]+)?
+		return NUMBER, inputBuffer
 
 %%
 

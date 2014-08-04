@@ -2,7 +2,6 @@ package main
 
 import "os"
 import "fmt"
-import "log"
 import "sort"
 import "math"
 import "strconv"
@@ -70,7 +69,7 @@ func main() {
 
 	// we'll initialize then entries for each element in lps as we discover new LPs in
 	// the input file (and grow the size of lps as necessary as well)
-	lps := make([][]eventData, 4096)
+	lps := make([][]eventData, 8192)
 	// we will use lpIndex throughout the program to keep a pointer for each LP to the
 	// event of interest for that LP
 	lpIndex := make([]int, len(lps))
@@ -82,22 +81,22 @@ func main() {
 	addLP := func(lp string) int {
 		index, present := mapLPNameToInt[lp]
 		if !present {
+			if numOfLPs >= cap(lps) {
+				sizeToGrow := 8192
+				fmt.Printf("Enlarging slices to hold LPs.  Prev size: %v, New size: %v\n",
+					cap(lps),cap(lps)+sizeToGrow)
+				newLpIndex := make([]int, cap(lps)+sizeToGrow)
+				for i := range newLpIndex {newLpIndex[i] = -1}
+				copy(newLpIndex, lpIndex)
+				lpIndex = newLpIndex
+				newLps := make([][]eventData, cap(lps)+sizeToGrow)
+				copy(newLps, lps)
+				lps = newLps
+			}
 			mapLPNameToInt[lp] = numOfLPs
 			lps[numOfLPs] = make([]eventData, 20000)
 			index = numOfLPs
 			numOfLPs++
-		}
-		if numOfLPs > cap(lps) {
-			sizeToGrow := 1024
-			fmt.Printf("Enlarging slices to hold LPs.  Prev size: %v, New size: %v\n",
-				cap(lps),cap(lps)+sizeToGrow)
-			newLpIndex := make([]int, cap(lps)+sizeToGrow)
-			for i := range newLpIndex {newLpIndex[i] = -1}
-			copy(newLpIndex, lpIndex)
-			lpIndex = newLpIndex
-			newLps := make([][]eventData, cap(lps)+sizeToGrow)
-			copy(newLps, lps)
-			lps = newLps
 		}
 		return index
 	}
@@ -205,8 +204,11 @@ func main() {
 				// time, but the ross (airport model) data actually has data with the
 				// send/receive times (and other sequential simulators are likely to have
 				// this as well), so we will weaken this constraint.
-				if sendTime > receiveTime {log.Panic("Event has send time greater than receive time: %v %v %v %v\n", 
-					sendingLP, sendTime, receivingLP, receiveTime)}
+				if sendTime > receiveTime {
+					fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
+						sendingLP, sendTime, receivingLP, receiveTime)
+					panic("Aborting")
+				}
 				addEvent(sendingLP, sendTime, receivingLP, receiveTime)
 				if token == R_BRACKET {break parsingLoop}
 				scanAssume(COMMA)
