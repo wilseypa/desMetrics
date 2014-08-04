@@ -38,191 +38,204 @@ func (a byReceiveTime) Len() int           {return len(a)}
 func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
 func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
 
-// functions to support sorting of the events by their send time
-type bySendTime []eventData
-func (a bySendTime) Len() int           {return len(a)}
-func (a bySendTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
-func (a bySendTime) Less(i, j int) bool {return a[i].sendTime < a[j].sendTime}
-
 func main() {
 
-	inputFile, err := os.Open(os.Args[1])
-	if err != nil { panic(err) }
-
-	fileInfo, err := os.Stat(os.Args[1])
-	if err != nil { panic(err) }
-	fmt.Printf("Length of file %v\n",fileInfo.Size())
-
-
-	// now we need to partition the events by LP for our analysis.  lps is an slice
-	// (of slices) that we will use to store the events associated with each LP.  we
-	// have to define initial size and capacity limits to the go slices.  as a
-	// starting point, we will assume that the events are approximately equally
-	// distributed among the LPs.  if this is not large enough, we will grow the slice
-	// in increments of 2048 additional elements.
-
-	// since we have no real idea of how many LPs or even the total events processed,
-	// we will have to begin with wild guesses.  i suppose we could make this a
-	// configurable parameter on the argument list, but for now i'm just going to punt
-	// and begin with 4k LPs and with 10,000 events/LP.
-
-
-	// we'll initialize then entries for each element in lps as we discover new LPs in
-	// the input file (and grow the size of lps as necessary as well)
-	lps := make([][]eventData, 8192)
-	// we will use lpIndex throughout the program to keep a pointer for each LP to the
-	// event of interest for that LP
-	lpIndex := make([]int, len(lps))
-	for i := range lps {lpIndex[i] = -1}
+	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
+	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
+	// number of LPs, and the total number of events.  we will use these counts to build the principle
+	// data structures to hold events by LPs (by assuming that the events are more or less uniformly
+	// distributed among the LPs.  in the second pass, we will store the events into our internal data
+	// structures.  we will use the function processEvent to mahage each step.  between parses it will be
+	// changed to point to the addEvent function.
 	numOfLPs := 0
 	numOfEvents := 0
-	mapLPNameToInt := make(map[string]int)
 
-	addLP := func(lp string) int {
-		index, present := mapLPNameToInt[lp]
+	type lpMap struct {
+		toInt int
+		sentEvents int
+		receivedEvents int
+	}
+
+//	mapLPNameToInt := make(map[string]lpMap)
+	lpNameMap :=make(map[string]*lpMap)
+
+	// ultimately we will use these to hold event data
+	var lps [][]eventData
+	var lpIndex []int
+
+	addLP := func(lp string) *lpMap {
+		item, present := lpNameMap[lp]
 		if !present {
-			if numOfLPs >= cap(lps) {
-				sizeToGrow := 8192
-				fmt.Printf("Enlarging slices to hold LPs.  Prev size: %v, New size: %v\n",
-					cap(lps),cap(lps)+sizeToGrow)
-				newLpIndex := make([]int, cap(lps)+sizeToGrow)
-				for i := range newLpIndex {newLpIndex[i] = -1}
-				copy(newLpIndex, lpIndex)
-				lpIndex = newLpIndex
-				newLps := make([][]eventData, cap(lps)+sizeToGrow)
-				copy(newLps, lps)
-				lps = newLps
-			}
-			mapLPNameToInt[lp] = numOfLPs
-			lps[numOfLPs] = make([]eventData, 20000)
-			index = numOfLPs
+			lpNameMap[lp] = new(lpMap)
+			lpNameMap[lp].toInt = numOfLPs
+			item = lpNameMap[lp]
 			numOfLPs++
 		}
-		return index
+		return item
 	}
-
-	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
-		sLPindex := addLP(sLP)
-		rLPindex := addLP(rLP)
-		lpIndex[rLPindex]++
-		if lpIndex[rLPindex] > cap(lps[rLPindex]) {
-			fmt.Printf("Enlarging slice for receiving LP: %v.  Prev size: %v, New size: %v\n",
-				rLP,cap(lps[rLPindex]),cap(lps[rLPindex])+2048)
-			newSlice := make([]eventData,cap(lps[rLPindex])+2048)
-			copy(newSlice,lps[rLPindex])
-			lps[rLPindex] = newSlice
-		}
-		lps[rLPindex][lpIndex[rLPindex]].companionLP = sLPindex
-		lps[rLPindex][lpIndex[rLPindex]].receiveTime = rTS
-		lps[rLPindex][lpIndex[rLPindex]].sendTime = sTS
+	// this is the event processing function for the first pass
+	processEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
+		// count the events
 		numOfEvents++
+		// build a map of LPs to ints and record the number of sent and received events at each
+		lp := addLP(sLP)
+		lp.sentEvents++
+		lp = addLP(rLP)
+		lp.receivedEvents++
+	}
+	// this is the event processing function for the second pass
+	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
+		rLPint := lpNameMap[rLP].toInt
+		lpIndex[rLPint]++
+		if lpIndex[rLPint] > cap(lps[rLPint]) {panic("Something wrong, we should have computed the appropriate size on the first parse.\n")}
+		lps[rLPint][lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
+		lps[rLPint][lpIndex[rLPint]].receiveTime = rTS
+		lps[rLPint][lpIndex[rLPint]].sendTime = sTS
 	}
 
-	// initialize the scanner
-	ScanInit(inputFile)
-
-	var token int
-	var tokenText []byte
-
-	// helper function
-	scanAssume:= func(expectedToken int) {
-		if expectedToken != token {
-			fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
-			panic("Aborting")
-		}
-		token, tokenText = Scan()
+	printInfo := func (format string, a ...interface{}) (n int, err error) {
+		n, err = fmt.Printf(format, a)
+		return n, err
 	}
 
-	fmt.Printf("Processing JSON file: %v\n", os.Args[1])
+	// this is the parser we will use
+	parseJsonFile := func(inputFile *os.File) {
+
+		// initialize the scanner
+		ScanInit(inputFile)
 		
-	// parse the json data file, this is hugely fragile but functional
-	token, tokenText = Scan()
-	scanAssume(L_CURLY)
-	parsingLoop: for ; token != EOF; {
-		switch token {
-		case SIMULATOR_NAME:
-			token, tokenText = Scan()
-			scanAssume(COLON)
-			fmt.Printf("    Simulator Name: %v\n", string(tokenText))
-			token, tokenText = Scan()
-			scanAssume(COMMA)
-		case MODEL_NAME:
-			token, tokenText = Scan()
-			scanAssume(COLON)
-			fmt.Printf("   Model Name: %v\n", string(tokenText))
-			token, tokenText = Scan()
-			scanAssume(COMMA)
-		case CAPTURE_DATE:
-			token, tokenText = Scan()
-			scanAssume(COLON)
-			fmt.Printf("    Capture date: %v\n", string(tokenText))
-			token, tokenText = Scan()
-			scanAssume(COMMA)
-		case COMMAND_LINE_ARGS :
-			token, tokenText = Scan()
-			scanAssume(COLON)
-			fmt.Printf("    Command line arguments: %v\n", string(tokenText))
-			token, tokenText = Scan()
-			scanAssume(COMMA)
-		case EVENTS:
-			token, tokenText = Scan()
-			scanAssume(COLON)
-			scanAssume(L_BRACKET)
-			fmt.Printf("Processing Events.\n")
-			for ; token != EOF ; {
-				var sendingLP, receivingLP string
-				var sendTime, receiveTime float64
-				scanAssume(L_CURLY)
-				for i := 0; i < 4; i++ {
-					if i > 0 {scanAssume(COMMA)}
-					switch token {
-					case SEND_LP:
-						token, tokenText = Scan()
-						scanAssume(COLON)
-						sendingLP = string(tokenText)
-						token, tokenText = Scan()
-					case SEND_TIME:
-						token, tokenText = Scan()
-						scanAssume(COLON)
-						sendTime, err = strconv.ParseFloat(string(tokenText),64)
-						token, tokenText = Scan()
-					case RECEIVE_LP:
-						token, tokenText = Scan()
-						scanAssume(COLON)
-						receivingLP = string(tokenText)
-						token, tokenText = Scan()
-					case RECEIVE_TIME:
-						token, tokenText = Scan()
-						scanAssume(COLON)
-						receiveTime, err = strconv.ParseFloat(string(tokenText),64)
-						if err != nil {panic(err)}
-						token, tokenText = Scan()
-					}
-				}
-				scanAssume(R_CURLY)
-				// we should require that the send time be strictly less than the receive
-				// time, but the ross (airport model) data actually has data with the
-				// send/receive times (and other sequential simulators are likely to have
-				// this as well), so we will weaken this constraint.
-				if sendTime > receiveTime {
-					fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
-						sendingLP, sendTime, receivingLP, receiveTime)
-					panic("Aborting")
-				}
-				addEvent(sendingLP, sendTime, receivingLP, receiveTime)
-				if token == R_BRACKET {break parsingLoop}
-				scanAssume(COMMA)
+		var token int
+		var tokenText []byte
+		
+		// helper function
+		scanAssume:= func(expectedToken int) {
+			if expectedToken != token {
+				fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
+				panic("Aborting")
 			}
-		default:
-			// this should never happen
-			fmt.Printf("Mal formed json file at %v\n",fileLineNo)
-			panic("Aborting")
+			token, tokenText = Scan()
+		}
+		
+		// parse the json data file, this is hugely fragile but functional
+		token, tokenText = Scan()
+		scanAssume(L_CURLY)
+		parsingLoop: for ; token != EOF; {
+			switch token {
+			case SIMULATOR_NAME:
+				token, tokenText = Scan()
+				scanAssume(COLON)
+				printInfo("    Simulator Name: %v\n", string(tokenText))
+				token, tokenText = Scan()
+				scanAssume(COMMA)
+			case MODEL_NAME:
+				token, tokenText = Scan()
+				scanAssume(COLON)
+				printInfo("    Model Name: %v\n", string(tokenText))
+				token, tokenText = Scan()
+				scanAssume(COMMA)
+			case CAPTURE_DATE:
+				token, tokenText = Scan()
+				scanAssume(COLON)
+				printInfo("    Capture date: %v\n", string(tokenText))
+				token, tokenText = Scan()
+				scanAssume(COMMA)
+			case COMMAND_LINE_ARGS :
+				token, tokenText = Scan()
+				scanAssume(COLON)
+				printInfo("    Command line arguments: %v\n", string(tokenText))
+				token, tokenText = Scan()
+				scanAssume(COMMA)
+			case EVENTS:
+				token, tokenText = Scan()
+				scanAssume(COLON)
+				scanAssume(L_BRACKET)
+				for ; token != EOF ; {
+					var sendingLP, receivingLP string
+					var sendTime, receiveTime float64
+					var err error
+					scanAssume(L_CURLY)
+					for i := 0; i < 4; i++ {
+						if i > 0 {scanAssume(COMMA)}
+						switch token {
+						case SEND_LP:
+							token, tokenText = Scan()
+							scanAssume(COLON)
+							sendingLP = string(tokenText)
+							token, tokenText = Scan()
+						case SEND_TIME:
+							token, tokenText = Scan()
+							scanAssume(COLON)
+							sendTime, err = strconv.ParseFloat(string(tokenText),64)
+							if err != nil {panic(err)}
+							token, tokenText = Scan()
+						case RECEIVE_LP:
+							token, tokenText = Scan()
+							scanAssume(COLON)
+							receivingLP = string(tokenText)
+							token, tokenText = Scan()
+						case RECEIVE_TIME:
+							token, tokenText = Scan()
+							scanAssume(COLON)
+							receiveTime, err = strconv.ParseFloat(string(tokenText),64)
+							if err != nil {panic(err)}
+							token, tokenText = Scan()
+						}
+					}
+					scanAssume(R_CURLY)
+					// we should require that the send time be strictly less than the
+					// receive time, but the ross (airport model) data actually has data
+					// with the send/receive times (and other sequential simulators are
+					// likely to have this as well), so we will weaken this constraint.
+					if sendTime > receiveTime {
+						fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
+							sendingLP, sendTime, receivingLP, receiveTime)
+						panic("Aborting")
+					}
+					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
+					if token == R_BRACKET {break parsingLoop}
+					scanAssume(COMMA)
+				}
+			default:
+				// this should never happen
+				fmt.Printf("Mal formed json file at %v\n",fileLineNo)
+				panic("Aborting")
+			}
 		}
 	}
+
+	// this time we will collect information on the number of events and the number of LPs
+	fmt.Printf("Processing %v to capture event and LP counts.\n", os.Args[1])
+	inputFile, err := os.Open(os.Args[1])
+	if err != nil { panic(err) }
+	parseJsonFile(inputFile)
+	err = inputFile.Close()
+
+	// reset this function so we don't print the model information in the second parse
+	printInfo = func (format string, a ...interface{}) (n int, err error) {return 0, nil}
+
+	// lps is an array of the LPs; each LP entry will hold the events it received
+	lps = make([][]eventData, len(lpNameMap))
+
+	// periodically we will need to walk through the LP arrays independently; we will use this array to do so
+	lpIndex = make([]int, len(lps))
+	// allocate entries in each LP to hold the number events it received
+	for _, i := range lpNameMap {
+		lpIndex[i.toInt] = -1
+		lps[i.toInt] = make([]eventData, i.receivedEvents)
+	}
+
+	// this time we will save the events
+	fmt.Printf("Processing %v to capture events.\n", os.Args[1])
+	processEvent = addEvent
+	inputFile, err = os.Open(os.Args[1])
+	if err != nil { panic(err) }
+	parseJsonFile(inputFile)
+	err = inputFile.Close()
+
 
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
-	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
+	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
 	// now we need to set the lengths of the slices in the LP data so we can use the
 	// go builtin len() function on them
@@ -536,46 +549,5 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-/*
-	// in this step we will be looking at events seen at the sending LPsd.  the first
-	// step it to store the event data into the lps by the sending LP id.
-
-	// reset the lpIndex pointers and the length of slices to their capacity
-	for i := range lps {lpIndex[i] = -1}
-	for i := range lps {lps[i] = lps[i][:cap(lps[i])]}
-
-	fmt.Printf("Organizing data by sending LPs.\n")
-	for _, traceEvent := range desTraceData.Events {
-		sLP := mapLPNameToInt[traceEvent.SendLP]
-
-		lpIndex[sLP]++
-		if lpIndex[sLP] >= cap(lps[sLP]) {
-			fmt.Printf("Enlarging slice for sending LP: %v.  Prev size: %v, New size: %v\n",
-				traceEvent.ReceiveLP,cap(lps[sLP]),cap(lps[sLP])+2048)
-			newSlice := make([]eventData,cap(lps[sLP])+2048)
-			for i := range lps[sLP] {newSlice[i] = lps[sLP][i]}
-			lps[sLP] = newSlice
-		}
-		lps[sLP][lpIndex[sLP]].companionLP = mapLPNameToInt[traceEvent.ReceiveLP]
-		lps[sLP][lpIndex[sLP]].receiveTime = traceEvent.ReceiveTime
-		lps[sLP][lpIndex[sLP]].sendTime = traceEvent.SendTime
-	}
-
-	// now we need to set the lengths of the slices in the LP data so we can use the
-	// go builtin len() function on them
-	fmt.Printf("Sizing the slices of the LP events.\n")
-	for i := range lps {
-		if lpIndex[i] != -1 {
-			lps[i] = lps[i][:lpIndex[i]+1]
-		} else {
-			lps[i] = lps[i][:0]
-			fmt.Printf("WARNING: LP \"%v\" sent zero messages.\n", mapIntToLPName[i])
-		}
-		//fmt.Printf("%v\n",lps[i])
-	}
-	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
-	fmt.Printf("Sorting the events in each LP by send time.\n")
-	for i := range lps {sort.Sort(bySendTime(lps[i]))}
-*/
 	return
 }	
