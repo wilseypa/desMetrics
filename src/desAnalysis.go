@@ -1,11 +1,11 @@
 package main
 
-import "fmt"
 import "os"
+import "fmt"
 import "log"
 import "sort"
 import "math"
-import "encoding/json"
+import "strconv"
 
 var desTraceData struct {
 	SimulatorName string `json:"simulator_name"`
@@ -45,49 +45,15 @@ func (a bySendTime) Len() int           {return len(a)}
 func (a bySendTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
 func (a bySendTime) Less(i, j int) bool {return a[i].sendTime < a[j].sendTime}
 
-// assumes one argument that is the name of the trace file to use
 func main() {
-	
-	// get a handle to the input file and import/parse the json file
-	traceDataFile, err := os.Open(os.Args[1])
-	if err != nil { panic(err) }
-	fmt.Printf("Parsing input json file: %v\n",os.Args[1])
-	jsonParser := json.NewDecoder(traceDataFile)
-	err = jsonParser.Decode(&desTraceData); 
-	if err != nil { panic(err) }
-	fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Command line used for capture: %s\n",
-		desTraceData.SimulatorName, 
-		desTraceData.ModelName, 
-		desTraceData.CaptureDate, 
-		desTraceData.CommandLineArgs)
 
-	// ok, so let's create a map of the LP names -> integers so we can setup
-	// arrays/slices of LPs; while we're running through the event list, let's do what
-	// we can to verify the integrity of the data.  at this point all we can do is
-	// ensure that the send time is less than the receive time.  
-	fmt.Printf("Building LP maps and validating data.\n")
-	numOfLPs := 0
-	mapLPNameToInt := make(map[string]int)
-	for _,eventData := range desTraceData.Events {
-		_,present := mapLPNameToInt[eventData.SendLP]
-		if !present {
-			mapLPNameToInt[eventData.SendLP] = numOfLPs
-			numOfLPs++
-		}
-		_,present = mapLPNameToInt[eventData.ReceiveLP]
-		if !present {
-			mapLPNameToInt[eventData.ReceiveLP] = numOfLPs
-			numOfLPs++
-		}
-		// we should require that the send time be strictly less than the receive
-		// time, but the ross (airport model) data actually has data with the
-		// send/receive times (and other sequential simulators are likely to have
-		// this as well), so we will weaken this constraint.
-		if eventData.SendTime > eventData.ReceiveTime {log.Panic("Event has send time greater than receive time: ", eventData)}
-	}
-	// build the reverse map: integers -> LP Names
-	mapIntToLPName := make([]string, numOfLPs)
-	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
+	inputFile, err := os.Open(os.Args[1])
+	if err != nil { panic(err) }
+
+	fileInfo, err := os.Stat(os.Args[1])
+	if err != nil { panic(err) }
+	fmt.Printf("Length of file %v\n",fileInfo.Size())
+
 
 	// now we need to partition the events by LP for our analysis.  lps is an slice
 	// (of slices) that we will use to store the events associated with each LP.  we
@@ -95,40 +61,171 @@ func main() {
 	// starting point, we will assume that the events are approximately equally
 	// distributed among the LPs.  if this is not large enough, we will grow the slice
 	// in increments of 2048 additional elements.
-	numOfTraceEvents := len(desTraceData.Events)
-	capOfLPEventSlice := numOfTraceEvents/numOfLPs
-	if capOfLPEventSlice < 2048 {capOfLPEventSlice = 2048}
-	lps := make([][]eventData, numOfLPs)
-	for i := range lps {
-		lps[i] = make([]eventData,capOfLPEventSlice)
-	}
 
+	// since we have no real idea of how many LPs or even the total events processed,
+	// we will have to begin with wild guesses.  i suppose we could make this a
+	// configurable parameter on the argument list, but for now i'm just going to punt
+	// and begin with 4k LPs and with 10,000 events/LP.
+
+
+	// we'll initialize then entries for each element in lps as we discover new LPs in
+	// the input file (and grow the size of lps as necessary as well)
+	lps := make([][]eventData, 4096)
 	// we will use lpIndex throughout the program to keep a pointer for each LP to the
 	// event of interest for that LP
 	lpIndex := make([]int, len(lps))
 	for i := range lps {lpIndex[i] = -1}
+	numOfLPs := 0
+	numOfEvents := 0
+	mapLPNameToInt := make(map[string]int)
 
-	// in this step we will be looking at events seen at the receiving LP.  the first
-	// step it to store the event data into the lps by the receiving LP id.
-	fmt.Printf("Organizing data by receiving LPs.\n")
-	for _, traceEvent := range desTraceData.Events {
-		rLP := mapLPNameToInt[traceEvent.ReceiveLP]
-		lpIndex[rLP]++
-		if lpIndex[rLP] >= cap(lps[rLP]) {
-			fmt.Printf("Enlarging slice for receiving LP: %v.  Prev size: %v, New size: %v\n",
-				traceEvent.ReceiveLP,cap(lps[rLP]),cap(lps[rLP])+2048)
-			newSlice := make([]eventData,cap(lps[rLP])+2048)
-			for i := range lps[rLP] {newSlice[i] = lps[rLP][i]}
-			lps[rLP] = newSlice
+	addLP := func(lp string) int {
+		index, present := mapLPNameToInt[lp]
+		if !present {
+			mapLPNameToInt[lp] = numOfLPs
+			lps[numOfLPs] = make([]eventData, 20000)
+			index = numOfLPs
+			numOfLPs++
 		}
-		lps[rLP][lpIndex[rLP]].companionLP = mapLPNameToInt[traceEvent.SendLP]
-		lps[rLP][lpIndex[rLP]].receiveTime = traceEvent.ReceiveTime
-		lps[rLP][lpIndex[rLP]].sendTime = traceEvent.SendTime
+		if numOfLPs > cap(lps) {
+			sizeToGrow := 1024
+			fmt.Printf("Enlarging slices to hold LPs.  Prev size: %v, New size: %v\n",
+				cap(lps),cap(lps)+sizeToGrow)
+			newLpIndex := make([]int, cap(lps)+sizeToGrow)
+			for i := range newLpIndex {newLpIndex[i] = -1}
+			copy(newLpIndex, lpIndex)
+			lpIndex = newLpIndex
+			newLps := make([][]eventData, cap(lps)+sizeToGrow)
+			copy(newLps, lps)
+			lps = newLps
+		}
+		return index
 	}
+
+	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
+		sLPindex := addLP(sLP)
+		rLPindex := addLP(rLP)
+		lpIndex[rLPindex]++
+		if lpIndex[rLPindex] > cap(lps[rLPindex]) {
+			fmt.Printf("Enlarging slice for receiving LP: %v.  Prev size: %v, New size: %v\n",
+				rLP,cap(lps[rLPindex]),cap(lps[rLPindex])+2048)
+			newSlice := make([]eventData,cap(lps[rLPindex])+2048)
+			copy(newSlice,lps[rLPindex])
+			lps[rLPindex] = newSlice
+		}
+		lps[rLPindex][lpIndex[rLPindex]].companionLP = sLPindex
+		lps[rLPindex][lpIndex[rLPindex]].receiveTime = rTS
+		lps[rLPindex][lpIndex[rLPindex]].sendTime = sTS
+		numOfEvents++
+	}
+
+	// initialize the scanner
+	ScanInit(inputFile)
+
+	var token int
+	var tokenText []byte
+
+	// helper function
+	scanAssume:= func(expectedToken int) {
+		if expectedToken != token {
+			fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
+			panic("Aborting")
+		}
+		token, tokenText = Scan()
+	}
+
+	fmt.Printf("Processing JSON file: %v\n", os.Args[1])
+		
+	// parse the json data file, this is hugely fragile but functional
+	token, tokenText = Scan()
+	scanAssume(L_CURLY)
+	parsingLoop: for ; token != EOF; {
+		switch token {
+		case SIMULATOR_NAME:
+			token, tokenText = Scan()
+			scanAssume(COLON)
+			fmt.Printf("    Simulator Name: %v\n", string(tokenText))
+			token, tokenText = Scan()
+			scanAssume(COMMA)
+		case MODEL_NAME:
+			token, tokenText = Scan()
+			scanAssume(COLON)
+			fmt.Printf("   Model Name: %v\n", string(tokenText))
+			token, tokenText = Scan()
+			scanAssume(COMMA)
+		case CAPTURE_DATE:
+			token, tokenText = Scan()
+			scanAssume(COLON)
+			fmt.Printf("    Capture date: %v\n", string(tokenText))
+			token, tokenText = Scan()
+			scanAssume(COMMA)
+		case COMMAND_LINE_ARGS :
+			token, tokenText = Scan()
+			scanAssume(COLON)
+			fmt.Printf("    Command line arguments: %v\n", string(tokenText))
+			token, tokenText = Scan()
+			scanAssume(COMMA)
+		case EVENTS:
+			token, tokenText = Scan()
+			scanAssume(COLON)
+			scanAssume(L_BRACKET)
+			fmt.Printf("Processing Events.\n")
+			for ; token != EOF ; {
+				var sendingLP, receivingLP string
+				var sendTime, receiveTime float64
+				scanAssume(L_CURLY)
+				for i := 0; i < 4; i++ {
+					if i > 0 {scanAssume(COMMA)}
+					switch token {
+					case SEND_LP:
+						token, tokenText = Scan()
+						scanAssume(COLON)
+						sendingLP = string(tokenText)
+						token, tokenText = Scan()
+					case SEND_TIME:
+						token, tokenText = Scan()
+						scanAssume(COLON)
+						sendTime, err = strconv.ParseFloat(string(tokenText),64)
+						token, tokenText = Scan()
+					case RECEIVE_LP:
+						token, tokenText = Scan()
+						scanAssume(COLON)
+						receivingLP = string(tokenText)
+						token, tokenText = Scan()
+					case RECEIVE_TIME:
+						token, tokenText = Scan()
+						scanAssume(COLON)
+						receiveTime, err = strconv.ParseFloat(string(tokenText),64)
+						if err != nil {panic(err)}
+						token, tokenText = Scan()
+					}
+				}
+				scanAssume(R_CURLY)
+				// we should require that the send time be strictly less than the receive
+				// time, but the ross (airport model) data actually has data with the
+				// send/receive times (and other sequential simulators are likely to have
+				// this as well), so we will weaken this constraint.
+				if sendTime > receiveTime {log.Panic("Event has send time greater than receive time: %v %v %v %v\n", 
+					sendingLP, sendTime, receivingLP, receiveTime)}
+				addEvent(sendingLP, sendTime, receivingLP, receiveTime)
+				if token == R_BRACKET {break parsingLoop}
+				scanAssume(COMMA)
+			}
+		default:
+			// this should never happen
+			fmt.Printf("Mal formed json file at %v\n",fileLineNo)
+			panic("Aborting")
+		}
+	}
+
+	// build the reverse map: integers -> LP Names
+	mapIntToLPName := make([]string, numOfLPs)
+	for key, value := range mapLPNameToInt {mapIntToLPName[value] = key}
+
 	// now we need to set the lengths of the slices in the LP data so we can use the
 	// go builtin len() function on them
 	fmt.Printf("Sizing the slices of the LP events.\n")
-	for i := range lps {
+	for i := 0; i < numOfLPs; i++ {
 		if lpIndex[i] != -1 {
 			lps[i] = lps[i][:lpIndex[i]+1]
 		} else {
@@ -136,6 +233,7 @@ func main() {
 			fmt.Printf("WARNING: LP \"%v\" recived zero messages.\n", mapIntToLPName[i])
 		}
 	}
+	lps = lps[:numOfLPs]
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("Sorting the events in each LP by receive time.\n")
@@ -164,7 +262,7 @@ func main() {
 	fmt.Fprintf(outFile, "# summary of local and remote events executed\n")
 	fmt.Fprintf(outFile, "# LP, local, remote\n")
 	for i := range lps {
-		fmt.Fprintf(outFile,"\"%v\", ",mapIntToLPName[i])
+		fmt.Fprintf(outFile,"%v, ",mapIntToLPName[i])
 		rCount := 0
 		for j := range lps {if i != j {rCount = rCount + lpMatrix[i][j]}}
 		fmt.Fprintf(outFile,"%v, %v\n",lpMatrix[i][i],rCount)
@@ -205,7 +303,7 @@ func main() {
 	fmt.Fprintf(outFile,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 	for i := range lps {
 		sort.Sort(sort.Reverse(sort.IntSlice(lpMatrix[i])))
-		totalEventsSent := 0
+		totalEventsSent := 0 
 		j := 0
 		for ; j < len(lps) && lpMatrix[i][j] != 0; j++ {
 			totalEventsSent = totalEventsSent + lpMatrix[i][j]
@@ -237,7 +335,7 @@ func main() {
 	fmt.Printf("Computing event parallelism statistics.\n")
 	for i := range lps {lpIndex[i] = 0}
 	simCycle := 0
-	eventsAvailable := make([]int, numOfTraceEvents)
+	eventsAvailable := make([]int, numOfEvents)
 	maxEventsAvailable := 0
 	done := false
 	lpIndexToFixSameSendReceiveTime := 0
@@ -375,7 +473,7 @@ func main() {
 	fmt.Fprintf(outFile,"# local event chains by LP\n")
 	fmt.Fprintf(outFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
 	for i := range lps {
-		fmt.Fprintf(outFile,"\"%v\"",mapIntToLPName[i])
+		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
 		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",localEventChain[i][j])}
 		fmt.Fprintf(outFile,"\n")
 	}
@@ -388,7 +486,7 @@ func main() {
 	fmt.Fprintf(outFile,"# linked event chains by LP\n")
 	fmt.Fprintf(outFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
 	for i := range lps {
-		fmt.Fprintf(outFile,"\"%v\"",mapIntToLPName[i])
+		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
 		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",linkedEventChain[i][j])}
 		fmt.Fprintf(outFile,"\n")
 	}
@@ -401,7 +499,7 @@ func main() {
 	fmt.Fprintf(outFile,"# global event chains by LP\n")
 	fmt.Fprintf(outFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
 	for i := range lps {
-		fmt.Fprintf(outFile,"\"%v\"",mapIntToLPName[i])
+		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
 		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",globalEventChain[i][j])}
 		fmt.Fprintf(outFile,"\n")
 	}
@@ -478,4 +576,4 @@ func main() {
 	for i := range lps {sort.Sort(bySendTime(lps[i]))}
 */
 	return
-}
+}	
