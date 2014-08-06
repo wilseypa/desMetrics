@@ -5,6 +5,7 @@ import "fmt"
 import "sort"
 import "math"
 import "strconv"
+import "time"
 import "runtime"
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
@@ -30,6 +31,10 @@ func main() {
 	// enable the use of all CPUs on the system
 	numThreads := runtime.NumCPU()
 	runtime.GOMAXPROCS(numThreads)
+
+
+	printTime := func () {fmt.Println(time.Now().Format(time.RFC850))}
+	printTime()
 
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
 	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
@@ -242,6 +247,7 @@ func main() {
 
 	// on to analysis: we first count local and remote events received by each LP.
 	fmt.Printf("ANALYSIS of events by receiving LP.\n")	
+	printTime()
 
 	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
@@ -287,7 +293,6 @@ func main() {
 		var es lpEventSummary
 		lpData := make([]int,len(lps))
 		for i := low; i <= high; i++ {
-
 			es.lpInt = i
 			es.local = 0
 			es.remote = 0
@@ -311,7 +316,6 @@ func main() {
 		}
 		return
 	}
-
 
 	// location to write summaries of local and remote events received
 	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
@@ -552,5 +556,6 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
+	printTime()
 	return
 }	
