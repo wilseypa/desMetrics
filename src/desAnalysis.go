@@ -5,23 +5,11 @@ import "fmt"
 import "sort"
 import "math"
 import "strconv"
+import "runtime"
 
-var desTraceData struct {
-	SimulatorName string `json:"simulator_name"`
-	ModelName string `json:"model_name"`
-	CaptureDate string `json:"capture_date"`
-	CommandLineArgs string `json:"command_line_arguments"`
-	Events []struct {
-		SendLP string  `json:"sLP"`
-		SendTime float64  `json:"sTS"`
-		ReceiveLP string  `json:"rLP"`
-		ReceiveTime float64  `json:"rTS"`
-	} `json:"events"`
-}
-
-// now we need to setup a data structure for events.  internally we're going to store LP names with their
-// integer map value.  since we're storing events into an array indexed by the LP in question (sender or
-// receiver), we will only store the other "companion" LP internally
+// we need to setup a data structure for events.  internally we're going to store LP names with their integer
+// map value.  since we're storing events into an array indexed by the LP in question (sender or receiver), we
+// will only store the other "companion" LP internally
 type eventData struct {
 	companionLP int
 	sendTime float64
@@ -38,6 +26,10 @@ func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
 func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
 
 func main() {
+
+	// enable the use of all CPUs on the system
+	numThreads := runtime.NumCPU()
+	runtime.GOMAXPROCS(numThreads)
 
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
 	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
@@ -264,35 +256,62 @@ func main() {
 	// LP.  for this we will order the sending LP counts so that they are ordered by decreasing number of 
 	// events sent to this LP.
 
-	// this helper function will compute the number of local and remote events received; individual LP
-	// counts (stored in the lpIndex array) as well as local/remote count summaries will be savedp
-	countLocalRemoteEvents := func(index int) (local int, remote int) {
-		local = 0
-		remote = 0
-		for i := range lps {lpIndex[i] = 0}
-		for i := range lps[index] {
-			lpIndex[lps[index][i].companionLP]++
-			if index != lps[index][i].companionLP {
-				remote++
-			} else {
-				local++
-			}	
-		}
-		return local, remote
-	}
-
 	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
 	// result in coverage of the number of events received (yes, this is confusing)
-	numOfLPsToCover := func(numRequired int) int {
+	numOfLPsToCover := func(total int, data []int, percent int) int {
+		// add .99 because int() truncates and we actually want rounding
+		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99) 
 		lpCount := 0
 		eventCount := 0
-		for i := range lpIndex {
+		for i := range data {
 			lpCount++
-			eventCount = eventCount + lpIndex[i]
+			eventCount = eventCount + data[i]
 			if eventCount >= numRequired {return lpCount}
 		}
 		panic("ERROR: something's amiss in this computation\n")
 	}
+
+	// this is the channel type to communication event summary results
+	type lpEventSummary struct {
+		lpInt int
+		local int
+		remote int
+		total int
+		cover [5]int
+	}
+
+	// this helper function (goroutine) will compute the number of local and remote events received for a
+	// subset of the LP (defined as those from lps[low] to lps[high]; as well as computing the number of
+	// sending events to cover the target percentages (75, 80, 90, 95, and 100%)
+	countLocalRemoteEvents := func(low int, high int, c chan<- lpEventSummary)  {
+		var es lpEventSummary
+		lpData := make([]int,len(lps))
+		for i := low; i <= high; i++ {
+
+			es.lpInt = i
+			es.local = 0
+			es.remote = 0
+			for j := range lps {lpData[j] = 0}
+			for j := range lps[i] {
+				lpData[lps[i][j].companionLP]++
+				if i != lps[i][j].companionLP {
+					es.remote++
+				} else {
+					es.local++
+				}	
+			}
+			sort.Sort(sort.Reverse(sort.IntSlice(lpData)))
+			es.total = es.remote + es.local
+			es.cover[0] = numOfLPsToCover(es.total, lpData, 75)  //  75% cutoff
+			es.cover[1] = numOfLPsToCover(es.total, lpData, 80)  //  80% cutoff
+			es.cover[2] = numOfLPsToCover(es.total, lpData, 90)  //  90% cutoff
+			es.cover[3] = numOfLPsToCover(es.total, lpData, 95)  //  95% cutoff
+			es.cover[4] = numOfLPsToCover(es.total, lpData, 100) // 100% cutoff
+			c <- es
+		}
+		return
+	}
+
 
 	// location to write summaries of local and remote events received
 	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
@@ -307,22 +326,24 @@ func main() {
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
-	for i := range lps {
-		local, remote := countLocalRemoteEvents(i)
-		total := local + remote
-		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", mapIntToLPName[i], local, remote)
-		sort.Sort(sort.Reverse(sort.IntSlice(lpIndex)))
-		if total != 0 {
-			fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],total,
-				numOfLPsToCover((total * 75) / 100), //  75% cutoff
-				numOfLPsToCover((total * 80) / 100), //  80% cutoff
-				numOfLPsToCover((total * 90) / 100), //  90% cutoff
-				numOfLPsToCover((total * 95) / 100), //  95% cutoff
-				numOfLPsToCover(total))               // 100% cutoff
-		} else {
-			fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],0,0,0,0,0,0)
-		}
+	c := make(chan lpEventSummary)
+	goroutineSliceSize := len(lps)/numThreads
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize - 1
+		if i == numThreads - 1 {high = len(lps)-1}
+		go countLocalRemoteEvents(low, high, c)
 	}
+	
+	// process all of the data in the channel
+	for _ = range lps {
+		info := <- c
+		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", mapIntToLPName[info.lpInt], info.local, info.remote)
+		fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n", mapIntToLPName[info.lpInt], info.total,
+			info.cover[0], info.cover[1], info.cover[2], info.cover[3], info.cover[4])
+	}
+	close(c)
+
 	err = eventSummaries.Close()
 	if err != nil {panic(err)}
 	err = numToCover.Close()
