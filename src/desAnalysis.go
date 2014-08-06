@@ -435,8 +435,6 @@ func main() {
 	// consider a locally linked chain computation.  that is, anything generated within the time frame of
 	// the chain should also be included in the chain length computation
 
-	// compute the local and global event chains for each LP
-	fmt.Printf("Computing: local, linked, and global event chains by LP.\n")
 	eventChainLength := 5
 	localEventChain := make([][]int,len(lps))
 	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
@@ -444,51 +442,69 @@ func main() {
 	for i := range linkedEventChain {linkedEventChain[i] = make([]int,eventChainLength)}
 	globalEventChain := make([][]int,len(lps))
 	for i := range globalEventChain {globalEventChain[i] = make([]int,eventChainLength)}
-	for i, lp := range lps {
-		// local chain analysis
-		j := 0
-		for ; j < len(lp) ; {
-			for ; j < len(lp) && lp[j].companionLP != i ; j++ {}
-			if j < len(lp) && lp[j].companionLP == i {
+
+	computeChainsForLpsSlice := func (lps [][]eventData, base int, done chan<- bool) {
+		for i, lp := range lps {
+			// local chain analysis
+			j := 0
+			for ; j < len(lp) ; {
+				for ; j < len(lp) && lp[j].companionLP != base + i ; j++ {}
+				if j < len(lp) && lp[j].companionLP == base + i {
+					k := j + 1
+					for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime && lp[k].companionLP == base + i ; {k++}
+					if k-j-1 >= eventChainLength {localEventChain[base + i][eventChainLength - 1]++
+					} else {
+						localEventChain[base + i][k-j-1]++
+					}
+					j = j + k
+				}
+			}
+			// lined chain analysis
+			j = 0
+			for ; j < len(lp) ; {
+				for ; j < len(lp) && lp[j].companionLP != base + i ; j++ {}
+				if j < len(lp) && lp[j].companionLP == base + i {
+					k := j + 1
+					for ; k < len(lp) && lp[k].sendTime <= lp[k-1].receiveTime && lp[k].companionLP == base + i ; {k++}
+					if k-j-1 >= eventChainLength {linkedEventChain[base + i][eventChainLength - 1]++
+					} else {
+						linkedEventChain[base + i][k-j-1]++
+					}
+					j = j + k
+				}
+			}
+			// global chain analysis
+			j = 0
+			for ; j < len(lp) ; {
 				k := j + 1
-				for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime && lp[k].companionLP == i ; {k++}
+				for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime ; {
+					k++
+				}
 				if k-j-1 >= eventChainLength {
-					localEventChain[i][eventChainLength - 1]++
+					globalEventChain[base + i][eventChainLength - 1]++
 				} else {
-					localEventChain[i][k-j-1]++
+					globalEventChain[base + i][k-j-1]++
 				}
 				j = j + k
 			}
 		}
-		// lined chain analysis
-		j = 0
-		for ; j < len(lp) ; {
-			for ; j < len(lp) && lp[j].companionLP != i ; j++ {}
-			if j < len(lp) && lp[j].companionLP == i {
-				k := j + 1
-				for ; k < len(lp) && lp[k].sendTime <= lp[k-1].receiveTime && lp[k].companionLP == i ; {k++}
-				if k-j-1 >= eventChainLength {
-					linkedEventChain[i][eventChainLength - 1]++
-				} else {
-					linkedEventChain[i][k-j-1]++
-				}
-				j = j + k
-			}
-		}
-		// global chain analysis
-		j = 0
-		for ; j < len(lp) ; {
-			k := j + 1
-			for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime ; {
-				k++
-			}
-			if k-j-1 >= eventChainLength {
-				globalEventChain[i][eventChainLength - 1]++
-			} else {
-				globalEventChain[i][k-j-1]++
-			}
-			j = j + k
-		}
+		done <- true
+	}	
+
+	// compute the local and global event chains for each LP
+	fmt.Printf("Computing: local, linked, and global event chains by LP.\n")
+
+	sliceDone := make(chan bool)
+	goroutineSliceSize = len(lps)/numThreads
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize
+		if i == numThreads - 1 {high = len(lps)}
+		go computeChainsForLpsSlice(lps[low:high], low, sliceDone)
+	}
+
+	for i := 0; i < numThreads; i++ {
+		<- sliceDone
 	}
 	
 	// write local event chains for each LP
