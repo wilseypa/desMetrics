@@ -7,9 +7,9 @@ import "math"
 import "strconv"
 import "runtime"
 
-// we need to setup a data structure for events.  internally we're going to store LP names with their integer
-// map value.  since we're storing events into an array indexed by the LP in question (sender or receiver), we
-// will only store the other "companion" LP internally
+// setup a data structure for events.  internally we're going to store LP names with their integer map value.
+// since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
+// store the other "companion" LP internally
 type eventData struct {
 	companionLP int
 	sendTime float64
@@ -232,7 +232,7 @@ func main() {
 	fmt.Printf("Verifying that all LPs recieved at least one event.\n")
 	for i := range lps {
 		if len(lps[i]) == 0 {
-			fmt.Printf("WARNING: LP \"%v\" recived zero messages.\n", mapIntToLPName[i])
+			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
 		}
 	}
 
