@@ -33,8 +33,7 @@ func main() {
 	runtime.GOMAXPROCS(numThreads)
 
 
-	printTime := func () {fmt.Println(time.Now().Format(time.RFC850))}
-	printTime()
+	printTime := func () string {return time.Now().Format(time.RFC850)}
 
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
 	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
@@ -200,7 +199,8 @@ func main() {
 	}
 
 	// this time we will collect information on the number of events and the number of LPs
-	fmt.Printf("Processing %v to capture event and LP counts.\n", os.Args[1])
+	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", 
+		printTime(), os.Args[1])
 	inputFile, err := os.Open(os.Args[1])
 	if err != nil { panic(err) }
 	parseJsonFile(inputFile)
@@ -221,7 +221,7 @@ func main() {
 	}
 
 	// this time we will save the events
-	fmt.Printf("Processing %v to capture events.\n", os.Args[1])
+	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), os.Args[1])
 	processEvent = addEvent
 	inputFile, err = os.Open(os.Args[1])
 	if err != nil { panic(err) }
@@ -234,7 +234,7 @@ func main() {
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of. 
-	fmt.Printf("Verifying that all LPs recieved at least one event.\n")
+	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
 	for i := range lps {
 		if len(lps[i]) == 0 {
 			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
@@ -242,12 +242,11 @@ func main() {
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
-	fmt.Printf("Sorting the events in each LP by receive time.\n")
+	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", printTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
 
 	// on to analysis: we first count local and remote events received by each LP.
-	fmt.Printf("ANALYSIS of events by receiving LP.\n")	
-	printTime()
+	fmt.Printf("%v: ANALYSIS of events by receiving LP.\n", printTime())	
 
 	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
@@ -320,7 +319,7 @@ func main() {
 	// location to write summaries of local and remote events received
 	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
 	if err != nil {panic(err)}
-	fmt.Printf("Computing: the number local/remote events executed by each LP.\n")
+	fmt.Printf("%v: Computing the number local/remote events executed by each LP.\n", printTime())
 	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
 	fmt.Fprintf(eventSummaries, "# LP, local, remote\n")
 
@@ -362,7 +361,7 @@ func main() {
 	// we will use lpIndex to point to the current event not yet processed in a simulation cycle at each
 	// LP
 
-	fmt.Printf("Computing: event parallelism statistics.\n")
+	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())
 	for i := range lps {lpIndex[i] = 0}
 	simCycle := 0
 	eventsAvailable := make([]int, numOfEvents)
@@ -492,7 +491,7 @@ func main() {
 	}	
 
 	// compute the local and global event chains for each LP
-	fmt.Printf("Computing: local, linked, and global event chains by LP.\n")
+	fmt.Printf("%v: Computing local, linked, and global event chains by LP.\n", printTime())
 
 	sliceDone := make(chan bool)
 	goroutineSliceSize = len(lps)/numThreads
@@ -572,6 +571,6 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	printTime()
+	fmt.Printf("%v: Finished.\n", printTime())
 	return
 }	
