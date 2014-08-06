@@ -19,18 +19,17 @@ var desTraceData struct {
 	} `json:"events"`
 }
 
-// now we need to setup a data structure for events.  internally we're going to store LP
-// names with their integer map value.  since we're storing events into an array indexed
-// by the LP in question (sender or receiver), we will only store the other "companion" LP
-// internally
+// now we need to setup a data structure for events.  internally we're going to store LP names with their
+// integer map value.  since we're storing events into an array indexed by the LP in question (sender or
+// receiver), we will only store the other "companion" LP internally
 type eventData struct {
 	companionLP int
 	sendTime float64
 	receiveTime float64
 }
 
-// i'm sure there is a way to combine these sorts with a common setup, but i don't know go
-// well enough to achieve it; we'll use this approach for now
+// i'm sure there is a way to combine these sorts with a common setup, but i don't know go well enough to
+// achieve it; we'll use this approach for now
 
 // functions to support sorting of the events by their receive time
 type byReceiveTime []eventData
@@ -232,122 +231,113 @@ func main() {
 	parseJsonFile(inputFile)
 	err = inputFile.Close()
 
-
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
-	// now we need to set the lengths of the slices in the LP data so we can use the
-	// go builtin len() function on them
-	fmt.Printf("Sizing the slices of the LP events.\n")
-	for i := 0; i < numOfLPs; i++ {
-		if lpIndex[i] != -1 {
-			lps[i] = lps[i][:lpIndex[i]+1]
-		} else {
-			lps[i] = lps[i][:0]
+	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
+	// should probably be aware of. 
+	fmt.Printf("Verifying that all LPs recieved at least one event.\n")
+	for i := range lps {
+		if len(lps[i]) == 0 {
 			fmt.Printf("WARNING: LP \"%v\" recived zero messages.\n", mapIntToLPName[i])
 		}
 	}
-	lps = lps[:numOfLPs]
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("Sorting the events in each LP by receive time.\n")
 	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
 
-	// on to analysis: we first consider local and remote events.  for this purpose,
-	// we'll compute a (square) matrix of ints where the row index is the receiving LP
-	// and the column index is the sending LP and the entries are the number of events
-	// exchanged between them.  from this matrix, we will print out summary files.
-	lpMatrix := make([][]int, len(lps))
-	for i := range lps {
-		lpMatrix[i] = make([]int,len(lps))
-		for j := range lps[i] {
-			lpMatrix[i][lps[i][j].companionLP]++
-		}
-	}
+	// on to analysis: we first count local and remote events received by each LP.
+	fmt.Printf("ANALYSIS of events by receiving LP.\n")	
 
-	// create the directory to store results if it is not already there
+	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
 	if err != nil {panic(err)}
 
-	fmt.Printf("Computing the number local/remote events executed by each LP.\n")
-	// write summaries of local and remote events received
-	outFile, err := os.Create("analysisData/eventsExecutedByLP.dat")
-	if err != nil {panic(err)}
-	fmt.Fprintf(outFile, "# summary of local and remote events executed\n")
-	fmt.Fprintf(outFile, "# LP, local, remote\n")
-	for i := range lps {
-		fmt.Fprintf(outFile,"%v, ",mapIntToLPName[i])
-		rCount := 0
-		for j := range lps {if i != j {rCount = rCount + lpMatrix[i][j]}}
-		fmt.Fprintf(outFile,"%v, %v\n",lpMatrix[i][i],rCount)
-	}
-	err = outFile.Close()
-	if err != nil {panic(err)}
+	// in this next step, we are going to compute event received summaries.  in this case we are going to
+	// compute two different results.  the first is a simple count of the (i) total events received, (ii)
+	// the local events received local and, (iii) the remote events received.  in this case local means
+	// events sent and received by the same LP, remote means events sent by some other LP.  the second
+	// computation is the number of sending LPs to cover a certain percentage of the total events
+	// received.  for example, how many LP (say X) were responsible for 75% of the events received by this
+	// LP.  for this we will order the sending LP counts so that they are ordered by decreasing number of 
+	// events sent to this LP.
 
-	// let's take a look at the frequency of communication with others.  how many
-	// different LPs does each LP send messages to?
-	fmt.Printf("Computing the number of LPs sent to to cover a percentage of total events sent.\n")
-	// first we need to transpose the matrix so we have senders in rows and receivers
-	// in columns
-	for i := range lps {
-		for j := i; j < len(lps); j++ {
-			tmp := lpMatrix[i][j]
-			lpMatrix[i][j] = lpMatrix[j][i]
-			lpMatrix[j][i] = tmp
+	// this helper function will compute the number of local and remote events received; individual LP
+	// counts (stored in the lpIndex array) as well as local/remote count summaries will be savedp
+	countLocalRemoteEvents := func(index int) (local int, remote int) {
+		local = 0
+		remote = 0
+		for i := range lps {lpIndex[i] = 0}
+		for i := range lps[index] {
+			lpIndex[lps[index][i].companionLP]++
+			if index != lps[index][i].companionLP {
+				remote++
+			} else {
+				local++
+			}	
 		}
+		return local, remote
 	}
-	// now we define a helper function to compute the number of LPs that an LP sends
-	// messages to to cover the number required
-	numOfLPsToCover := func(lpMatrix []int, numRequired int) int {
+
+	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
+	// result in coverage of the number of events received (yes, this is confusing)
+	numOfLPsToCover := func(numRequired int) int {
 		lpCount := 0
 		eventCount := 0
-		for i := range lpMatrix {
+		for i := range lpIndex {
 			lpCount++
-			eventCount = eventCount + lpMatrix[i]
+			eventCount = eventCount + lpIndex[i]
 			if eventCount >= numRequired {return lpCount}
 		}
 		panic("ERROR: something's amiss in this computation\n")
 	}
-	// next we have to sort the events sent by each sending LP (this means we no
-	// longer know the receiving LP); count the number of events sent by each LP; and
-	// dump the results
-	outFile, err = os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
+
+	// location to write summaries of local and remote events received
+	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
 	if err != nil {panic(err)}
-	fmt.Fprintf(outFile,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
-	fmt.Fprintf(outFile,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+	fmt.Printf("Computing: the number local/remote events executed by each LP.\n")
+	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
+	fmt.Fprintf(eventSummaries, "# LP, local, remote\n")
+
+	// location to write percentage of LPs to cover percentage of events received
+	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
+	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+
 	for i := range lps {
-		sort.Sort(sort.Reverse(sort.IntSlice(lpMatrix[i])))
-		totalEventsSent := 0 
-		j := 0
-		for ; j < len(lps) && lpMatrix[i][j] != 0; j++ {
-			totalEventsSent = totalEventsSent + lpMatrix[i][j]
-		}
-		if totalEventsSent != 0 {
-			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,
-				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 75) / 100), // 75% cutoff
-				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 80) / 100), // 80% cutoff
-				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 90) / 100), // 90% cutoff
-				numOfLPsToCover(lpMatrix[i], (totalEventsSent * 95) / 100), // 95% cutoff
-				j+1) // 100% cutoff
+		local, remote := countLocalRemoteEvents(i)
+		total := local + remote
+		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", mapIntToLPName[i], local, remote)
+		sort.Sort(sort.Reverse(sort.IntSlice(lpIndex)))
+		if total != 0 {
+			fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],total,
+				numOfLPsToCover((total * 75) / 100), //  75% cutoff
+				numOfLPsToCover((total * 80) / 100), //  80% cutoff
+				numOfLPsToCover((total * 90) / 100), //  90% cutoff
+				numOfLPsToCover((total * 95) / 100), //  95% cutoff
+				numOfLPsToCover(total))               // 100% cutoff
 		} else {
-			fmt.Fprintf(outFile,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],totalEventsSent,0,0,0,0,0)
+			fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n",mapIntToLPName[i],0,0,0,0,0,0)
 		}
 	}
-	err = outFile.Close()
+	err = eventSummaries.Close()
+	if err != nil {panic(err)}
+	err = numToCover.Close()
 	if err != nil {panic(err)}
 
-	// events available for execution: here we will assume all events execute in unit
-	// time and evaluate the events as executable by simulation cycle.  basically we
-	// will advance the simulation time to the lowest receive time of events in all
-	// of the LPs and count the number of LPs that could potentially be executed at
-	// that time.  the general algorithm is outlined in the indexTemplate.md file for
-	// this project. 
+	// events available for execution: here we will assume all events execute in unit time and evaluate
+	// the events as executable by simulation cycle.  basically we will advance the simulation time to the
+	// lowest receive time of events in all of the LPs and count the number of LPs that could potentially
+	// be executed at that time.  the general algorithm is outlined in the indexTemplate.md file for this
+	// project.
 
-	// we will use lpIndex to point to the current event not yet processed in a
-	// simulation cycle at each LP
+	// we will use lpIndex to point to the current event not yet processed in a simulation cycle at each
+	// LP
 
-	fmt.Printf("Computing event parallelism statistics.\n")
+	fmt.Printf("Computing: event parallelism statistics.\n")
 	for i := range lps {lpIndex[i] = 0}
 	simCycle := 0
 	eventsAvailable := make([]int, numOfEvents)
@@ -362,11 +352,10 @@ func main() {
 			if lpIndex[i] < len(lp) &&  lp[lpIndex[i]].receiveTime < scheduleTime {
 				scheduleTime = lp[lpIndex[i]].receiveTime
 				done = false
-				// because the ross data has events with the same send and
-				// receive times, we have to have an exception for that
-				// case of this algorithm doesn't terminate.  here we will
-				// record the LP index defining the schedule time and use
-				// that as an exception for the next part.....what a drag
+				// because the ross data has events with the same send and receive times, we
+				// have to have an exception for that case of this algorithm doesn't
+				// terminate.  here we will record the LP index defining the schedule time and
+				// use that as an exception for the next part.....what a drag
 				lpIndexToFixSameSendReceiveTime =  i
 			}
 		}
@@ -385,10 +374,9 @@ func main() {
 		}
 	}
 
-	// while printing results let's also capture the number of simulation cycles with
-	// X events available
+	// while printing results let's also capture the number of simulation cycles with X events available
 	timesXeventsAvailable := make([]int,maxEventsAvailable)
-	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.dat")
+	outFile, err := os.Create("analysisData/eventsAvailableBySimCycle.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
@@ -408,26 +396,22 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	// event chains are collections of events for execution at the LP that could
-	// potentially be executed together.  thus when examining an event with receive
-	// timestamp t, the chain is formed by all future (by receive time) events in that
-	// LP that have a send time < t.  local chains have the additional constraint that
-	// they must also have been sent by the executing LP (self generated events).
-	// global chains can be sent from any LP.
+	// event chains are collections of events for execution at the LP that could potentially be executed
+	// together.  thus when examining an event with receive timestamp t, the chain is formed by all future
+	// (by receive time) events in that LP that have a send time < t.  local chains have the additional
+	// constraint that they must also have been sent by the executing LP (self generated events).  global
+	// chains can be sent from any LP.
 
-	// a third form of event chains is the "linked event chain".  the linked chain is
-	// similar to the local chain except that the constraint on the send time is
-	// relaxed so that any event sent within the time window of the local event chain
-	// (so basically any event generated by the chain is also potentially a member of
-	// the chain).
+	// a third form of event chains is the "linked event chain".  the linked chain is similar to the local
+	// chain except that the constraint on the send time is relaxed so that any event sent within the time
+	// window of the local event chain (so basically any event generated by the chain is also potentially
+	// a member of the chain).
 
-
-	// consider a locally linked chain computation.  that is, anything generated
-	// within the time frame of the chain should also be included in the chain length
-	// computation
+	// consider a locally linked chain computation.  that is, anything generated within the time frame of
+	// the chain should also be included in the chain length computation
 
 	// compute the local and global event chains for each LP
-	fmt.Printf("Computing local, linked, and global event chains by LP.\n")
+	fmt.Printf("Computing: local, linked, and global event chains by LP.\n")
 	eventChainLength := 5
 	localEventChain := make([][]int,len(lps))
 	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
@@ -521,12 +505,10 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-// number of LPs with n event chains of length X
-// number of LPs with average event chains of length X
+// number of LPs with n event chains of length X number of LPs with average event chains of length X
 
-	// not sure this will be useful or not, but let's save totals of the local and
-	// global event chains.  specifically we will sum the local/global event chains
-	// for all of the LPs in the system
+	// not sure this will be useful or not, but let's save totals of the local and global event chains.
+	// specifically we will sum the local/global event chains for all of the LPs in the system
 	eventChainSummary := make([][]int,3)
 	// store local event chain summary data here
 	eventChainSummary[0] = make([]int,eventChainLength)
