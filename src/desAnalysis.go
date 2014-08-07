@@ -6,22 +6,9 @@ import "sort"
 import "math"
 import "strconv"
 
-var desTraceData struct {
-	SimulatorName string `json:"simulator_name"`
-	ModelName string `json:"model_name"`
-	CaptureDate string `json:"capture_date"`
-	CommandLineArgs string `json:"command_line_arguments"`
-	Events []struct {
-		SendLP string  `json:"sLP"`
-		SendTime float64  `json:"sTS"`
-		ReceiveLP string  `json:"rLP"`
-		ReceiveTime float64  `json:"rTS"`
-	} `json:"events"`
-}
-
-// now we need to setup a data structure for events.  internally we're going to store LP names with their
-// integer map value.  since we're storing events into an array indexed by the LP in question (sender or
-// receiver), we will only store the other "companion" LP internally
+// setup a data structure for events.  internally we're going to store LP names with their integer map value.
+// since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
+// store the other "companion" LP internally
 type eventData struct {
 	companionLP int
 	sendTime float64
