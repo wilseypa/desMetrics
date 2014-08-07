@@ -245,8 +245,8 @@ func main() {
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", printTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
 
-	// on to analysis: we first count local and remote events received by each LP.
-	fmt.Printf("%v: ANALYSIS of events by receiving LP.\n", printTime())	
+	// on to analysis....
+	fmt.Printf("%v: ANALYSIS (events organized by receiving LP).\n", printTime())	
 
 	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
@@ -352,71 +352,75 @@ func main() {
 	err = numToCover.Close()
 	if err != nil {panic(err)}
 
-	// events available for execution: here we will assume all events execute in unit time and evaluate
-	// the events as executable by simulation cycle.  basically we will advance the simulation time to the
-	// lowest receive time of events in all of the LPs and count the number of LPs that could potentially
-	// be executed at that time.  the general algorithm is outlined in the indexTemplate.md file for this
-	// project.
+	// events available for execution: here we will assume all events execute in unit time and evaluate the
+	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
+	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
+	// at that time.  the general algorithm is outlined in the indexTemplate.md file for this project.
 
-	// we will use lpIndex to point to the current event not yet processed in a simulation cycle at each
-	// LP
+	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())	
 
-	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())
-	for i := range lps {lpIndex[i] = 0}
-	simCycle := 0
-	eventsAvailable := make([]int, numOfEvents)
-	maxEventsAvailable := 0
-	done := false
-	lpIndexToFixSameSendReceiveTime := 0
-	for ; done != true ; {
-		scheduleTime := math.MaxFloat64
-		done = true
-		// pickup the minimum receive time not yet processed
-		for i, lp := range lps {
-			if lpIndex[i] < len(lp) &&  lp[lpIndex[i]].receiveTime < scheduleTime {
-				scheduleTime = lp[lpIndex[i]].receiveTime
-				done = false
-				// because the ross data has events with the same send and receive times, we
-				// have to have an exception for that case of this algorithm doesn't
-				// terminate.  here we will record the LP index defining the schedule time and
-				// use that as an exception for the next part.....what a drag
-				lpIndexToFixSameSendReceiveTime =  i
-			}
-		}
-		// walk through and count the number of events available
-		if done == false {
-			for i, lp := range lps {
-				if lpIndex[i] < len(lp) &&  (lp[lpIndex[i]].sendTime < scheduleTime || 
-					// this is our special case
-					i ==  lpIndexToFixSameSendReceiveTime) {
-					eventsAvailable[simCycle]++
-					lpIndex[i]++
+	// find the lowest timestamped event at the head of each LP slice we are given 
+	findLowestTS := func(lps [][]eventData) (float64, int, bool) {
+		definingLP := 0
+		minTS := math.MaxFloat64
+		noneAvailable := true
+		for i := range lps {
+			if lpIndex[i] < len(lps[i]) {
+				if minTS > lps[i][lpIndex[i]].receiveTime {
+					minTS = lps[i][lpIndex[i]].receiveTime
+					definingLP = i
+					noneAvailable = false
 				}
 			}
-			if maxEventsAvailable < eventsAvailable[simCycle] {maxEventsAvailable = eventsAvailable[simCycle]}
-			simCycle++
 		}
+			return minTS, definingLP, noneAvailable
 	}
 
-	// while printing results let's also capture the number of simulation cycles with X events available
-	timesXeventsAvailable := make([]int,maxEventsAvailable)
+	// given a timestamp (scheduleTime), fine the number of events that are available for execution (that is,
+	// count the number of LPs such that their head event has a receiveTime at or above scheduleTime and a
+	// sendTime at or below scheduleTime (this second check should be strictly below, but some of our input
+	// data sets have events with the same send/receive time so we have to weaken this constraint..
+	findEventsAvailable := func(lps [][]eventData, scheduleTime float64, definingLP int) int {
+		eventsAvailable := 0
+		for i, lp := range lps {
+			if lpIndex[i] < len(lp) && (lp[lpIndex[i]].sendTime < scheduleTime || definingLP == i) {
+				eventsAvailable++
+				lpIndex[i]++
+			}
+		}
+		return eventsAvailable
+	}
+
 	outFile, err := os.Create("analysisData/eventsAvailableBySimCycle.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
-	for i := 0; i < simCycle; i++ {
-		fmt.Fprintf(outFile,"%v %v\n",i+1,eventsAvailable[i])
-		timesXeventsAvailable[eventsAvailable[i] - 1]++
+	for i := range lps {lpIndex[i] = 0}
+	simCycle := 0
+	maxEventsAvailable := 0
+	eventsExhausted := false
+	timesXEventsAvailable := make([]int, numOfEvents)
+	for ; eventsExhausted != true ; {
+		eventsExhausted = true
+		scheduleTime, definingLP, noneAvailable := findLowestTS(lps)
+		if noneAvailable == false {
+			eventsAvailable := findEventsAvailable(lps, scheduleTime, definingLP)
+			fmt.Fprintf(outFile,"%v %v\n",simCycle + 1,eventsAvailable)
+			timesXEventsAvailable[eventsAvailable]++
+			if maxEventsAvailable < eventsAvailable {maxEventsAvailable = eventsAvailable}
+			simCycle++
+			eventsExhausted = false
+		}
 	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-
+				
 	// write out summary of events available
 	outFile, err = os.Create("analysisData/timesXeventsAvailable.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# times X events are available for execution\n")
 	fmt.Fprintf(outFile,"# X, num of occurrences\n")
-	for i := range timesXeventsAvailable {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXeventsAvailable[i])}
+	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXEventsAvailable[i+1])}
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
