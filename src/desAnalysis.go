@@ -17,9 +17,6 @@ type eventData struct {
 	receiveTime float64
 }
 
-// i'm sure there is a way to combine these sorts with a common setup, but i don't know go well enough to
-// achieve it; we'll use this approach for now
-
 // functions to support sorting of the events by their receive time
 type byReceiveTime []eventData
 func (a byReceiveTime) Len() int           {return len(a)}
@@ -32,7 +29,7 @@ func main() {
 	numThreads := runtime.NumCPU()
 	runtime.GOMAXPROCS(numThreads)
 
-
+	// function to print time as the program reports progress to stdout
 	printTime := func () string {return time.Now().Format(time.RFC850)}
 
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
@@ -51,7 +48,6 @@ func main() {
 		receivedEvents int
 	}
 
-//	mapLPNameToInt := make(map[string]lpMap)
 	lpNameMap :=make(map[string]*lpMap)
 
 	// ultimately we will use these to hold event data
@@ -329,8 +325,11 @@ func main() {
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
-	c := make(chan lpEventSummary)
-	goroutineSliceSize := len(lps)/numThreads
+	// defining how many LPs do we assign to each thread
+	goroutineSliceSize := int((float32(len(lps))/float32(numThreads)) + .5)
+
+	// each goroutine will compute event counts for one LP, send the results back over the channel and continue. 
+	c := make(chan lpEventSummary, numThreads * 4)
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
 		high := low + goroutineSliceSize - 1
@@ -497,8 +496,7 @@ func main() {
 	// compute the local and global event chains for each LP
 	fmt.Printf("%v: Computing local, linked, and global event chains by LP.\n", printTime())
 
-	sliceDone := make(chan bool)
-	goroutineSliceSize = len(lps)/numThreads
+	sliceDone := make(chan bool, numThreads)
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
 		high := low + goroutineSliceSize
@@ -549,7 +547,7 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-// number of LPs with n event chains of length X number of LPs with average event chains of length X
+	// number of LPs with n event chains of length X number of LPs with average event chains of length X
 
 	// not sure this will be useful or not, but let's save totals of the local and global event chains.
 	// specifically we will sum the local/global event chains for all of the LPs in the system
