@@ -227,7 +227,7 @@ func main() {
 	fmt.Printf("Verifying that all LPs recieved at least one event.\n")
 	for i := range lps {
 		if len(lps[i]) == 0 {
-			fmt.Printf("WARNING: LP \"%v\" recived zero messages.\n", mapIntToLPName[i])
+			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
 		}
 	}
 
