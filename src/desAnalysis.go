@@ -329,7 +329,7 @@ func main() {
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
-	c := make(chan lpEventSummary)
+	c := make(chan lpEventSummary, numThreads * 4)
 	goroutineSliceSize := len(lps)/numThreads
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
@@ -493,7 +493,7 @@ func main() {
 	// compute the local and global event chains for each LP
 	fmt.Printf("%v: Computing local, linked, and global event chains by LP.\n", printTime())
 
-	sliceDone := make(chan bool)
+	sliceDone := make(chan bool, numThreads)
 	goroutineSliceSize = len(lps)/numThreads
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
