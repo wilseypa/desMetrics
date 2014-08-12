@@ -1,3 +1,21 @@
+
+// this program performs the analysis for the desMetrics project at UC
+// (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
+// events processed by a discrete event simulation engine and outputs cvs/data files containing various
+// reports on the characteristics of the events from that profile data.  this project is developed from a
+// parallel simulation (PDES) perspective and so much of the jargon and analysis is related to that field.  to
+// understand the documentation, familiarity with PDES terminology is essential.  the input json file and
+// overall project perspective is available from the project website.
+
+// operationally, this program parses the input json file twice, the first pass captures the general
+// characteristics of the file such as number of LPs, total number of events and so on.  the second pass
+// inputs and stores the event data into internal data structures for processing.  this approach is followed
+// to maintain the memory footprint as these files tend to be quite large.  memory and time are issues so the
+// program is organized accordingly.  in particular, whenever possible, the analysis is partitioned and
+// performed in parallel threads.  the json parse is done sequentially (while it could be probably done in
+// parallel, it's run time does not currently merit the need).  the program is setup to use all cores on the
+// host processor so plan accordingly.
+
 package main
 
 import "os"
@@ -229,12 +247,14 @@ func main() {
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
-	// should probably be aware of. 
+	// should probably be aware of.  also, record the max num of events received by an LP
 	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
+	maxLPEventArray := 0
 	for i := range lps {
 		if len(lps[i]) == 0 {
 			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
 		}
+		if maxLPEventArray < len(lps[i]) {maxLPEventArray = len(lps[i])}
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
@@ -249,6 +269,15 @@ func main() {
 	if err != nil {panic(err)}
 
 	// in this next step, we are going to compute event received summaries.  in this case we are going to
+	// attack the problem by slicine the lps array and assigning each slice to a separate goroutine.  to
+	// optimize performance we are going to have each goroutine perform all analyses and pass the results LP
+	// by LP back to the main routine.  in each pass over an LP each goroutine will: (i) compute the
+	// local/remote event data, (ii) record the LPs that send events to this LP and compute the coverage
+	// statistics, and (iii) the (local, global, and linked) chain info for each LP.  while these
+	// computations can technically be folded together and performed in one pass over each LP's event data, we
+	// will keep them separate in order to keep the algorithm cleaner.  
+
+	// in this next step, we are going to compute event received summaries.  in this case we are going to
 	// compute two different results.  the first is a simple count of the (i) total events received, (ii)
 	// the local events received local and, (iii) the remote events received.  in this case local means
 	// events sent and received by the same LP, remote means events sent by some other LP.  the second
@@ -256,6 +285,7 @@ func main() {
 	// received.  for example, how many LP (say X) were responsible for 75% of the events received by this
 	// LP.  for this we will order the sending LP counts so that they are ordered by decreasing number of 
 	// events sent to this LP.
+
 
 	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
 	// result in coverage of the number of events received (yes, this is confusing)
@@ -272,84 +302,199 @@ func main() {
 		panic("ERROR: something's amiss in this computation\n")
 	}
 
-	// this is the channel type to communication event summary results
+	// data type to capture each LP's event summary data
 	type lpEventSummary struct {
-		lpInt int
+		lpId int
 		local int
 		remote int
 		total int
 		cover [5]int
 	}
 
-	// this helper function (goroutine) will compute the number of local and remote events received for a
-	// subset of the LP (defined as those from lps[low] to lps[high]; as well as computing the number of
-	// sending events to cover the target percentages (75, 80, 90, 95, and 100%)
-	countLocalRemoteEvents := func(low int, high int, c chan<- lpEventSummary)  {
+	// compute the local/remote events and cover statistics
+	computeLPEventSummaries := func(lpId int, events []eventData) lpEventSummary {
 		var es lpEventSummary
-		lpData := make([]int,len(lps))
-		for i := low; i <= high; i++ {
-			es.lpInt = i
-			es.local = 0
-			es.remote = 0
-			for j := range lps {lpData[j] = 0}
-			for j := range lps[i] {
-				lpData[lps[i][j].companionLP]++
-				if i != lps[i][j].companionLP {
-					es.remote++
-				} else {
-					es.local++
-				}	
-			}
-			sort.Sort(sort.Reverse(sort.IntSlice(lpData)))
-			es.total = es.remote + es.local
-			es.cover[0] = numOfLPsToCover(es.total, lpData, 75)  //  75% cutoff
-			es.cover[1] = numOfLPsToCover(es.total, lpData, 80)  //  80% cutoff
-			es.cover[2] = numOfLPsToCover(es.total, lpData, 90)  //  90% cutoff
-			es.cover[3] = numOfLPsToCover(es.total, lpData, 95)  //  95% cutoff
-			es.cover[4] = numOfLPsToCover(es.total, lpData, 100) // 100% cutoff
-			c <- es
+		lpData := make([]int,numOfLPs)
+		es.lpId = lpId
+		es.local = 0
+		es.remote = 0
+		for _, event := range events {
+			lpData[event.companionLP]++
+			if lpId != event.companionLP {es.remote++} else {es.local++}
 		}
+		sort.Sort(sort.Reverse(sort.IntSlice(lpData)))
+		es.total = es.remote + es.local
+		es.cover[0] = numOfLPsToCover(es.total, lpData, 75)  //  75% cutoff
+		es.cover[1] = numOfLPsToCover(es.total, lpData, 80)  //  80% cutoff
+		es.cover[2] = numOfLPsToCover(es.total, lpData, 90)  //  90% cutoff
+		es.cover[3] = numOfLPsToCover(es.total, lpData, 95)  //  95% cutoff
+		es.cover[4] = numOfLPsToCover(es.total, lpData, 100) // 100% cutoff
+		return es
+	}
+
+	// event chains are collections of events for execution at the LP that could potentially be executed
+	// together.  thus when examining an event with receive timestamp t, the chain is formed by all future
+	// (by receive time) events in that LP that have a send time < t.  local chains have the additional
+	// constraint that they must also have been sent by the executing LP (self generated events).  global
+	// chains can be sent from any LP.
+
+	// a third form of event chains is the "linked event chain".  the linked chain is similar to the local
+	// chain except that the constraint on the send time is relaxed so that any event sent within the time
+	// window of the local event chain (so basically any event generated by the chain is also potentially
+	// a member of the chain).
+
+	// consider a locally linked chain computation.  that is, anything generated within the time frame of
+	// the chain should also be included in the chain length computation
+
+	type lpChainSummary struct {
+		local []int
+		linked []int
+		global []int
+	}
+
+	accumulateChain := func(chain []int, maxChainLength int, chainLength int) {
+		if chainLength >= maxChainLength {chain[maxChainLength - 1]++} else {chain[chainLength]++}
 		return
 	}
 
+	// PAW: consider changing these to being strictly less than the receiveTime
+
+	computeEventChains := func(lpId int, events []eventData) lpChainSummary {
+
+		var lpChain lpChainSummary
+
+		// all chains lengths >= chainLength will be counted together
+		chainLength := 5
+		lpChain.local = make([]int,chainLength)
+		lpChain.linked = make([]int,chainLength)
+		lpChain.global = make([]int,chainLength)
+
+		// LOCAL CHAINS: an event is part of the local chain if it is (i) generated by this LP (lpId) and (ii)
+		// if it's send time is less than or equal to the receive time of the event at the head of the chain.
+		i := 0
+		for ; i < len(events) ; {
+			for ; i < len(events) && events[i].companionLP != lpId ; i++ {}
+			if i < len(events) && events[i].companionLP == lpId {
+				j := i + 1
+				for ; j < len(events) && events[j].companionLP == lpId && events[j].sendTime <= events[i].receiveTime ; {j++}
+				accumulateChain(lpChain.local, chainLength, j-i-1)
+				i = i + j
+			}
+		}
+		
+		// LINKED CHAINS: an event is part of the linked chain if it is (i) generated by this LP (lpId) and
+		// (ii) if it's send time is less than or equal to the receive time of any event currently in the
+		// chain (tested against the last event already in the chain)
+		i = 0
+		for ; i < len(events) ; {
+			for ; i < len(events) && events[i].companionLP != lpId ; i++ {}
+			if i < len(events) && events[i].companionLP == lpId {
+				j := i + 1
+				for ; j < len(events) && events[j].companionLP == lpId && events[j].sendTime <= events[j-1].receiveTime ; {j++}
+				accumulateChain(lpChain.linked, chainLength, j-i-1)
+				i = i + j
+			}
+		}
+		
+		// GLOBAL CHAINS: an event is part of the global chain if it is has a send time that is less than or
+		// equal to the receive time of any event currently in the chain (tested against the last event
+		// already in the chain)
+		i = 0
+		for ; i < len(events) ; {
+			j := i + 1
+			for ; j < len(events) && events[j].sendTime <= events[i].receiveTime ; {j++}
+			accumulateChain(lpChain.global, chainLength, j-i-1)
+			i = i + j
+		}
+		return lpChain
+	}
+
+	localChainFile, err := os.Create("analysisData/localEventChainsByLP2.dat")
+	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
+	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
+
+	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP2.dat")
+	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
+	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
+
+	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP2.dat")
+	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
+	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
+
 	// location to write summaries of local and remote events received
-	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
+	eventSummaries2, err := os.Create("analysisData/eventsExecutedByLP2.dat")
 	if err != nil {panic(err)}
 	fmt.Printf("%v: Computing the number local/remote events executed by each LP.\n", printTime())
-	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
-	fmt.Fprintf(eventSummaries, "# LP, local, remote\n")
+	fmt.Fprintf(eventSummaries2, "# summary of local and remote events executed\n")
+	fmt.Fprintf(eventSummaries2, "# LP, local, remote\n")
 
 	// location to write percentage of LPs to cover percentage of events received
-	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
+	numToCover2, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages2.dat")
 	if err != nil {panic(err)}
-	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
-	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+	fmt.Fprintf(numToCover2,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
+	fmt.Fprintf(numToCover2,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
-	// defining how many LPs do we assign to each thread
-	goroutineSliceSize := int((float32(len(lps))/float32(numThreads)) + .5)
+	for i, lp := range lps {
+		eventSummary := computeLPEventSummaries(i, lp)
+		fmt.Fprintf(eventSummaries2, "%v, %v, %v\n",mapIntToLPName[i], eventSummary.local, eventSummary.remote)
+		fmt.Fprintf(numToCover2,"%v, %v, %v, %v, %v, %v, %v\n", mapIntToLPName[i], eventSummary.total,
+			eventSummary.cover[0], eventSummary.cover[1], eventSummary.cover[2], eventSummary.cover[3], eventSummary.cover[4])
 
-	// each goroutine will compute event counts for one LP, send the results back over the channel and continue. 
-	c := make(chan lpEventSummary, numThreads * 4)
-	for i := 0; i < numThreads; i++ {
-		low := i * goroutineSliceSize
-		high := low + goroutineSliceSize - 1
-		if i == numThreads - 1 {high = len(lps)-1}
-		go countLocalRemoteEvents(low, high, c)
+		chains := computeEventChains(i, lp)
+		fmt.Fprintf(localChainFile,"%v",mapIntToLPName[i])
+		fmt.Fprintf(linkedChainFile,"%v",mapIntToLPName[i])
+		fmt.Fprintf(globalChainFile,"%v",mapIntToLPName[i])
+		for i := range chains.local {
+			fmt.Fprintf(localChainFile,", %v", chains.local[i])
+			fmt.Fprintf(linkedChainFile,", %v", chains.linked[i])
+			fmt.Fprintf(globalChainFile,", %v", chains.global[i])
+		}
+        fmt.Fprintf(localChainFile,"\n")
+        fmt.Fprintf(linkedChainFile,"\n")
+        fmt.Fprintf(globalChainFile,"\n")
 	}
-	
-	// process all of the data in the channel
-	for _ = range lps {
-		info := <- c
-		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", mapIntToLPName[info.lpInt], info.local, info.remote)
-		fmt.Fprintf(numToCover,"%v, %v, %v, %v, %v, %v, %v\n", mapIntToLPName[info.lpInt], info.total,
-			info.cover[0], info.cover[1], info.cover[2], info.cover[3], info.cover[4])
-	}
-	close(c)
 
-	err = eventSummaries.Close()
+	err = eventSummaries2.Close()
 	if err != nil {panic(err)}
-	err = numToCover.Close()
+	err = numToCover2.Close()
 	if err != nil {panic(err)}
+	err = localChainFile.Close()
+	if err != nil {panic(err)}
+	err = linkedChainFile.Close()
+	if err != nil {panic(err)}
+	err = globalChainFile.Close()
+	if err != nil {panic(err)}
+
+// we will have to tie this up when we process results from the channels....
+
+/*
+
+	// number of LPs with n event chains of length X number of LPs with average event chains of length X
+
+	// not sure this will be useful or not, but let's save totals of the local and global event chains.
+	// specifically we will sum the local/global event chains for all of the LPs in the system
+	eventChainSummary := make([][]int,3)
+	// store local event chain summary data here
+	eventChainSummary[0] = make([]int,eventChainLength)
+	// store linked event chain summary data here
+	eventChainSummary[1] = make([]int,eventChainLength)
+	// store global event chain summary data here
+	eventChainSummary[2] = make([]int,eventChainLength)
+	for i := range lps {
+		for j := 0; j < eventChainLength; j++ {
+			eventChainSummary[0][j] = eventChainSummary[0][j] + localEventChain[i][j]
+			eventChainSummary[1][j] = eventChainSummary[1][j] + linkedEventChain[i][j]
+			eventChainSummary[2][j] = eventChainSummary[2][j] + globalEventChain[i][j]
+		}
+	}
+	outFile, err = os.Create("analysisData/eventChainsSummary.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# number of event chains of length X\n")
+	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
+	for i := 0; i < eventChainLength; i++ {fmt.Fprintf(outFile,"%v, %v, %v, %v\n",i+1,eventChainSummary[0][i],eventChainSummary[1][i],eventChainSummary[2][i])}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+*/
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
@@ -423,155 +568,7 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	// event chains are collections of events for execution at the LP that could potentially be executed
-	// together.  thus when examining an event with receive timestamp t, the chain is formed by all future
-	// (by receive time) events in that LP that have a send time < t.  local chains have the additional
-	// constraint that they must also have been sent by the executing LP (self generated events).  global
-	// chains can be sent from any LP.
 
-	// a third form of event chains is the "linked event chain".  the linked chain is similar to the local
-	// chain except that the constraint on the send time is relaxed so that any event sent within the time
-	// window of the local event chain (so basically any event generated by the chain is also potentially
-	// a member of the chain).
-
-	// consider a locally linked chain computation.  that is, anything generated within the time frame of
-	// the chain should also be included in the chain length computation
-
-	eventChainLength := 5
-	localEventChain := make([][]int,len(lps))
-	for i := range localEventChain {localEventChain[i] = make([]int,eventChainLength)}
-	linkedEventChain := make([][]int,len(lps))
-	for i := range linkedEventChain {linkedEventChain[i] = make([]int,eventChainLength)}
-	globalEventChain := make([][]int,len(lps))
-	for i := range globalEventChain {globalEventChain[i] = make([]int,eventChainLength)}
-
-	computeChainsForLpsSlice := func (lps [][]eventData, base int, done chan<- bool) {
-		for i, lp := range lps {
-			// local chain analysis
-			j := 0
-			for ; j < len(lp) ; {
-				for ; j < len(lp) && lp[j].companionLP != base + i ; j++ {}
-				if j < len(lp) && lp[j].companionLP == base + i {
-					k := j + 1
-					for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime && lp[k].companionLP == base + i ; {k++}
-					if k-j-1 >= eventChainLength {localEventChain[base + i][eventChainLength - 1]++
-					} else {
-						localEventChain[base + i][k-j-1]++
-					}
-					j = j + k
-				}
-			}
-			// lined chain analysis
-			j = 0
-			for ; j < len(lp) ; {
-				for ; j < len(lp) && lp[j].companionLP != base + i ; j++ {}
-				if j < len(lp) && lp[j].companionLP == base + i {
-					k := j + 1
-					for ; k < len(lp) && lp[k].sendTime <= lp[k-1].receiveTime && lp[k].companionLP == base + i ; {k++}
-					if k-j-1 >= eventChainLength {linkedEventChain[base + i][eventChainLength - 1]++
-					} else {
-						linkedEventChain[base + i][k-j-1]++
-					}
-					j = j + k
-				}
-			}
-			// global chain analysis
-			j = 0
-			for ; j < len(lp) ; {
-				k := j + 1
-				for ; k < len(lp) && lp[k].sendTime <= lp[j].receiveTime ; {
-					k++
-				}
-				if k-j-1 >= eventChainLength {
-					globalEventChain[base + i][eventChainLength - 1]++
-				} else {
-					globalEventChain[base + i][k-j-1]++
-				}
-				j = j + k
-			}
-		}
-		done <- true
-	}	
-
-	// compute the local and global event chains for each LP
-	fmt.Printf("%v: Computing local, linked, and global event chains by LP.\n", printTime())
-
-	sliceDone := make(chan bool, numThreads)
-	for i := 0; i < numThreads; i++ {
-		low := i * goroutineSliceSize
-		high := low + goroutineSliceSize
-		if i == numThreads - 1 {high = len(lps)}
-		go computeChainsForLpsSlice(lps[low:high], low, sliceDone)
-	}
-
-	for i := 0; i < numThreads; i++ {
-		<- sliceDone
-	}
-	
-	// write local event chains for each LP
-	outFile, err = os.Create("analysisData/localEventChainsByLP.dat")
-	if err != nil {panic(err)}
-	fmt.Fprintf(outFile,"# local event chains by LP\n")
-	fmt.Fprintf(outFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
-	for i := range lps {
-		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
-		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",localEventChain[i][j])}
-		fmt.Fprintf(outFile,"\n")
-	}
-	err = outFile.Close()
-	if err != nil {panic(err)}
-
-	// write linked event chains for each LP
-	outFile, err = os.Create("analysisData/linkedEventChainsByLP.dat")
-	if err != nil {panic(err)}
-	fmt.Fprintf(outFile,"# linked event chains by LP\n")
-	fmt.Fprintf(outFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
-	for i := range lps {
-		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
-		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",linkedEventChain[i][j])}
-		fmt.Fprintf(outFile,"\n")
-	}
-	err = outFile.Close()
-	if err != nil {panic(err)}
-
-	// write global event chains for each LP
-	outFile, err = os.Create("analysisData/globalEventChainsByLP.dat")
-	if err != nil {panic(err)}
-	fmt.Fprintf(outFile,"# global event chains by LP\n")
-	fmt.Fprintf(outFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
-	for i := range lps {
-		fmt.Fprintf(outFile,"%v",mapIntToLPName[i])
-		for j := 0; j < eventChainLength; j++ {fmt.Fprintf(outFile,", %v",globalEventChain[i][j])}
-		fmt.Fprintf(outFile,"\n")
-	}
-	err = outFile.Close()
-	if err != nil {panic(err)}
-
-	// number of LPs with n event chains of length X number of LPs with average event chains of length X
-
-	// not sure this will be useful or not, but let's save totals of the local and global event chains.
-	// specifically we will sum the local/global event chains for all of the LPs in the system
-	eventChainSummary := make([][]int,3)
-	// store local event chain summary data here
-	eventChainSummary[0] = make([]int,eventChainLength)
-	// store linked event chain summary data here
-	eventChainSummary[1] = make([]int,eventChainLength)
-	// store global event chain summary data here
-	eventChainSummary[2] = make([]int,eventChainLength)
-	for i := range lps {
-		for j := 0; j < eventChainLength; j++ {
-			eventChainSummary[0][j] = eventChainSummary[0][j] + localEventChain[i][j]
-			eventChainSummary[1][j] = eventChainSummary[1][j] + linkedEventChain[i][j]
-			eventChainSummary[2][j] = eventChainSummary[2][j] + globalEventChain[i][j]
-		}
-	}
-	outFile, err = os.Create("analysisData/eventChainsSummary.dat")
-	if err != nil {panic(err)}
-	fmt.Fprintf(outFile,"# number of event chains of length X\n")
-	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
-	for i := 0; i < eventChainLength; i++ {fmt.Fprintf(outFile,"%v, %v, %v, %v\n",i+1,eventChainSummary[0][i],eventChainSummary[1][i],eventChainSummary[2][i])}
-	err = outFile.Close()
-	if err != nil {panic(err)}
 
 	fmt.Printf("%v: Finished.\n", printTime())
 	return
