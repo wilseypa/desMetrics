@@ -417,10 +417,8 @@ func main() {
 		return lpChain
 	}
 
-	// PAW: change this to write only one large csv file and we will use cut/sort/gnuplot to selected
-	// components as needed 
-	// PAW: also change the comment headers of chains/covers to for loops so the numbers will automatically
-	// grow with the variable setting....
+	// PAW: change the comment headers of chains/covers to for loops so the numbers will automatically grow
+	// with the variable setting.... 
 	localChainFile, err := os.Create("analysisData/localEventChainsByLP.dat")
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
 	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
@@ -477,8 +475,6 @@ func main() {
 	for _ = range lps {
 		eventsProcessed := <- c1
 		chains := <- c2
-		// sanity check
-		if eventsProcessed.lpId != chains.lpId {panic("Missmatched LP id from LP analysis goroutine\n")}
 		// capture event chain summaries
 		for i := 0; i < chainLength; i++ {
 			localEventChainSummary[i] = localEventChainSummary[i] + chains.local[i]
@@ -539,21 +535,28 @@ func main() {
 
 	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())	
 
+	type lowestTimeStampFound struct {
+		definingLP int
+		minTS float64
+		found bool
+	}
+
 	// find the lowest timestamped event at the head of each LP slice we are given 
-	findLowestTS := func(lps []lpData) (float64, int, bool) {
-		definingLP := 0
-		minTS := math.MaxFloat64
-		noneAvailable := true
-		for i := range lps {
-			if lpIndex[i] < len(lps[i].events) {
-				if minTS > lps[i].events[lpIndex[i]].receiveTime {
-					minTS = lps[i].events[lpIndex[i]].receiveTime
-					definingLP = lps[i].lpId
-					noneAvailable = false
+	findLowestTS := func(lps []lpData) lowestTimeStampFound {
+		var findResults lowestTimeStampFound
+		findResults.definingLP = 0
+		findResults.minTS = math.MaxFloat64
+		findResults.found = false
+		for _, lp := range lps {
+			if lpIndex[lp.lpId] < len(lp.events) {
+				if findResults.minTS > lp.events[lpIndex[lp.lpId]].receiveTime {
+					findResults.minTS = lp.events[lpIndex[lp.lpId]].receiveTime
+					findResults.definingLP = lp.lpId
+					findResults.found = true
 				}
 			}
 		}
-			return minTS, definingLP, noneAvailable
+			return findResults
 	}
 
 	// given a timestamp (scheduleTime), fine the number of events that are available for execution (that is,
@@ -582,9 +585,9 @@ func main() {
 	timesXEventsAvailable := make([]int, numOfEvents)
 	for ; eventsExhausted != true ; {
 		eventsExhausted = true
-		scheduleTime, definingLP, noneAvailable := findLowestTS(lps)
-		if noneAvailable == false {
-			eventsAvailable := findEventsAvailable(lps, scheduleTime, definingLP)
+		findResults := findLowestTS(lps)
+		if findResults.found == true {
+			eventsAvailable := findEventsAvailable(lps, findResults.minTS, findResults.definingLP)
 			fmt.Fprintf(outFile,"%v %v\n",simCycle + 1,eventsAvailable)
 			timesXEventsAvailable[eventsAvailable]++
 			if maxEventsAvailable < eventsAvailable {maxEventsAvailable = eventsAvailable}
