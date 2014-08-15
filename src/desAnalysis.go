@@ -548,7 +548,7 @@ func main() {
 			if lpIndex[i] < len(lps[i].events) {
 				if minTS > lps[i].events[lpIndex[i]].receiveTime {
 					minTS = lps[i].events[lpIndex[i]].receiveTime
-					definingLP = i
+					definingLP = lps[i].lpId
 					noneAvailable = false
 				}
 			}
@@ -563,7 +563,7 @@ func main() {
 	findEventsAvailable := func(lps []lpData, scheduleTime float64, definingLP int) int {
 		eventsAvailable := 0
 		for i, lp := range lps {
-			if lpIndex[i] < len(lp.events) && (lp.events[lpIndex[i]].sendTime < scheduleTime || definingLP == i) {
+			if lpIndex[i] < len(lp.events) && (lp.events[lpIndex[i]].sendTime < scheduleTime || definingLP == lp.lpId) {
 				eventsAvailable++
 				lpIndex[i]++
 			}
@@ -603,7 +603,6 @@ func main() {
 	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXEventsAvailable[i+1])}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-
 
 
 	fmt.Printf("%v: Finished.\n", printTime())
