@@ -35,6 +35,12 @@ type eventData struct {
 	receiveTime float64
 }
 
+// setup a data structure for LPs
+type lpData struct {
+	lpId int
+	events []eventData
+}
+
 // functions to support sorting of the events by their receive time
 type byReceiveTime []eventData
 func (a byReceiveTime) Len() int           {return len(a)}
@@ -69,7 +75,7 @@ func main() {
 	lpNameMap :=make(map[string]*lpMap)
 
 	// ultimately we will use these to hold event data
-	var lps [][]eventData
+	var lps []lpData
 	var lpIndex []int
 
 	addLP := func(lp string) *lpMap {
@@ -96,10 +102,10 @@ func main() {
 	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
 		rLPint := lpNameMap[rLP].toInt
 		lpIndex[rLPint]++
-		if lpIndex[rLPint] > cap(lps[rLPint]) {panic("Something wrong, we should have computed the appropriate size on the first parse.\n")}
-		lps[rLPint][lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
-		lps[rLPint][lpIndex[rLPint]].receiveTime = rTS
-		lps[rLPint][lpIndex[rLPint]].sendTime = sTS
+		if lpIndex[rLPint] > cap(lps[rLPint].events) {panic("Something wrong, we should have computed the appropriate size on the first parse.\n")}
+		lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
+		lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
+		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
 	}
 
 	printInfo := func (format string, a ...interface{}) (n int, err error) {
@@ -224,14 +230,15 @@ func main() {
 	printInfo = func (format string, a ...interface{}) (n int, err error) {return 0, nil}
 
 	// lps is an array of the LPs; each LP entry will hold the events it received
-	lps = make([][]eventData, len(lpNameMap))
+	lps = make([]lpData, len(lpNameMap))
 
 	// periodically we will need to walk through the LP arrays independently; we will use this array to do so
 	lpIndex = make([]int, len(lps))
 	// allocate entries in each LP to hold the number events it received
 	for _, i := range lpNameMap {
 		lpIndex[i.toInt] = -1
-		lps[i.toInt] = make([]eventData, i.receivedEvents)
+		lps[i.toInt].lpId = i.toInt
+		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
 	// this time we will save the events
@@ -251,18 +258,18 @@ func main() {
 	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
 	maxLPEventArray := 0
 	for i := range lps {
-		if len(lps[i]) == 0 {
+		if len(lps[i].events) == 0 {
 			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
 		}
-		if maxLPEventArray < len(lps[i]) {maxLPEventArray = len(lps[i])}
+		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", printTime())
-	for i := range lps {sort.Sort(byReceiveTime(lps[i]))}
+	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
 
 	// on to analysis....
-	fmt.Printf("%v: ANALYSIS (events organized by receiving LP).\n", printTime())	
+	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 
 	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
@@ -312,23 +319,23 @@ func main() {
 	}
 
 	// compute the local/remote events and cover statistics
-	computeLPEventSummaries := func(lpId int, events []eventData) lpEventSummary {
+	computeLPEventsProcessed := func(lp lpData) lpEventSummary {
 		var es lpEventSummary
-		lpData := make([]int,numOfLPs)
-		es.lpId = lpId
+		lpSenders := make([]int,numOfLPs)
+		es.lpId = lp.lpId
 		es.local = 0
 		es.remote = 0
-		for _, event := range events {
-			lpData[event.companionLP]++
-			if lpId != event.companionLP {es.remote++} else {es.local++}
+		for _, event := range lp.events {
+			lpSenders[event.companionLP]++
+			if lp.lpId != event.companionLP {es.remote++} else {es.local++}
 		}
-		sort.Sort(sort.Reverse(sort.IntSlice(lpData)))
+		sort.Sort(sort.Reverse(sort.IntSlice(lpSenders)))
 		es.total = es.remote + es.local
-		es.cover[0] = numOfLPsToCover(es.total, lpData, 75)  //  75% cutoff
-		es.cover[1] = numOfLPsToCover(es.total, lpData, 80)  //  80% cutoff
-		es.cover[2] = numOfLPsToCover(es.total, lpData, 90)  //  90% cutoff
-		es.cover[3] = numOfLPsToCover(es.total, lpData, 95)  //  95% cutoff
-		es.cover[4] = numOfLPsToCover(es.total, lpData, 100) // 100% cutoff
+		es.cover[0] = numOfLPsToCover(es.total, lpSenders, 75)  //  75% cutoff
+		es.cover[1] = numOfLPsToCover(es.total, lpSenders, 80)  //  80% cutoff
+		es.cover[2] = numOfLPsToCover(es.total, lpSenders, 90)  //  90% cutoff
+		es.cover[3] = numOfLPsToCover(es.total, lpSenders, 95)  //  95% cutoff
+		es.cover[4] = numOfLPsToCover(es.total, lpSenders, 100) // 100% cutoff
 		return es
 	}
 
@@ -347,6 +354,7 @@ func main() {
 	// the chain should also be included in the chain length computation
 
 	type lpChainSummary struct {
+		lpId int
 		local []int
 		linked []int
 		global []int
@@ -358,13 +366,13 @@ func main() {
 	}
 
 	// PAW: consider changing these to being strictly less than the receiveTime
-
-	computeEventChains := func(lpId int, events []eventData) lpChainSummary {
+	computeEventChains := func(lp lpData) lpChainSummary {
 
 		var lpChain lpChainSummary
 
 		// all chains lengths >= chainLength will be counted together
 		chainLength := 5
+		lpChain.lpId = lp.lpId
 		lpChain.local = make([]int,chainLength)
 		lpChain.linked = make([]int,chainLength)
 		lpChain.global = make([]int,chainLength)
@@ -372,11 +380,11 @@ func main() {
 		// LOCAL CHAINS: an event is part of the local chain if it is (i) generated by this LP (lpId) and (ii)
 		// if it's send time is less than or equal to the receive time of the event at the head of the chain.
 		i := 0
-		for ; i < len(events) ; {
-			for ; i < len(events) && events[i].companionLP != lpId ; i++ {}
-			if i < len(events) && events[i].companionLP == lpId {
+		for ; i < len(lp.events) ; {
+			for ; i < len(lp.events) && lp.events[i].companionLP != lp.lpId ; i++ {}
+			if i < len(lp.events) && lp.events[i].companionLP == lp.lpId {
 				j := i + 1
-				for ; j < len(events) && events[j].companionLP == lpId && events[j].sendTime <= events[i].receiveTime ; {j++}
+				for ; j < len(lp.events) && lp.events[j].companionLP == lp.lpId && lp.events[j].sendTime <= lp.events[i].receiveTime ; {j++}
 				accumulateChain(lpChain.local, chainLength, j-i-1)
 				i = i + j
 			}
@@ -386,11 +394,11 @@ func main() {
 		// (ii) if it's send time is less than or equal to the receive time of any event currently in the
 		// chain (tested against the last event already in the chain)
 		i = 0
-		for ; i < len(events) ; {
-			for ; i < len(events) && events[i].companionLP != lpId ; i++ {}
-			if i < len(events) && events[i].companionLP == lpId {
+		for ; i < len(lp.events) ; {
+			for ; i < len(lp.events) && lp.events[i].companionLP != lp.lpId ; i++ {}
+			if i < len(lp.events) && lp.events[i].companionLP == lp.lpId {
 				j := i + 1
-				for ; j < len(events) && events[j].companionLP == lpId && events[j].sendTime <= events[j-1].receiveTime ; {j++}
+				for ; j < len(lp.events) && lp.events[j].companionLP == lp.lpId && lp.events[j].sendTime <= lp.events[j-1].receiveTime ; {j++}
 				accumulateChain(lpChain.linked, chainLength, j-i-1)
 				i = i + j
 			}
@@ -400,50 +408,78 @@ func main() {
 		// equal to the receive time of any event currently in the chain (tested against the last event
 		// already in the chain)
 		i = 0
-		for ; i < len(events) ; {
+		for ; i < len(lp.events) ; {
 			j := i + 1
-			for ; j < len(events) && events[j].sendTime <= events[i].receiveTime ; {j++}
+			for ; j < len(lp.events) && lp.events[j].sendTime <= lp.events[i].receiveTime ; {j++}
 			accumulateChain(lpChain.global, chainLength, j-i-1)
 			i = i + j
 		}
 		return lpChain
 	}
 
-	localChainFile, err := os.Create("analysisData/localEventChainsByLP2.dat")
+	localChainFile, err := os.Create("analysisData/localEventChainsByLP.dat")
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
 	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
 
-	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP2.dat")
+	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.dat")
 	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
 	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
 
-	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP2.dat")
+	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.dat")
 	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
 	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
 
 	// location to write summaries of local and remote events received
-	eventSummaries2, err := os.Create("analysisData/eventsExecutedByLP2.dat")
+	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
 	if err != nil {panic(err)}
-	fmt.Printf("%v: Computing the number local/remote events executed by each LP.\n", printTime())
-	fmt.Fprintf(eventSummaries2, "# summary of local and remote events executed\n")
-	fmt.Fprintf(eventSummaries2, "# LP, local, remote\n")
+	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
+	fmt.Fprintf(eventSummaries, "# LP, local, remote\n")
 
 	// location to write percentage of LPs to cover percentage of events received
-	numToCover2, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages2.dat")
+	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
 	if err != nil {panic(err)}
-	fmt.Fprintf(numToCover2,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
-	fmt.Fprintf(numToCover2,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
+	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
-	for i, lp := range lps {
-		eventSummary := computeLPEventSummaries(i, lp)
-		fmt.Fprintf(eventSummaries2, "%v, %v, %v\n",mapIntToLPName[i], eventSummary.local, eventSummary.remote)
-		fmt.Fprintf(numToCover2,"%v, %v, %v, %v, %v, %v, %v\n", mapIntToLPName[i], eventSummary.total,
-			eventSummary.cover[0], eventSummary.cover[1], eventSummary.cover[2], eventSummary.cover[3], eventSummary.cover[4])
+	// this will be invoked as a gogroutine with LPs equally (nearly) partitioned among them
+	analyzeReceivedEvents := func (lps []lpData, c1 chan<- lpEventSummary, c2 chan <- lpChainSummary) {
+		for _, lp := range(lps) {
+			eventsProcessed := computeLPEventsProcessed(lp)
+			chains := computeEventChains (lp)
+			c1 <- eventsProcessed
+			c2 <- chains
+		}
+	}
 
-		chains := computeEventChains(i, lp)
-		fmt.Fprintf(localChainFile,"%v",mapIntToLPName[i])
-		fmt.Fprintf(linkedChainFile,"%v",mapIntToLPName[i])
-		fmt.Fprintf(globalChainFile,"%v",mapIntToLPName[i])
+	// defining how many LPs do we assign to each thread
+	goroutineSliceSize := int((float32(len(lps))/float32(numThreads)) + .5)
+
+	// each goroutine will compute event counts for one LP, send the results back over the channel and continue. 
+	c1 := make(chan lpEventSummary, numThreads * 4)
+	c2 := make(chan lpChainSummary, numThreads * 4)
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize
+		if i == numThreads - 1 {high = len(lps)}
+		go analyzeReceivedEvents(lps[low:high], c1, c2)
+	}
+
+	// process all of the data in the channel
+	for _ = range lps {
+		eventsProcessed := <- c1
+		chains := <- c2
+//		fmt.Printf("Procesing LP: %v, %v, %v\n",k, len(lps), chains.lpId)
+		// sanity check
+		if eventsProcessed.lpId != chains.lpId {panic("Missmatched LP id from LP analysis goroutine\n")}
+		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", 
+			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote)
+		// PAW: turn this into a for loop
+		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.total)
+		for _, i := range eventsProcessed.cover {fmt.Fprintf(numToCover,", %v", i)}
+		fmt.Fprintf(numToCover,"\n")
+		fmt.Fprintf(localChainFile,"%v",mapIntToLPName[chains.lpId])
+		fmt.Fprintf(linkedChainFile,"%v",mapIntToLPName[chains.lpId])
+		fmt.Fprintf(globalChainFile,"%v",mapIntToLPName[chains.lpId])
 		for i := range chains.local {
 			fmt.Fprintf(localChainFile,", %v", chains.local[i])
 			fmt.Fprintf(linkedChainFile,", %v", chains.linked[i])
@@ -453,10 +489,12 @@ func main() {
         fmt.Fprintf(linkedChainFile,"\n")
         fmt.Fprintf(globalChainFile,"\n")
 	}
+	close(c1)
+	close(c2)
 
-	err = eventSummaries2.Close()
+	err = eventSummaries.Close()
 	if err != nil {panic(err)}
-	err = numToCover2.Close()
+	err = numToCover.Close()
 	if err != nil {panic(err)}
 	err = localChainFile.Close()
 	if err != nil {panic(err)}
@@ -504,14 +542,14 @@ func main() {
 	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())	
 
 	// find the lowest timestamped event at the head of each LP slice we are given 
-	findLowestTS := func(lps [][]eventData) (float64, int, bool) {
+	findLowestTS := func(lps []lpData) (float64, int, bool) {
 		definingLP := 0
 		minTS := math.MaxFloat64
 		noneAvailable := true
 		for i := range lps {
-			if lpIndex[i] < len(lps[i]) {
-				if minTS > lps[i][lpIndex[i]].receiveTime {
-					minTS = lps[i][lpIndex[i]].receiveTime
+			if lpIndex[i] < len(lps[i].events) {
+				if minTS > lps[i].events[lpIndex[i]].receiveTime {
+					minTS = lps[i].events[lpIndex[i]].receiveTime
 					definingLP = i
 					noneAvailable = false
 				}
@@ -524,10 +562,10 @@ func main() {
 	// count the number of LPs such that their head event has a receiveTime at or above scheduleTime and a
 	// sendTime at or below scheduleTime (this second check should be strictly below, but some of our input
 	// data sets have events with the same send/receive time so we have to weaken this constraint..
-	findEventsAvailable := func(lps [][]eventData, scheduleTime float64, definingLP int) int {
+	findEventsAvailable := func(lps []lpData, scheduleTime float64, definingLP int) int {
 		eventsAvailable := 0
 		for i, lp := range lps {
-			if lpIndex[i] < len(lp) && (lp[lpIndex[i]].sendTime < scheduleTime || definingLP == i) {
+			if lpIndex[i] < len(lp.events) && (lp.events[lpIndex[i]].sendTime < scheduleTime || definingLP == i) {
 				eventsAvailable++
 				lpIndex[i]++
 			}
