@@ -359,6 +359,7 @@ func main() {
 		linked []int
 		global []int
 	}
+	chainLength := 5
 
 	accumulateChain := func(chain []int, maxChainLength int, chainLength int) {
 		if chainLength >= maxChainLength {chain[maxChainLength - 1]++} else {chain[chainLength]++}
@@ -371,7 +372,6 @@ func main() {
 		var lpChain lpChainSummary
 
 		// all chains lengths >= chainLength will be counted together
-		chainLength := 5
 		lpChain.lpId = lp.lpId
 		lpChain.local = make([]int,chainLength)
 		lpChain.linked = make([]int,chainLength)
@@ -417,6 +417,10 @@ func main() {
 		return lpChain
 	}
 
+	// PAW: change this to write only one large csv file and we will use cut/sort/gnuplot to selected
+	// components as needed 
+	// PAW: also change the comment headers of chains/covers to for loops so the numbers will automatically
+	// grow with the variable setting....
 	localChainFile, err := os.Create("analysisData/localEventChainsByLP.dat")
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
 	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
@@ -454,7 +458,8 @@ func main() {
 	// defining how many LPs do we assign to each thread
 	goroutineSliceSize := int((float32(len(lps))/float32(numThreads)) + .5)
 
-	// each goroutine will compute event counts for one LP, send the results back over the channel and continue. 
+	// each goroutine will compute event counts for one LP, send the results back over the channel and
+	// continue. 
 	c1 := make(chan lpEventSummary, numThreads * 4)
 	c2 := make(chan lpChainSummary, numThreads * 4)
 	for i := 0; i < numThreads; i++ {
@@ -464,16 +469,25 @@ func main() {
 		go analyzeReceivedEvents(lps[low:high], c1, c2)
 	}
 
+	localEventChainSummary := make([]int,chainLength)
+	linkedEventChainSummary := make([]int,chainLength)
+	globalEventChainSummary := make([]int,chainLength)
+
 	// process all of the data in the channel
 	for _ = range lps {
 		eventsProcessed := <- c1
 		chains := <- c2
-//		fmt.Printf("Procesing LP: %v, %v, %v\n",k, len(lps), chains.lpId)
 		// sanity check
 		if eventsProcessed.lpId != chains.lpId {panic("Missmatched LP id from LP analysis goroutine\n")}
+		// capture event chain summaries
+		for i := 0; i < chainLength; i++ {
+			localEventChainSummary[i] = localEventChainSummary[i] + chains.local[i]
+			linkedEventChainSummary[i] = linkedEventChainSummary[i] + chains.linked[i]
+			globalEventChainSummary[i] = globalEventChainSummary[i] + chains.global[i]
+		}
 		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", 
 			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote)
-		// PAW: turn this into a for loop
+		// PAW: turn this into a for loop so the variable will actually control
 		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.total)
 		for _, i := range eventsProcessed.cover {fmt.Fprintf(numToCover,", %v", i)}
 		fmt.Fprintf(numToCover,"\n")
@@ -503,36 +517,20 @@ func main() {
 	err = globalChainFile.Close()
 	if err != nil {panic(err)}
 
-// we will have to tie this up when we process results from the channels....
-
-/*
-
 	// number of LPs with n event chains of length X number of LPs with average event chains of length X
 
 	// not sure this will be useful or not, but let's save totals of the local and global event chains.
 	// specifically we will sum the local/global event chains for all of the LPs in the system
-	eventChainSummary := make([][]int,3)
-	// store local event chain summary data here
-	eventChainSummary[0] = make([]int,eventChainLength)
-	// store linked event chain summary data here
-	eventChainSummary[1] = make([]int,eventChainLength)
-	// store global event chain summary data here
-	eventChainSummary[2] = make([]int,eventChainLength)
-	for i := range lps {
-		for j := 0; j < eventChainLength; j++ {
-			eventChainSummary[0][j] = eventChainSummary[0][j] + localEventChain[i][j]
-			eventChainSummary[1][j] = eventChainSummary[1][j] + linkedEventChain[i][j]
-			eventChainSummary[2][j] = eventChainSummary[2][j] + globalEventChain[i][j]
-		}
-	}
-	outFile, err = os.Create("analysisData/eventChainsSummary.dat")
+	outFile, err := os.Create("analysisData/eventChainsSummary.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# number of event chains of length X\n")
 	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
-	for i := 0; i < eventChainLength; i++ {fmt.Fprintf(outFile,"%v, %v, %v, %v\n",i+1,eventChainSummary[0][i],eventChainSummary[1][i],eventChainSummary[2][i])}
+	for i := 0; i < chainLength; i++ {
+		fmt.Fprintf(outFile,"%v, %v, %v, %v\n", i+1,
+			localEventChainSummary[i],linkedEventChainSummary[i],globalEventChainSummary[i])
+	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-*/
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
@@ -573,7 +571,7 @@ func main() {
 		return eventsAvailable
 	}
 
-	outFile, err := os.Create("analysisData/eventsAvailableBySimCycle.dat")
+	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
