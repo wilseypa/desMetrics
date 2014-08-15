@@ -443,6 +443,9 @@ func main() {
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
+	// PAW, if you want to combine these results into one large csv file you will have to
+	// combine c1/c2 so that the data pops out in a chennel together for each LP.
+
 	// this will be invoked as a gogroutine with LPs equally (nearly) partitioned among them
 	analyzeReceivedEvents := func (lps []lpData, c1 chan<- lpEventSummary, c2 chan <- lpChainSummary) {
 		for _, lp := range(lps) {
