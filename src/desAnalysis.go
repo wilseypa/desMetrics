@@ -525,6 +525,90 @@ func main() {
 
 	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())	
 
+	// so we are going to do two parts of the simulation cycle analysis in each pass, namely: (i) count the
+	// numbber of events available for execution, and (ii) find the lowest timestamp for the next simulation
+	// cycle. 
+
+	// using this data structure to hold cycle by cycle analysis results.  
+	type simCycleAnalysisResults struct {
+		definingLP int
+		timeStamp float64
+		numAvailable int
+		eventsExhausted bool
+	}
+
+	analyzeSimCycle := func(lps []lpData, scheduleTime float64, definingLP int) simCycleAnalysisResults {
+		var results simCycleAnalysisResults
+		results.timeStamp = math.MaxFloat64
+		results.eventsExhausted = true
+		for _, lp := range lps {
+			if lpIndex[lp.lpId] < len(lp.events) {
+				// accumulate events available
+				if (lp.events[lpIndex[lp.lpId]].sendTime < scheduleTime || definingLP == lp.lpId) {
+					results.numAvailable++
+					lpIndex[lp.lpId]++
+				}
+				// search for timeStamp
+				if lpIndex[lp.lpId] < len(lp.events) { // since we potentially incremented the lpIndex ptr
+					if results.timeStamp > lp.events[lpIndex[lp.lpId]].receiveTime {
+						results.timeStamp = lp.events[lpIndex[lp.lpId]].receiveTime
+						results.definingLP = lp.lpId
+					}
+				}
+				results.eventsExhausted = false
+			}
+		}
+		return results
+	}
+	
+	analyzeSimulationCycle := func(lps []lpData, c1 <-chan simCycleAnalysisResults, c2 chan<- simCycleAnalysisResults) {
+		for ; ; {
+			nextCycle :=<- c1
+			if nextCycle.eventsExhausted == true {close(c2); return} // done
+			results := analyzeSimCycle(lps, nextCycle.timeStamp, nextCycle.definingLP)
+			c2 <- results
+		}
+	}
+	
+	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle2.dat")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
+	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
+
+	// setup/start the goroutines for simulation cycle analysis
+	in := make(chan simCycleAnalysisResults)
+	out := make(chan simCycleAnalysisResults)
+	go analyzeSimulationCycle(lps, in, out)
+
+	// initialize the first data to send into the simulation cycle goroutines
+	var nextCycle simCycleAnalysisResults
+	nextCycle.timeStamp = math.MaxFloat64
+	for _, lp := range lps {
+		if lp.events[0].receiveTime < nextCycle.timeStamp {
+			nextCycle.timeStamp = lp.events[0].receiveTime
+			nextCycle.definingLP = lp.lpId
+		}
+		lpIndex[lp.lpId] = 0 // reset these pointers
+	}
+
+	simCycle := 0
+	maxEventsAvailable := 0
+	timesXEventsAvailable := make([]int, numOfEvents)
+	for ; ; {
+		in <- nextCycle
+		results := <- out
+		if results.eventsExhausted == true {break}
+		fmt.Fprintf(outFile,"%v %v\n",simCycle + 1, results.numAvailable)
+		timesXEventsAvailable[results.numAvailable]++
+		if maxEventsAvailable < results.numAvailable {maxEventsAvailable = results.numAvailable}
+		simCycle++
+		nextCycle.definingLP = results.definingLP
+		nextCycle.timeStamp = results.timeStamp
+		nextCycle.eventsExhausted = false
+	}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
 	type lowestTimeStampFound struct {
 		definingLP int
 		minTS float64
@@ -569,10 +653,10 @@ func main() {
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
 	for i := range lps {lpIndex[i] = 0}
-	simCycle := 0
-	maxEventsAvailable := 0
+	simCycle = 0
+	maxEventsAvailable = 0
 	eventsExhausted := false
-	timesXEventsAvailable := make([]int, numOfEvents)
+	timesXEventsAvailable = make([]int, numOfEvents)
 	for ; eventsExhausted != true ; {
 		eventsExhausted = true
 		findResults := findLowestTS(lps)
