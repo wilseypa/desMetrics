@@ -576,9 +576,19 @@ func main() {
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
 
 	// setup/start the goroutines for simulation cycle analysis
-	in := make(chan simCycleAnalysisResults)
-	out := make(chan simCycleAnalysisResults)
-	go analyzeSimulationCycle(lps, in, out)
+	in := make([]chan simCycleAnalysisResults, numThreads)
+	out := make([]chan simCycleAnalysisResults, numThreads)
+	for i := 0; i < numThreads; i++ {
+		in[i] = make(chan simCycleAnalysisResults)
+		out[i] = make(chan simCycleAnalysisResults)
+	}
+
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize
+		if i == numThreads - 1 {high = len(lps)}
+		go analyzeSimulationCycle(lps[low:high], in[i], out[i])
+	}
 
 	// initialize the first data to send into the simulation cycle goroutines
 	var nextCycle simCycleAnalysisResults
@@ -595,16 +605,26 @@ func main() {
 	maxEventsAvailable := 0
 	timesXEventsAvailable := make([]int, numOfEvents)
 	for ; ; {
-		in <- nextCycle
-		results := <- out
-		if results.eventsExhausted == true {break}
-		fmt.Fprintf(outFile,"%v %v\n",simCycle + 1, results.numAvailable)
-		timesXEventsAvailable[results.numAvailable]++
-		if maxEventsAvailable < results.numAvailable {maxEventsAvailable = results.numAvailable}
+		for i := 0; i < numThreads; i++ {in[i] <- nextCycle}
+		nextCycle.timeStamp = math.MaxFloat64
+		nextCycle.eventsExhausted = true
+		nextCycle.numAvailable = 0
+		for i := 0; i < numThreads; i++ {
+			results := <- out[i]
+			if results.timeStamp < nextCycle.timeStamp {
+				nextCycle.timeStamp = results.timeStamp
+				nextCycle.definingLP = results.definingLP
+			}
+			if results.eventsExhausted == false {
+				nextCycle.eventsExhausted = false
+				nextCycle.numAvailable = nextCycle.numAvailable + results.numAvailable
+			}
+		}
+		if nextCycle.eventsExhausted == true {break}
+		fmt.Fprintf(outFile,"%v %v\n",simCycle + 1, nextCycle.numAvailable)
+		timesXEventsAvailable[nextCycle.numAvailable]++
+		if maxEventsAvailable < nextCycle.numAvailable {maxEventsAvailable = nextCycle.numAvailable}
 		simCycle++
-		nextCycle.definingLP = results.definingLP
-		nextCycle.timeStamp = results.timeStamp
-		nextCycle.eventsExhausted = false
 	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
