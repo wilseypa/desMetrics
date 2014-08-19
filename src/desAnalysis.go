@@ -523,11 +523,12 @@ func main() {
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
 	// at that time.  the general algorithm is outlined in the indexTemplate.md file for this project.
 
-	fmt.Printf("%v: Computing event parallelism statistics.\n", printTime())	
+	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", printTime())	
 
 	// so we are going to do two parts of the simulation cycle analysis in each pass, namely: (i) count the
 	// numbber of events available for execution, and (ii) find the lowest timestamp for the next simulation
-	// cycle. 
+	// cycle.  we are also going to run this analysis in parallel (and the two steps simultaneously) by
+	// partitioning the LPs among the threads. 
 
 	// using this data structure to hold cycle by cycle analysis results.  
 	type simCycleAnalysisResults struct {
@@ -537,18 +538,21 @@ func main() {
 		eventsExhausted bool
 	}
 
+	// this function is setup to simultaneously (i) find the number of events that are available for execution
+	// at a fixed schedule time and (ii) find the next (minimum) time for the next simulation cycle (by
+	// assuming that all available events would be executed).
 	analyzeSimCycle := func(lps []lpData, scheduleTime float64, definingLP int) simCycleAnalysisResults {
 		var results simCycleAnalysisResults
 		results.timeStamp = math.MaxFloat64
 		results.eventsExhausted = true
 		for _, lp := range lps {
 			if lpIndex[lp.lpId] < len(lp.events) {
-				// accumulate events available
+				// accumulate events available at this simulation time
 				if (lp.events[lpIndex[lp.lpId]].sendTime < scheduleTime || definingLP == lp.lpId) {
 					results.numAvailable++
 					lpIndex[lp.lpId]++
 				}
-				// search for timeStamp
+				// search for the time for the next simulation cycle
 				if lpIndex[lp.lpId] < len(lp.events) { // since we potentially incremented the lpIndex ptr
 					if results.timeStamp > lp.events[lpIndex[lp.lpId]].receiveTime {
 						results.timeStamp = lp.events[lpIndex[lp.lpId]].receiveTime
@@ -561,6 +565,7 @@ func main() {
 		return results
 	}
 	
+	// this function serves as the parallel thread function to communicate back and forth with the main thread.
 	analyzeSimulationCycle := func(lps []lpData, c1 <-chan simCycleAnalysisResults, c2 chan<- simCycleAnalysisResults) {
 		for ; ; {
 			nextCycle :=<- c1
@@ -583,6 +588,7 @@ func main() {
 		out[i] = make(chan simCycleAnalysisResults)
 	}
 
+	// start the threads for simulation cycle analysis
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
 		high := low + goroutineSliceSize
@@ -601,6 +607,7 @@ func main() {
 		lpIndex[lp.lpId] = 0 // reset these pointers
 	}
 
+	// process data to/from the simulation cycle analysis threads
 	simCycle := 0
 	maxEventsAvailable := 0
 	timesXEventsAvailable := make([]int, numOfEvents)
