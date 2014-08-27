@@ -45,7 +45,7 @@ To be meaningful, we will need to study large simulation models.  In our prelimi
 studies, we have already discovered that the captured data and even the output analysis
 files can be quite large (easily reaching multiple GBytes of data.  We will have to learn
 how to manage this size problem.   First, we will have to work to determine what amount of
-runtime data is actually needed to capture meaningful results that properly characterize
+run time data is actually needed to capture meaningful results that properly characterize
 the properties of simulation models.  Second, we may have to adjust how we present our
 analysis results so that we have meaningful graphs and visuals to examine.
 
@@ -98,14 +98,11 @@ following generic format:
 
     "capture_date" : "date/time that the profile data was captured",
 
-    // optional, include as needed
+    // optional, but desirable; include if possible
     "command_line_arguments" : "significant command line arguments",
 
     // optional, include as needed
     "configuration_information" : "any significant configuration information",
-
-    // optional, probably not needed as we can get this info from the "events" array
-    "LPs" : [ "name of LP", "...." ],
 
     "events": [
       { "sLP":"source LP", "sTS": <send_time>, "rLP":"destination LP", "rTS":<receive_time> },
@@ -154,12 +151,11 @@ important first items we should attempt to extract should focus on:
    5b: Measured as a function of frequency/delta of send/receive times
 
 6. Interesting cycles between LPs.  Basically can we uncover any
-   interesting patterns in the populations ot events and LPs?  
+   interesting patterns in the populations of events and LPs?  
 
-I am also developing a separate markdown file (file indexTemplate.markdown in this
-directory) that we can use as the basis for (i) defining the specific graphs to begin
-implementing and (ii) that will also serve as the basis for viewing the results in a web
-browser.
+I am also developing a separate markdown file (file indexTemplate.md in this directory)
+that we can use as the basis for (i) defining the specific graphs to begin implementing
+and (ii) that will also serve as the basis for viewing the results in a web browser.
 
 We might also want to broaden this to look for patterns in models that scale.  For now I
 suggest we put this on the back burner and focus on direct analysis for the moment.  
@@ -179,6 +175,8 @@ affiliated descriptions so that the reader will have a solid understanding of wh
 graphic is actually depicting. 
 
 ### Analysis Output Formats
+
+**This has all completely changed and needs to be updated**
 
 #### LP Based Results
 
@@ -201,14 +199,12 @@ LP specific data we want to capture.
 
 #### Event Chains
 
-**This has all completely changed and needs to be updated**
-
 An event chain is the number of events in an LP that could be executed as a group.  That
 is, let t be the timestamp of a simulation cycle, how many events in the list of events
 for that LP have (i) send times less than t, (ii) receive times equal or greater than t,
 and (iii) that have not already been computed as part of an event chain (global chains are
 all events, local chains are only events that were sent by this LP).  Once a chain has
-been identified, the next event chain to be examined begins at the next event follwing the
+been identified, the next event chain to be examined begins at the next event following the
 last in the current chain (the simultaneous computation of local and remote event chains
 may prove difficult and may need to be done in separate passes over the data).
 
