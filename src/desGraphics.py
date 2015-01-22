@@ -1,6 +1,6 @@
 import json
 import pylab
-import seaborn
+import seaborn as sns
 import numpy as np
 
 from collections import Counter
@@ -19,6 +19,8 @@ pylab.ylabel('Number of Events Available for Exec (log scale to minimize outlier
 pylab.yscale('log')
 pylab.xlabel('Simulation Cycle')
 pylab.show()
+#pylab.savefig('filename.svg')
+#pylab.savefig('filename.pdf')
 
 #--------------------------------------------------------------------------------
 # plot a histogram of the number of simulation cycles that X events are available
@@ -65,4 +67,12 @@ pylab.hist(sorted(local_events))
 pylab.ylabel('Frequency')
 pylab.ylabel('Percent of Executed Events that were Locally Generated')
 #pylab.ylim(0,100)
+pylab.show()
+
+#--------------------------------------------------------------------------------
+# histogram/heatmap of the number of messages exchanged between LP (colums: senders, rows: receivers)
+
+pylab.title('Heatmap of total messages exchanged between each pair of LPs')
+pylab.imshow(data["totals_of_events_exchanged_between_lps"], cmap='Greens', interpolation="none")
+pylab.colorbar()
 pylab.show()

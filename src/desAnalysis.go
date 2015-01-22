@@ -577,6 +577,28 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
+	// now we will compute and print a summary matrix of the number of events exchanged between two LPs.
+	// ok, it will actually be an array of vectors.  each vector will represent a receiving LP and each
+	// vector element will be the companionLP (sender LP).  we will discard the LP names as i'm not
+	// convinced that information will be of interest for graphical display.
+
+	fmt.Fprintf(jsonResultsFile,"\"totals_of_events_exchanged_between_lps\": [\n")
+	lpSenders := make([]int,numOfLPs)
+	lp_separator = ""
+	for _, lp := range(lps) {
+		for i := range lpSenders {lpSenders[i] = 0}
+		for _, event := range lp.events {lpSenders[event.companionLP]++}
+		fmt.Fprintf(jsonResultsFile,"%v[", lp_separator)
+		lp_separator = ","
+		event_separator := ""
+		for i := range lpSenders {
+			fmt.Fprintf(jsonResultsFile,"%v%v", event_separator, lpSenders[i])
+			event_separator = ","
+		}
+		fmt.Fprintf(jsonResultsFile,"]\n")
+	}
+	fmt.Fprintf(jsonResultsFile,"],\n")
+
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
