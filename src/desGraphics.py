@@ -1,14 +1,16 @@
+import sys
 import json
 import pylab
 import seaborn as sns
 import numpy as np
-
 from collections import Counter
 
-# read the json file
-json_data = open("analysisResults.json")
-data = json.load(json_data)
+#for arg in sys.argv:
+#    print arg
 
+# read the json file
+json_data = open(sys.argv[1])
+data = json.load(json_data)
 
 #--------------------------------------------------------------------------------
 # plot the number of events that are available by simulation cycle
