@@ -421,27 +421,20 @@ func main() {
 		return local, linked, global
 	}
 
-	// setup/write the json file header data for the analysis results
-	jsonResultsFile, err := os.Create("analysisData/analysisResults.json")
-	fmt.Fprintf(jsonResultsFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
-	fmt.Fprintf(jsonResultsFile,"  \"model_name\" : %v,\n", modelName)
-	fmt.Fprintf(jsonResultsFile,"  \"capture_date\" : %v,\n", captureDate)
-	fmt.Fprintf(jsonResultsFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
-	fmt.Fprintf(jsonResultsFile,"  \"total_lps\" : %v,\n",numOfLPs)
-	fmt.Fprintf(jsonResultsFile,"  \"total_events\" : %v,\n",numOfEvents)
-	fmt.Fprintf(jsonResultsFile,"  \"lps\" : [\n")
-
 	// PAW: change the comment headers of chains/covers to for loops so the numbers will automatically grow
 	// with the variable setting.... 
 	localChainFile, err := os.Create("analysisData/localEventChainsByLP.dat")
+	if err != nil {panic(err)}
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
 	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
 
 	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.dat")
+	if err != nil {panic(err)}
 	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
 	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
 
 	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.dat")
+	if err != nil {panic(err)}
 	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
 	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
 
@@ -484,39 +477,8 @@ func main() {
 	globalEventChainSummary := make([]int,chainLength)
 
 	// process all of the data in the channel and output the results
-	lp_separator := ""
 	for _ = range lps {
 		eventsProcessed := <- c
-		fmt.Fprintf(jsonResultsFile, "%v{\"lp_name\":%v,\n",lp_separator, mapIntToLPName[eventsProcessed.lpId])
-		lp_separator = ","
-		fmt.Fprintf(jsonResultsFile, "\"local_events_processed\":%v,\n",eventsProcessed.local)
-		fmt.Fprintf(jsonResultsFile, "\"remote_events_processed\":%v,\n",eventsProcessed.remote)
-
-		// yea these can all be generated into memory resident formatted strings in one pass, but i'm going to do it the lazy way for now.
-		fmt.Fprintf(jsonResultsFile, "\"local_event_chain\": [")
-		separator := ""
-		for i := 0; i < len(eventsProcessed.localChain) ; i++ {
-			fmt.Fprintf(jsonResultsFile,"%v%v", separator, eventsProcessed.localChain[i])
-			separator = ","
-		}
-		fmt.Fprintf(jsonResultsFile,"],")
-			
-		fmt.Fprintf(jsonResultsFile, "\n\"linked_event_chain\": [")
-		separator = ""
-		for i := 0; i < len(eventsProcessed.linkedChain) ; i++ {
-			fmt.Fprintf(jsonResultsFile,"%v%v", separator, eventsProcessed.linkedChain[i])
-			separator = ","
-		}
-		fmt.Fprintf(jsonResultsFile,"],")
-
-		fmt.Fprintf(jsonResultsFile, "\n\"global_event_chain\": [")
-		separator = ""
-		for i := 0; i < len(eventsProcessed.globalChain) ; i++ {
-			fmt.Fprintf(jsonResultsFile,"%v%v", separator, eventsProcessed.globalChain[i])
-			separator = ","
-		}
-		fmt.Fprintf(jsonResultsFile,"]}\n")
-
 		// capture event chain summaries
 		for i := 0; i < chainLength; i++ {
 			localEventChainSummary[i] = localEventChainSummary[i] + eventsProcessed.localChain[i]
@@ -559,9 +521,6 @@ func main() {
 	// not sure this will be useful or not, but let's save totals of the local and global event chains.
 	// specifically we will sum the local/global event chains for all of the LPs in the system
 
-	fmt.Fprintf(jsonResultsFile,"],\n")
-	fmt.Fprintf(jsonResultsFile,"\"num_of_event_chains_of_len_i_plus_1\": [\n")
-	separator := ""
 	outFile, err := os.Create("analysisData/eventChainsSummary.dat")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# number of event chains of length X\n")
@@ -569,11 +528,7 @@ func main() {
 	for i := 0; i < chainLength; i++ {
 		fmt.Fprintf(outFile,"%v, %v, %v, %v\n", i+1,
 			localEventChainSummary[i],linkedEventChainSummary[i],globalEventChainSummary[i])
-		fmt.Fprintf(jsonResultsFile,"%v{\"local\":%v, \"linked\":%v, \"global\":%v}\n", separator,
-			localEventChainSummary[i],linkedEventChainSummary[i],globalEventChainSummary[i])
-		separator = ","
 	}
-	fmt.Fprintf(jsonResultsFile,"],\n")
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
@@ -582,22 +537,22 @@ func main() {
 	// vector element will be the companionLP (sender LP).  we will discard the LP names as i'm not
 	// convinced that information will be of interest for graphical display.
 
-	fmt.Fprintf(jsonResultsFile,"\"totals_of_events_exchanged_between_lps\": [\n")
+	outFile, err = os.Create("analysisData/eventsExchanged.dat")
+	if err != nil {panic(err)}
+
 	lpSenders := make([]int,numOfLPs)
-	lp_separator = ""
 	for _, lp := range(lps) {
 		for i := range lpSenders {lpSenders[i] = 0}
 		for _, event := range lp.events {lpSenders[event.companionLP]++}
-		fmt.Fprintf(jsonResultsFile,"%v[", lp_separator)
-		lp_separator = ","
 		event_separator := ""
 		for i := range lpSenders {
-			fmt.Fprintf(jsonResultsFile,"%v%v", event_separator, lpSenders[i])
+			fmt.Fprintf(outFile,"%v%v", event_separator, lpSenders[i])
 			event_separator = ","
 		}
-		fmt.Fprintf(jsonResultsFile,"]\n")
+		fmt.Fprintf(outFile,"\n")
 	}
-	fmt.Fprintf(jsonResultsFile,"],\n")
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
@@ -660,8 +615,7 @@ func main() {
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
-	fmt.Fprintf(jsonResultsFile,"\"events_available_by_sim_cycle\": [")
-	separator = ""
+
 	// setup/start the goroutines for simulation cycle analysis
 	in := make([]chan simCycleAnalysisResults, numThreads)
 	out := make([]chan simCycleAnalysisResults, numThreads)
@@ -711,13 +665,10 @@ func main() {
 		}
 		if nextCycle.eventsExhausted == true {break}
 		fmt.Fprintf(outFile,"%v %v\n",simCycle + 1, nextCycle.numAvailable)
-		fmt.Fprintf(jsonResultsFile,"%v%v\n", separator, nextCycle.numAvailable)
-		separator = ","
 		timesXEventsAvailable[nextCycle.numAvailable]++
 		if maxEventsAvailable < nextCycle.numAvailable {maxEventsAvailable = nextCycle.numAvailable}
 		simCycle++
 	}
-	fmt.Fprintf(jsonResultsFile,"]\n")
 
 	err = outFile.Close()
 	if err != nil {panic(err)}
@@ -730,11 +681,6 @@ func main() {
 	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXEventsAvailable[i+1])}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-
-	fmt.Fprintf(jsonResultsFile,"}")
-	err = jsonResultsFile.Close()
-	if err != nil {panic(err)}
-
 
 	fmt.Printf("%v: Finished.\n", printTime())
 	return
