@@ -24,7 +24,7 @@ pylab.show()
 #--------------------------------------------------------------------------------
 # plot a histogram of the number of simulation cycles that X events are available
 
-# how do we decide how to size the std deviations argument for outlier rejection??
+# NOTE: how do we decide how to size the std deviations argument for outlier rejection??
 
 # reject outliers from the mean
 def reject_outliers(data, m=8):
@@ -69,26 +69,26 @@ pylab.hist(sorted(local_events))
 pylab.show()
 
 #--------------------------------------------------------------------------------
+# display graphs of the event chain summaries
+
+data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+
+bar_width = .2
+
+pylab.title('Number Local, Linked, and Global Chains of length X')
+pylab.bar(data[:,0], data[:,1], bar_width, color='b', label="Local")
+pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color='g', label="Linked")
+pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color='r', label="Global")
+pylab.xticks(data[:,0] + bar_width, ('1', '2', '3', '4', '>=5'))
+pylab.legend()
+pylab.show()
+
+#--------------------------------------------------------------------------------
 # histogram/heatmap of the number of messages exchanged between LP (colums: senders, rows: receivers)
 
 #pylab.title('Heatmap of total messages exchanged between each pair of LPs')
 #pylab.imshow(data["totals_of_events_exchanged_between_lps"], cmap='Greens', interpolation="none")
 #pylab.colorbar()
-#pylab.show()
-
-#--------------------------------------------------------------------------------
-# display graphs of the event chain summaries
-
-#local_chain_summary = []
-#linked_chain_summary = []
-#global_chain_summary = []
-#for i in range(0,5) :
-#    local_chain_summary.append([i, data["num_of_event_chains_of_len_i_plus_1"][j]["local"]])
-#
-#print local_chain_summary
-
-#pylab.title('Average Length of Local Chains')
-#pylab.bar(x)
 #pylab.show()
 
 
