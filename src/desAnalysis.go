@@ -423,29 +423,29 @@ func main() {
 
 	// PAW: change the comment headers of chains/covers to for loops so the numbers will automatically grow
 	// with the variable setting.... 
-	localChainFile, err := os.Create("analysisData/localEventChainsByLP.dat")
+	localChainFile, err := os.Create("analysisData/localEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
 	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
 
-	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.dat")
+	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
 	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
 
-	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.dat")
+	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
 	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
 
 	// location to write summaries of local and remote events received
-	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.dat")
+	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
-	fmt.Fprintf(eventSummaries, "# LP, local, remote\n")
+	fmt.Fprintf(eventSummaries, "# LP, local, remote, total\n")
 
 	// location to write percentage of LPs to cover percentage of events received
-	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.dat")
+	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
@@ -485,8 +485,8 @@ func main() {
 			linkedEventChainSummary[i] = linkedEventChainSummary[i] + eventsProcessed.linkedChain[i]
 			globalEventChainSummary[i] = globalEventChainSummary[i] + eventsProcessed.globalChain[i]
 		}
-		fmt.Fprintf(eventSummaries,"%v, %v, %v\n", 
-			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote)
+		fmt.Fprintf(eventSummaries,"%v, %v, %v, %v\n", 
+			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote, eventsProcessed.local + eventsProcessed.remote)
 		// PAW: turn this into a for loop so the variable will actually control
 		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.total)
 		for _, i := range eventsProcessed.cover {fmt.Fprintf(numToCover,", %v", i)}
@@ -521,7 +521,7 @@ func main() {
 	// not sure this will be useful or not, but let's save totals of the local and global event chains.
 	// specifically we will sum the local/global event chains for all of the LPs in the system
 
-	outFile, err := os.Create("analysisData/eventChainsSummary.dat")
+	outFile, err := os.Create("analysisData/eventChainsSummary.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# number of event chains of length X\n")
 	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
@@ -537,7 +537,7 @@ func main() {
 	// vector element will be the companionLP (sender LP).  we will discard the LP names as i'm not
 	// convinced that information will be of interest for graphical display.
 
-	outFile, err = os.Create("analysisData/eventsExchanged.dat")
+	outFile, err = os.Create("analysisData/eventsExchanged.csv")
 	if err != nil {panic(err)}
 
 	lpSenders := make([]int,numOfLPs)
@@ -611,10 +611,10 @@ func main() {
 		}
 	}
 	
-	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.dat")
+	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
-	fmt.Fprintf(outFile,"# sim cycle, num of events\n")
+	fmt.Fprintf(outFile,"# num of events ready for execution\n")
 
 	// setup/start the goroutines for simulation cycle analysis
 	in := make([]chan simCycleAnalysisResults, numThreads)
@@ -664,7 +664,7 @@ func main() {
 			}
 		}
 		if nextCycle.eventsExhausted == true {break}
-		fmt.Fprintf(outFile,"%v %v\n",simCycle + 1, nextCycle.numAvailable)
+		fmt.Fprintf(outFile,"%v\n",nextCycle.numAvailable)
 		timesXEventsAvailable[nextCycle.numAvailable]++
 		if maxEventsAvailable < nextCycle.numAvailable {maxEventsAvailable = nextCycle.numAvailable}
 		simCycle++
@@ -674,7 +674,7 @@ func main() {
 	if err != nil {panic(err)}
 
 	// write out summary of events available
-	outFile, err = os.Create("analysisData/timesXeventsAvailable.dat")
+	outFile, err = os.Create("analysisData/timesXeventsAvailable.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# times X events are available for execution\n")
 	fmt.Fprintf(outFile,"# X, num of occurrences\n")
