@@ -286,7 +286,7 @@ func main() {
 	if err != nil {panic(err)}
 
 	// in this next step, we are going to compute event received summaries.  in this case we are going to
-	// attack the problem by slicine the lps array and assigning each slice to a separate goroutine.  to
+	// attack the problem by slicing the lps array and assigning each slice to a separate goroutine.  to
 	// optimize performance we are going to have each goroutine perform all analyses and pass the results LP
 	// by LP back to the main routine.  in each pass over an LP each goroutine will: (i) compute the
 	// local/remote event data, (ii) record the LPs that send events to this LP and compute the coverage
@@ -537,6 +537,7 @@ func main() {
 	// vector element will be the companionLP (sender LP).  we will discard the LP names as i'm not
 	// convinced that information will be of interest for graphical display.
 
+/* taking this out for now until i get the compressed setup ready....
 	outFile, err = os.Create("analysisData/eventsExchanged.csv")
 	if err != nil {panic(err)}
 
@@ -553,7 +554,7 @@ func main() {
 	}
 	err = outFile.Close()
 	if err != nil {panic(err)}
-
+*/
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
