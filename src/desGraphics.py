@@ -131,12 +131,13 @@ pylab.show()
 
 # let's look at how many LPs provide 95% of the messages to each LP
 # column 5 has the data we need
-data = np.loadtxt("analysisData/numOfLPsToCoverPercentTotalMessages.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(5))
+data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(4,5))
 
 pylab.title('How many LPs are involved in sending 95% of remote events')
-#pylab.imshow(data["totals_of_events_exchanged_between_lps"], cmap='Greens', interpolation="none")
-#pylab.colorbar()
-#pylab.show()
+pylab.hist(data[:,1], bins=20, normed=True)
+pylab.xlabel('Number of Sending LPs')
+pylab.ylabel('Normalized Frequency (sum of the integral is 1)')
+pylab.show()
 
 
 
