@@ -284,7 +284,7 @@ func main() {
         fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
         fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
         fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
-        fmt.Fprintf(outFile,"  \"total_events\" : %v,\n}",numOfEvents)
+        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
 
 	err = outFile.Close()
 	if err != nil {panic(err)}
