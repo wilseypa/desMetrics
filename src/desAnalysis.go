@@ -178,35 +178,22 @@ func main() {
 					var sendingLP, receivingLP string
 					var sendTime, receiveTime float64
 					var err error
-					scanAssume(L_CURLY)
-					for i := 0; i < 4; i++ {
-						if i > 0 {scanAssume(COMMA)}
-						switch token {
-						case SEND_LP:
-							token, tokenText = Scan()
-							scanAssume(COLON)
-							sendingLP = string(tokenText)
-							token, tokenText = Scan()
-						case SEND_TIME:
-							token, tokenText = Scan()
-							scanAssume(COLON)
-							sendTime, err = strconv.ParseFloat(string(tokenText),64)
-							if err != nil {panic(err)}
-							token, tokenText = Scan()
-						case RECEIVE_LP:
-							token, tokenText = Scan()
-							scanAssume(COLON)
-							receivingLP = string(tokenText)
-							token, tokenText = Scan()
-						case RECEIVE_TIME:
-							token, tokenText = Scan()
-							scanAssume(COLON)
-							receiveTime, err = strconv.ParseFloat(string(tokenText),64)
-							if err != nil {panic(err)}
-							token, tokenText = Scan()
-						}
-					}
-					scanAssume(R_CURLY)
+
+					scanAssume(L_BRACKET) // sets token, tokenText of next token
+					sendingLP = string(tokenText)
+					token, tokenText = Scan()
+					scanAssume(COMMA)
+					sendTime, err = strconv.ParseFloat(string(tokenText),64)
+					if err != nil {panic(err)}
+					token, tokenText = Scan()
+					scanAssume(COMMA)
+					receivingLP = string(tokenText)
+					token, tokenText = Scan()
+					scanAssume(COMMA)
+					receiveTime, err = strconv.ParseFloat(string(tokenText),64)
+					if err != nil {panic(err)}
+					token, tokenText = Scan()
+					scanAssume(R_BRACKET)
 					// we should require that the send time be strictly less than the
 					// receive time, but the ross (airport model) data actually has data
 					// with the send/receive times (and other sequential simulators are
