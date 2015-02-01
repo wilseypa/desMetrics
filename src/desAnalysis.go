@@ -25,6 +25,7 @@ import "math"
 import "strconv"
 import "time"
 import "runtime"
+import "flag"
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -48,6 +49,10 @@ func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
 func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
 
 func main() {
+
+	var commSwitchOff bool
+	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false, "turn off generation of the file eventsExchanged.csv")
+	flag.Parse()
 
 	// enable the use of all CPUs on the system
 	numThreads := runtime.NumCPU()
@@ -217,8 +222,8 @@ func main() {
 
 	// this time we will collect information on the number of events and the number of LPs
 	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", 
-		printTime(), os.Args[1])
-	inputFile, err := os.Open(os.Args[1])
+		printTime(), flag.Args())
+	inputFile, err := os.Open(flag.Arg(0))
 	if err != nil { panic(err) }
 	parseJsonFile(inputFile)
 	err = inputFile.Close()
@@ -239,9 +244,9 @@ func main() {
 	}
 
 	// this time we will save the events
-	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), os.Args[1])
+	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
 	processEvent = addEvent
-	inputFile, err = os.Open(os.Args[1])
+	inputFile, err = os.Open(flag.Arg(0))
 	if err != nil { panic(err) }
 	parseJsonFile(inputFile)
 	err = inputFile.Close()
@@ -266,11 +271,25 @@ func main() {
 	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
 
 	// on to analysis....
-	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 
 	// create the directory to store the resulting data files (if it is not already there)
 	err =  os.MkdirAll ("analysisData", 0777)
 	if err != nil {panic(err)}
+
+	outFile, err := os.Create("analysisData/modelSummary.json")
+	if err != nil {panic(err)}
+
+        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
+        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
+        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
+        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
+        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
+        fmt.Fprintf(outFile,"  \"total_events\" : %v,\n}",numOfEvents)
+
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
+	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 
 	// in this next step, we are going to compute event received summaries.  in this case we are going to
 	// attack the problem by slicing the lps array and assigning each slice to a separate goroutine.  to
@@ -292,16 +311,19 @@ func main() {
 
 
 	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
-	// result in coverage of the number of events received (yes, this is confusing)
+	// result in coverage of the percent of events received (basically how many LPs send X% of the
+	// received messages).
 	numOfLPsToCover := func(total int, data []int, percent int) int {
 		// add .99 because int() truncates and we actually want rounding
-		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99) 
+		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
 		lpCount := 0
 		eventCount := 0
 		for i := range data {
 			lpCount++
 			eventCount = eventCount + data[i]
-			if eventCount >= numRequired {return lpCount}
+			if eventCount >= numRequired {
+				return lpCount
+			}
 		}
 		panic("ERROR: something's amiss in this computation\n")
 	}
@@ -321,21 +343,27 @@ func main() {
 	// compute the local/remote events and cover statistics
 	computeLPEventsProcessed := func(lp lpData) lpEventSummary {
 		var es lpEventSummary
-		lpSenders := make([]int,numOfLPs)
+		lpEventSendCount := make([]int,numOfLPs)
 		es.lpId = lp.lpId
 		es.local = 0
 		es.remote = 0
 		for _, event := range lp.events {
-			lpSenders[event.companionLP]++
-			if lp.lpId != event.companionLP {es.remote++} else {es.local++}
+			if lp.lpId != event.companionLP {
+				es.remote++
+				// we don't want to count self generated events in the sender set.
+				lpEventSendCount[event.companionLP]++
+			} else {
+				es.local++
+			}
 		}
-		sort.Sort(sort.Reverse(sort.IntSlice(lpSenders)))
+		sort.Sort(sort.Reverse(sort.IntSlice(lpEventSendCount)))
 		es.total = es.remote + es.local
-		es.cover[0] = numOfLPsToCover(es.total, lpSenders, 75)  //  75% cutoff
-		es.cover[1] = numOfLPsToCover(es.total, lpSenders, 80)  //  80% cutoff
-		es.cover[2] = numOfLPsToCover(es.total, lpSenders, 90)  //  90% cutoff
-		es.cover[3] = numOfLPsToCover(es.total, lpSenders, 95)  //  95% cutoff
-		es.cover[4] = numOfLPsToCover(es.total, lpSenders, 100) // 100% cutoff
+		// since we're tracking message transmissions, use only the remote event total
+		es.cover[0] = numOfLPsToCover(es.remote, lpEventSendCount, 75)  //  75% cutoff
+		es.cover[1] = numOfLPsToCover(es.remote, lpEventSendCount, 80)  //  80% cutoff
+		es.cover[2] = numOfLPsToCover(es.remote, lpEventSendCount, 90)  //  90% cutoff
+		es.cover[3] = numOfLPsToCover(es.remote, lpEventSendCount, 95)  //  95% cutoff
+		es.cover[4] = numOfLPsToCover(es.remote, lpEventSendCount, 100) // 100% cutoff
 		return es
 	}
 
@@ -432,7 +460,7 @@ func main() {
 	fmt.Fprintf(eventSummaries, "# LP, local, remote, total\n")
 
 	// location to write percentage of LPs to cover percentage of events received
-	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentTotalMessages.csv")
+	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
@@ -475,7 +503,7 @@ func main() {
 		fmt.Fprintf(eventSummaries,"%v, %v, %v, %v\n", 
 			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote, eventsProcessed.local + eventsProcessed.remote)
 		// PAW: turn this into a for loop so the variable will actually control
-		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.total)
+		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.remote)
 		for _, i := range eventsProcessed.cover {fmt.Fprintf(numToCover,", %v", i)}
 		fmt.Fprintf(numToCover,"\n")
 		fmt.Fprintf(localChainFile,"%v",mapIntToLPName[eventsProcessed.lpId])
@@ -508,7 +536,7 @@ func main() {
 	// not sure this will be useful or not, but let's save totals of the local and global event chains.
 	// specifically we will sum the local/global event chains for all of the LPs in the system
 
-	outFile, err := os.Create("analysisData/eventChainsSummary.csv")
+	outFile, err = os.Create("analysisData/eventChainsSummary.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# number of event chains of length X\n")
 	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
@@ -520,28 +548,31 @@ func main() {
 	if err != nil {panic(err)}
 
 	// now we will compute and print a summary matrix of the number of events exchanged between two LPs.
-	// ok, it will actually be an array of vectors.  each vector will represent a receiving LP and each
-	// vector element will be the companionLP (sender LP).  we will discard the LP names as i'm not
-	// convinced that information will be of interest for graphical display.
+	// this matrix can be quite large and can actually be too large to create.  in order to save space, we
+	// will print only the non-zero entries.  in the cases where it is too large to print, the command line
+	// argument "--no-comm-matrix" can be used to suppress it's creation.
 
-/* taking this out for now until i get the compressed setup ready....
-	outFile, err = os.Create("analysisData/eventsExchanged.csv")
-	if err != nil {panic(err)}
+	if commSwitchOff == false {
+		outFile, err = os.Create("analysisData/eventsExchanged.csv")
+		if err != nil {panic(err)}
 
-	lpSenders := make([]int,numOfLPs)
-	for _, lp := range(lps) {
-		for i := range lpSenders {lpSenders[i] = 0}
-		for _, event := range lp.events {lpSenders[event.companionLP]++}
-		event_separator := ""
-		for i := range lpSenders {
-			fmt.Fprintf(outFile,"%v%v", event_separator, lpSenders[i])
-			event_separator = ","
+		fmt.Fprintf(outFile,"# event exchanged matrix data\n")
+		fmt.Fprintf(outFile,"# receiving LP, sending LP, number of events sent\n")
+		
+		lpEventSendCount := make([]int,numOfLPs)
+		for j, lp := range(lps) {
+			for i := range lpEventSendCount {lpEventSendCount[i] = 0}
+			for _, event := range lp.events {lpEventSendCount[event.companionLP]++}
+			for i := range lpEventSendCount {
+				if lpEventSendCount[i] != 0 {
+					fmt.Fprintf(outFile,"%v,%v,%v\n", j, i, lpEventSendCount[i])
+				}
+			}
 		}
-		fmt.Fprintf(outFile,"\n")
+		err = outFile.Close()
+		if err != nil {panic(err)}
 	}
-	err = outFile.Close()
-	if err != nil {panic(err)}
-*/
+
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
@@ -666,7 +697,7 @@ func main() {
 	if err != nil {panic(err)}
 	fmt.Fprintf(outFile,"# times X events are available for execution\n")
 	fmt.Fprintf(outFile,"# X, num of occurrences\n")
-	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v %v\n",i+1,timesXEventsAvailable[i+1])}
+	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v,%v\n",i+1,timesXEventsAvailable[i+1])}
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
