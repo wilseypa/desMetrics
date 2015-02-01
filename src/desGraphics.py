@@ -1,11 +1,23 @@
 #import sys
+import json
 import pylab
 import seaborn as sns
 import numpy as np
-#from collections import Counter
 
 #for arg in sys.argv:
 #    print arg
+
+#--------------------------------------------------------------------------------
+# import the json file of model summary information
+
+# read the json file
+json_data = open("analysisData/modelSummary.json")
+model_summary = json.load(json_data)
+
+model_name = model_summary["model_name"]
+total_lps = model_summary["total_lps"]
+total_events = model_summary["total_events"]
+
 
 #--------------------------------------------------------------------------------
 # plot the number of events that are available by simulation cycle
