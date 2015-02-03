@@ -101,7 +101,7 @@ pylab.xlabel('Percent of Executed Events that were Locally Generated')
 pylab.ylabel('Number of LPs Containing Said Percentage')
 display_graph(outFile)
 
-outFile = outDir + 'historgramOfLocalAndRemoteEventsExecuted.pdf'
+outFile = outDir + 'histogramOfLocalAndRemoteEventsExecuted.pdf'
 pylab.title('Histogram of Local/Remote Events Executed by the LPs')
 pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=('b', 'r'), bins=100)
 pylab.xlabel('Number of Events')
