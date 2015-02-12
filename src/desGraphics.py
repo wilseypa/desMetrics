@@ -50,11 +50,14 @@ display_graph(outFile)
 
 # reject outliers from the mean
 def reject_outliers(data, m=2):
-    return data[abs(data - np.mean(data)) < m * np.std(data)]
+    outData = data[abs(data - np.mean(data)) < m * np.std(data)]
+    if len(outData >0) : return outData 
+    return data
 
 outFile = outDir + 'histogramOfEventsAvailable.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed)')
-pylab.hist(reject_outliers(data), bins=50, normed=True)
+#pylab.hist(reject_outliers(data), bins=50, normed=True)
+pylab.hist(reject_outliers(data), normed=True)
 pylab.xlabel('Number of Simulation Cycles')
 pylab.ylabel('Number of Events (normalized, histogram integral will sum to 1)')
 display_graph(outFile)
