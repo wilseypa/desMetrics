@@ -31,7 +31,7 @@ events = csv.reader(file)
 events.next()
 separator = ""
 for event in events :
-    outFile.write(separator + "[\"" + event[0] + "\"," + event[2] + ",\"" + event[1] + "\"," + event[2] + "]\n")
+    outFile.write(separator + "[\"" + event[0] + "\"," + event[2] + ",\"" + event[1] + "\"," + event[3] + "]\n")
     separator = ","
 
 # print closing
