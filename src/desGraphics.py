@@ -2,8 +2,10 @@
 import os
 import json
 import pylab
+import matplotlib as mpl
 import seaborn as sns
 import numpy as np
+import brewer2mpl
 
 #for arg in sys.argv:
 #    print arg
@@ -12,6 +14,11 @@ import numpy as np
 outDir = 'outputGraphics/'
 if not os.path.exists(outDir):
     os.makedirs(outDir)
+
+# set brewer colormap and make it the default
+bmap = brewer2mpl.get_map('Set1', 'qualitative', 4)
+colors = bmap.mpl_colors
+mpl.rcParams['axes.color_cycle'] = colors
 
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
@@ -39,7 +46,7 @@ outFile = outDir + 'eventsAvailableBySimCycle.pdf'
 pylab.title('Cycle by Cycle Record of Events Available for Execution')
 pylab.plot(data)
 pylab.ylabel('Number of Events Available for Exec\n(log scale to minimize outlier dominance)')
-pylab.yscale('log')
+if (max(data) / 10) > np.mean(data): pylab.yscale('log')
 pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
 display_graph(outFile)
 
@@ -77,10 +84,8 @@ x_index = np.arange(len(data))
 
 pylab.title('Local/Total Events processed by each LP (sorted)')
 # plotting as bars exhausted memory
-#pylab.bar(x_index, sorted_data[:,0], color='r', width=1.0, linewidth=0, label="Local")
-#pylab.bar(x_index, sorted_data[:,1], color='b', width=1.0, linewidth=0, label="Remote", bottom=sorted_data[:,1])
-pylab.plot(x_index, sorted_data[:,0], color='r', label="Local")
-pylab.plot(x_index, sorted_data[:,2], color='b', label="Local+Remote (Total)")
+pylab.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
+pylab.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
 pylab.legend(loc='upper left')
 display_graph(outFile)
 
@@ -106,7 +111,7 @@ display_graph(outFile)
 
 outFile = outDir + 'histogramOfLocalAndRemoteEventsExecuted.pdf'
 pylab.title('Histogram of Local/Remote Events Executed by the LPs')
-pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=('b', 'r'), bins=100)
+pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
 pylab.xlabel('Number of Events')
 pylab.ylabel('Number of LPs Executing Said Events')
 pylab.legend(loc='best')
@@ -125,7 +130,7 @@ pylab.ylabel('Percent of Total Executed')
 pylab.ylim((0,100))
 # fill the area below the line
 ax = pylab.gca()
-ax.fill_between(x_index, sorted(local_events), 0, facecolor='blue')
+ax.fill_between(x_index, sorted(local_events), 0, facecolor=colors[0])
 display_graph(outFile)
 
 #--------------------------------------------------------------------------------
@@ -137,9 +142,9 @@ outFile = outDir + 'eventChainSummary.pdf'
 bar_width = .3
 
 pylab.title('Number Local, Linked, and Global Chains of length X')
-pylab.bar(data[:,0], data[:,1], bar_width, color='b', label="Local")
-pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color='g', label="Linked")
-pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color='r', label="Global")
+pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
+pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
+pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
 pylab.xticks(data[:,0] + bar_width, ('1', '2', '3', '4', '>=5'))
 pylab.legend(loc='best')
 display_graph(outFile)
