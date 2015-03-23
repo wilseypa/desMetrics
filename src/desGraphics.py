@@ -79,8 +79,8 @@ outFile = outDir + 'eventsAvailableBySimCycle-histogram.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed).')
 #pylab.hist(reject_outliers(data), bins=50, normed=True)
 pylab.hist(reject_outliers(data))
-pylab.xlabel('Number of Simulation Cycles')
-pylab.ylabel('Number of Events')
+pylab.xlabel('Number of Events')
+pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
 # THOMAS/CHI: repeat above two functions showing the "Number of Events Availiable" as a
@@ -92,8 +92,8 @@ outFile = outDir + 'eventsAvailableBySimCycle-histogram-normalized.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed)\n(Normalized so Integral will sum to 1)')
 #pylab.hist(reject_outliers(data), bins=50, normed=True)
 pylab.hist(reject_outliers(data), normed=True)
-pylab.xlabel('Number of Simulation Cycles')
-pylab.ylabel('Number of Events\n(Normalized so Integral will sum to 1)')
+pylab.xlabel('Number of Events')
+pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
 #--------------------------------------------------------------------------------
@@ -186,6 +186,8 @@ pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="L
 pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
 pylab.xticks(data[:,0] + bar_width, ('1', '2', '3', '4', '>=5'))
 pylab.legend(loc='best')
+pylab.xlabel('Chain Length')
+pylab.ylabel('Total Chains of Length X Found')
 display_graph(outFile)
 
 
@@ -204,6 +206,8 @@ pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
 pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
 pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
 pylab.xticks(data[:,0] + bar_width, ('1', '>=2', '>=3', '>=4', '>=5'))
+pylab.xlabel('Chain Length')
+pylab.ylabel('Total Chains of Length >= X Found')
 pylab.legend(loc='best')
 display_graph(outFile)
 
