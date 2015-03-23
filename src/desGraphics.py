@@ -66,6 +66,16 @@ display_graph(outFile)
 # percentage of the total number of LPs in the simulation model.  name the outputfile:
 # eventsAvailableBySimCycleAsPercentOfTotalLPs.pdf" 
 
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableBySimCycleAsPercentOfTotalLPs.pdf'
+
+data = data.astype(float)
+pylab.title('Percent of LPs with Events Available.')
+pylab.plot(data/float(total_lps))
+pylab.ylabel('Percent of LPs with Events Available')
+pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
+display_graph(outFile)
+
 #--------------------------------------------------------------------------------
 # plot histograms of the number of simulation cycles that X events are available
 
@@ -77,6 +87,11 @@ pylab.xlabel('Number of Simulation Cycles')
 pylab.ylabel('Number of Events')
 display_graph(outFile)
 
+# THOMAS/CHI: repeat above two functions showing the "Number of Events Availiable" as a
+# percentage of the total number of LPs in the simulation model.  follow naming
+# conventions.  i.e., add suffix -historgram/-histogram-normalized to the above suggested
+# name. 
+
 outFile = outDir + 'eventsAvailableBySimCycle-histogram-normalized.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed)\n(Normalized so Integral will sum to 1)')
 #pylab.hist(reject_outliers(data), bins=50, normed=True)
@@ -84,12 +99,6 @@ pylab.hist(reject_outliers(data), normed=True)
 pylab.xlabel('Number of Simulation Cycles')
 pylab.ylabel('Number of Events\n(Normalized so Integral will sum to 1)')
 display_graph(outFile)
-
-# THOMAS/CHI: repeat above two functions showing the "Number of Events Availiable" as a
-# percentage of the total number of LPs in the simulation model.  follow naming
-# conventions.  i.e., add suffix -historgram/-histogram-normalized to the above suggested
-# name. 
-
 
 #--------------------------------------------------------------------------------
 # plot the local/total events executed by each LP (sorted)
