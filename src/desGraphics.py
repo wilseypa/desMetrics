@@ -55,16 +55,12 @@ total_events = model_summary["total_events"]
 data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycle.pdf'
 
-pylab.title('Simulation Cycle Record of Events Available for Execution.')
+pylab.title('Simulation Cycle-by-Cycle Record of Events Available for Execution.')
 pylab.plot(data)
 pylab.ylabel('Number of Events Available for Execution\n(log scale to minimize outlier dominance)')
 if (max(data) / 10) > np.mean(data): pylab.yscale('log')
 pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
 display_graph(outFile)
-
-# THOMAS/CHI: repeat above function showing the "Number of Events Availiable" as a
-# percentage of the total number of LPs in the simulation model.  name the outputfile:
-# eventsAvailableBySimCycleAsPercentOfTotalLPs.pdf" 
 
 #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycleAsPercentOfTotalLPs.pdf'
