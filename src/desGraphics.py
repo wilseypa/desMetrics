@@ -72,38 +72,50 @@ pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
 display_graph(outFile)
 
 #--------------------------------------------------------------------------------
-# plot histograms of the number of simulation cycles that X events are available
+# plot histograms on simulation cycles and the number/percentage of events available for execution
+
+# standard histogram using builtin pylab.hist plotting command
 
 data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycle-histogram.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed).')
-pylab.hist(reject_outliers(data))
+pylab.hist(reject_outliers(data), bins=30)
 pylab.xlabel('Number of Events')
 pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
-#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-outFile = outDir + 'eventsAvailableBySimCycle-histogram-normalized.pdf'
-pylab.title('Histogram of Events Available for Execution (outliers removed)\n(Normalized so Integral will sum to 1)')
-#pylab.hist(reject_outliers(data), bins=50, normed=True)
-pylab.hist(reject_outliers(data), normed=True)
-pylab.xlabel('Number of Events')
-pylab.ylabel('Number of Simulation Cycles')
-display_graph(outFile)
-
-# THOMAS/CHI: repeat above two functions showing the "Number of Events Availiable" as a
-# percentage of the total number of LPs in the simulation model.  follow naming
-# conventions.  i.e., add suffix -historgram/-histogram-normalized to the above suggested
-# name. 
+# better histogram using pandas tools: raw counts of cycles that X events available
 
 #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-outFile = outDir + 'eventsAvailableAsPercentOfSimCycles.pdf'
+outFile = outDir + 'eventsAvailableBySimCycle-pandas-histogram.pdf'
 total_num_of_sim_cycles = len(data)+1
+mean_events_available = np.mean(reject_outliers(data))
 data = pd.Series(reject_outliers(data)).value_counts()
 data = data.sort_index()
-pylab.title('Percent of Simulation Cycles with X Events Available.')
+pylab.title('Histogram of Events Available for Execution (outliers removed).')
 pd.Series.plot(data, kind='bar', rot=45)
-pylab.xlabel('Number of Events')
+# the next two lines eliminate that annoying dashed line on the x-axis
+ax = pylab.gca()
+ax.get_lines()[0].set_visible(False)
+pylab.axvline(mean_events_available)
+pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+pylab.ylabel('Number of Simulation Cycles')
+display_graph(outFile)
+
+# better histogram using pandas tools: percent of cycles that X events are available
+
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableAsPercentOfSimCycles-pandas-histogram.pdf'
+#total_num_of_sim_cycles = len(data)+1
+#data = pd.Series(reject_outliers(data)).value_counts()
+#data = data.sort_index()
+pylab.title('Percent of Simulation Cycles with X Events Available (outliers removed).')
+pd.Series.plot(data/float(total_num_of_sim_cycles), kind='bar', rot=45)
+# the next two lines eliminate that annoying dashed line on the x-axis
+ax = pylab.gca()
+ax.get_lines()[0].set_visible(False)
+pylab.axvline(mean_events_available)
+pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
 pylab.ylabel('Percent')
 display_graph(outFile)
 
