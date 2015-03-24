@@ -6,6 +6,7 @@ import matplotlib as mpl
 import seaborn as sns
 import numpy as np
 import brewer2mpl
+import pandas as pd
 
 #for arg in sys.argv:
 #    print arg
@@ -54,7 +55,6 @@ total_events = model_summary["total_events"]
 
 data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycle.pdf'
-
 pylab.title('Simulation Cycle-by-Cycle Record of Events Available for Execution.')
 pylab.plot(data)
 pylab.ylabel('Number of Events Available for Execution\n(log scale to minimize outlier dominance)')
@@ -64,21 +64,29 @@ display_graph(outFile)
 
 #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycleAsPercentOfTotalLPs.pdf'
-
 data = data.astype(float)
-pylab.title('Percent of LPs with Events Available.')
+pylab.title('Percent of the ' + str(total_lps) + ' LPs with Events Available.')
 pylab.plot(data/float(total_lps))
-pylab.ylabel('Percent of LPs with Events Available')
+pylab.ylabel('Percent')
 pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
 display_graph(outFile)
 
 #--------------------------------------------------------------------------------
 # plot histograms of the number of simulation cycles that X events are available
 
+data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycle-histogram.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed).')
-#pylab.hist(reject_outliers(data), bins=50, normed=True)
 pylab.hist(reject_outliers(data))
+pylab.xlabel('Number of Events')
+pylab.ylabel('Number of Simulation Cycles')
+display_graph(outFile)
+
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableBySimCycle-histogram-normalized.pdf'
+pylab.title('Histogram of Events Available for Execution (outliers removed)\n(Normalized so Integral will sum to 1)')
+#pylab.hist(reject_outliers(data), bins=50, normed=True)
+pylab.hist(reject_outliers(data), normed=True)
 pylab.xlabel('Number of Events')
 pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
@@ -88,12 +96,15 @@ display_graph(outFile)
 # conventions.  i.e., add suffix -historgram/-histogram-normalized to the above suggested
 # name. 
 
-outFile = outDir + 'eventsAvailableBySimCycle-histogram-normalized.pdf'
-pylab.title('Histogram of Events Available for Execution (outliers removed)\n(Normalized so Integral will sum to 1)')
-#pylab.hist(reject_outliers(data), bins=50, normed=True)
-pylab.hist(reject_outliers(data), normed=True)
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableAsPercentOfSimCycles.pdf'
+total_num_of_sim_cycles = len(data)+1
+data = pd.Series(reject_outliers(data)).value_counts()
+data = data.sort_index()
+pylab.title('Percent of Simulation Cycles with X Events Available.')
+pd.Series.plot(data, kind='bar', rot=45)
 pylab.xlabel('Number of Events')
-pylab.ylabel('Number of Simulation Cycles')
+pylab.ylabel('Percent')
 display_graph(outFile)
 
 #--------------------------------------------------------------------------------
