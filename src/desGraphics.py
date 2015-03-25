@@ -77,17 +77,17 @@ display_graph(outFile)
 # standard histogram using builtin pylab.hist plotting command
 
 data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-outFile = outDir + 'eventsAvailableBySimCycle-histogram.pdf'
+outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed).')
 pylab.hist(reject_outliers(data), bins=30)
 pylab.xlabel('Number of Events')
 pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
-# better histogram using pandas tools: raw counts of cycles that X events available
+# better histogram (bar) using pandas tools: raw counts of cycles that X events available
 
 #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-outFile = outDir + 'eventsAvailableBySimCycle-pandas-histogram.pdf'
+outFile = outDir + 'eventsAvailableBySimCycle-histogram-pandas.pdf'
 total_num_of_sim_cycles = len(data)+1
 mean_events_available = np.mean(reject_outliers(data))
 data = pd.Series(reject_outliers(data)).value_counts()
@@ -102,10 +102,10 @@ pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
 pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
-# better histogram using pandas tools: percent of cycles that X events are available
+# better histogram (bar) using pandas tools: percent of cycles that X events are available
 
 #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-outFile = outDir + 'eventsAvailableAsPercentOfSimCycles-pandas-histogram.pdf'
+outFile = outDir + 'eventsAvailableAsPercentOfSimCycles-histogram-pandas-bar.pdf'
 #total_num_of_sim_cycles = len(data)+1
 #data = pd.Series(reject_outliers(data)).value_counts()
 #data = data.sort_index()
@@ -118,6 +118,31 @@ pylab.axvline(mean_events_available)
 pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
 pylab.ylabel('Percent')
 display_graph(outFile)
+
+# better histogram (line) using pandas tools: percent of cycles that X events are available
+
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableAsPercentOfSimCycles-histogram-pandas-line.pdf'
+#total_num_of_sim_cycles = len(data)+1
+#data = pd.Series(reject_outliers(data)).value_counts()
+#data = data.sort_index()
+pylab.title('Percent of Simulation Cycles with X Events Available (outliers removed).')
+pylab.plot(data/float(total_num_of_sim_cycles))
+pylab.axvline(mean_events_available)
+pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+pylab.ylabel('Percent')
+display_graph(outFile)
+
+# THOMAS/CHI: one more graph could be useful here.  basically the x-axis on the above
+# graph shows the counts of events available on the x-axis.  it would also be useful to
+# have a graph where the values on the x-axis are converted so that the numbers are
+# replaced with that number representing the percent of LPs that that number represents
+# (basically x/total_lps).  this is probably simply a redefinition of the labels written
+# on the x-axis.
+
+# THOMAS/CHI: one more.  show the x-axis values as both their raw number and their percent
+# of total_lps...e.g., 14 (9%) where 14 is the number_of_events and 9% is the
+# number_of_events/total_lps. 
 
 #--------------------------------------------------------------------------------
 # plot the local/total events executed by each LP (sorted)
