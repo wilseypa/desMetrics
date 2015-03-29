@@ -270,6 +270,16 @@ pylab.xlabel('Chain Length')
 pylab.ylabel('Total Chains of Length X Found')
 display_graph(outFile)
 
+# pie chart of local event chains as a percent of num local chains
+
+pylab.title('Distribution of Local Event Chains')
+outFile = outDir + 'eventChainSummary-pieChart.pdf'
+labels = '1', '2', '3', '4', '>=5'
+percentages = data[:,1].astype(float)/float(np.sum(data[:,1]))
+pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
+pylab.axis('equal')
+display_graph(outFile)
+
 
 outFile = outDir + 'eventChainSummary-cumulative.pdf'
 
