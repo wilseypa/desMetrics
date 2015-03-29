@@ -35,6 +35,21 @@ def reject_outliers(data, m=2):
     if len(outData >0) : return outData 
     return data
 
+def gaussian_smoothing(list,degree=5):
+    window=degree*2-1
+    weight=np.array([1.0]*window)
+    weightGauss=[]
+    for i in range(window):
+         i=i-degree+1  
+         frac=i/float(window)  
+         gauss=1/(np.exp((4*(frac))**2))  
+         weightGauss.append(gauss)  
+         weight=np.array(weightGauss)*weight  
+         smoothed=[0.0]*(len(list)-window)  
+    for i in range(len(smoothed)):  
+        smoothed[i]=sum(np.array(list[i:i+window])*weight)/sum(weight)  
+    return smoothed  
+
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
 
@@ -79,10 +94,38 @@ display_graph(outFile)
 data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
 pylab.title('Histogram of Events Available for Execution (outliers removed).')
-pylab.hist(reject_outliers(data), bins=100, histtype='stepfilled')
+pylab.hist(reject_outliers(data), bins=10, histtype='stepfilled')
 pylab.xlabel('Number of Events')
 pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
+
+# ok, let's try to build a histogram to show (i) the raw number of cycles that X events
+# are available for execution on the left y-axis and (ii) the percent of cycles that X
+# events are available for execution on the right y-axis. 
+
+pylab.title('Events Available for Execution (outliers removed).')
+outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual.pdf'
+#data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+total_num_of_sim_cycles = len(data)+1
+mean_events_available = np.mean(reject_outliers(data))
+data = pd.Series(reject_outliers(data)).value_counts()
+data = data.sort_index()
+x_values = np.array(data.keys())
+y_values = np.array(data)
+pylab.plot(x_values, y_values)
+pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+pylab.ylabel('Number of Simulation Cycles')
+display_graph(outFile)
+
+# replot the data but perform gaussian smoothing on the data
+# does not want to work....find a python expert....
+
+#pylab.title('Events Available for Execution (outliers removed, counts smoothed).')
+#outFile = outDir + 'eventsAvailableBySimCycle-histogram-smoothed-dual.pdf'
+#pylab.plot(x_values, gaussian_smoothing(y_values))
+#pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+#pylab.ylabel('Number of Simulation Cycles (smoothed)')
+#display_graph(outFile)
 
 ## These histograms look nice for small samples, but with larger datasets, they do not
 ## render well.  keeping for now to have the code around while i continue develping this 
