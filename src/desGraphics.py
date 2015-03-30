@@ -1,4 +1,4 @@
-#import sys
+import sys
 import os
 import json
 import pylab
@@ -7,6 +7,7 @@ import seaborn as sns
 import numpy as np
 import brewer2mpl
 import pandas as pd
+from scipy.ndimage import gaussian_filter1d
 
 #for arg in sys.argv:
 #    print arg
@@ -35,21 +36,6 @@ def reject_outliers(data, m=2):
     if len(outData >0) : return outData 
     return data
 
-def gaussian_smoothing(list,degree=5):
-    window=degree*2-1
-    weight=np.array([1.0]*window)
-    weightGauss=[]
-    for i in range(window):
-         i=i-degree+1  
-         frac=i/float(window)  
-         gauss=1/(np.exp((4*(frac))**2))  
-         weightGauss.append(gauss)  
-         weight=np.array(weightGauss)*weight  
-         smoothed=[0.0]*(len(list)-window)  
-    for i in range(len(smoothed)):  
-        smoothed[i]=sum(np.array(list[i:i+window])*weight)/sum(weight)  
-    return smoothed  
-
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
 
@@ -74,6 +60,15 @@ pylab.title('Simulation Cycle-by-Cycle Record of Events Available for Execution.
 pylab.plot(data)
 pylab.ylabel('Number of Events Available for Execution\n(log scale to minimize outlier dominance)')
 if (max(data) / 10) > np.mean(data): pylab.yscale('log')
+pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
+display_graph(outFile)
+
+data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+outFile = outDir + 'eventsAvailableBySimCycle-smoothed.pdf'
+pylab.title('Simulation Cycle-by-Cycle Record of Events Available for Execution.')
+pylab.plot(gaussian_filter1d(data, sigma=10))
+pylab.ylabel('Number of Events Available for Execution (filtered)')
+#if (max(data) / 10) > np.mean(data): pylab.yscale('log')
 pylab.xlabel('Simulation Cycle (assumes instantaneous event execution)')
 display_graph(outFile)
 
@@ -118,14 +113,13 @@ pylab.ylabel('Number of Simulation Cycles')
 display_graph(outFile)
 
 # replot the data but perform gaussian smoothing on the data
-# does not want to work....find a python expert....
 
-#pylab.title('Events Available for Execution (outliers removed, counts smoothed).')
-#outFile = outDir + 'eventsAvailableBySimCycle-histogram-smoothed-dual.pdf'
-#pylab.plot(x_values, gaussian_smoothing(y_values))
-#pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
-#pylab.ylabel('Number of Simulation Cycles (smoothed)')
-#display_graph(outFile)
+pylab.title('Events Available for Execution (outliers removed, counts smoothed).')
+outFile = outDir + 'eventsAvailableBySimCycle-histogram-smoothed-dual.pdf'
+pylab.plot(x_values, gaussian_filter1d(y_values, sigma=10))
+pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+pylab.ylabel('Number of Simulation Cycles (smoothed)')
+display_graph(outFile)
 
 ## These histograms look nice for small samples, but with larger datasets, they do not
 ## render well.  keeping for now to have the code around while i continue develping this 
@@ -158,7 +152,7 @@ display_graph(outFile)
 #pd.Series.plot(data/float(total_num_of_sim_cycles), kind='bar', rot=45)
 ## the next two lines eliminate that annoying dashed line on the x-axis
 #ax = pylab.gca()
-#ax.get_lines()[0].set_visible(False)
+2#ax.get_lines()[0].set_visible(False)
 #pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
 #585 area codepylab.ylabel('Percent')
 #display_graph(outFile)
@@ -270,18 +264,40 @@ pylab.xlabel('Chain Length')
 pylab.ylabel('Total Chains of Length X Found')
 display_graph(outFile)
 
-# pie chart of local event chains as a percent of num local chains
+# pie charts of event chains as a percent of num total chains (in that category)
 
 pylab.title('Distribution of Local Event Chains')
-outFile = outDir + 'eventChainSummary-pieChart.pdf'
+outFile = outDir + 'eventChainSummary-local-pieChart.pdf'
+#data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 labels = '1', '2', '3', '4', '>=5'
 percentages = data[:,1].astype(float)/float(np.sum(data[:,1]))
-pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
+pylab.pie(percentages, labels=labels, autopct='%1.1f%%', startangle=-90)
+pylab.axis('equal')
+display_graph(outFile)
+
+pylab.title('Distribution of Linked Event Chains')
+outFile = outDir + 'eventChainSummary-linked-pieChart.pdf'
+#data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+labels = '1', '2', '3', '4', '>=5'
+percentages = data[:,2].astype(float)/float(np.sum(data[:,2]))
+pylab.pie(percentages, labels=labels, autopct='%1.1f%%', startangle=-90)
 pylab.axis('equal')
 display_graph(outFile)
 
 
+pylab.title('Distribution of Global Event Chains')
+outFile = outDir + 'eventChainSummary-global-pieChart.pdf'
+#data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+labels = '1', '2', '3', '4', '>=5'
+percentages = data[:,3].astype(float)/float(np.sum(data[:,3]))
+pylab.pie(percentages, labels=labels, autopct='%1.1f%%', startangle=-90)
+pylab.axis('equal')
+display_graph(outFile)
+
+
+pylab.title('Number Local, Linked, and Global Chains of length X')
 outFile = outDir + 'eventChainSummary-cumulative.pdf'
+#data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
 
 for i in range(len(data)-2,0,-1) :
     for j in range(1,len(data[0:])-1) :
@@ -290,8 +306,6 @@ for i in range(len(data)-2,0,-1) :
 outFile = outDir + 'eventChainSummary-cumulative.pdf'
 
 bar_width = .3
-
-pylab.title('Number Local, Linked, and Global Chains of length X')
 pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
 pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
 pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
@@ -394,7 +408,9 @@ display_graph(outFile)
 #--------------------------------------------------------------------------------
 # plots of the number of LPs each LP receives events from
 
-## NOTE: i believe the data file has incorrectly computed this result.  it looks like i may have accidently included local events in the total which would skew the results (smaller).  need to investigate.
+## NOTE: i suspect the data file has incorrectly computed this result.  it looks like i
+## may have accidently included local events in the total which would skew the results
+## (smaller).  need to investigate.  
 
 # let's look at how many LPs provide 95% of the messages to each LP
 # column 5 has the data we need
