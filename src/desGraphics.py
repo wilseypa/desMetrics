@@ -40,6 +40,9 @@ def reject_outliers(data, m=2):
 def toPercentOfTotalLPs(x, pos=0):
     return '%.1f%%'%((100*x)/total_lps)
 
+def toPercentOfTotalSimCycles(x, pos=0):
+    return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
+
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
 
@@ -113,7 +116,7 @@ events_per_sim_cycle_raw()
 def events_per_sim_cycle_histograms():
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
-    pylab.title('Histogram of Events Available for Execution (outliers removed).')
+    pylab.title('Events Available for Execution (outliers removed).')
     pylab.hist(reject_outliers(data), bins=10, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
@@ -123,6 +126,7 @@ def events_per_sim_cycle_histograms():
     # are available for execution on the left y-axis and (ii) the percent of cycles that X
     # events are available for execution on the right y-axis. 
     
+    fig, ax1 = pylab.subplots()
     pylab.title('Events Available for Execution (outliers removed).')
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual.pdf'
     #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
@@ -132,9 +136,13 @@ def events_per_sim_cycle_histograms():
     data = data.sort_index()
     x_values = np.array(data.keys())
     y_values = np.array(data)
-    pylab.plot(x_values, y_values)
-    pylab.xlabel('Number of Events (Average=%.2f)' % mean_events_available)
-    pylab.ylabel('Number of Simulation Cycles')
+    ax1.plot(x_values, y_values)
+    ax1.set_xlabel('Number of Events (Average=%.2f)' % mean_events_available)
+    ax1.set_ylabel('Number of Simulation Cycles')
+    ax2=ax1.twinx()
+    ax2.plot(x_values, y_values)
+    ax2.set_ylabel('Percent of Simulation Cycles (%d) w/ Events Available' % total_num_of_sim_cycles)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
     display_graph(outFile)
 
     return
