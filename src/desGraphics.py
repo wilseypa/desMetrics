@@ -37,6 +37,14 @@ def reject_outliers(data, m=2):
     if len(outData >0) : return outData 
     return data
 
+# need this as a global variable for the axis printing function
+total_num_of_sim_cycles = 0
+
+def setNumOfSimCycles(x):
+    global total_num_of_sim_cycles
+    total_num_of_sim_cycles = x
+    return
+
 def toPercentOfTotalLPs(x, pos=0):
     return '%.1f%%'%((100*x)/total_lps)
 
@@ -130,7 +138,8 @@ def events_per_sim_cycle_histograms():
     pylab.title('Events Available for Execution (outliers removed).')
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual.pdf'
     #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    total_num_of_sim_cycles = len(data)+1
+    #total_num_of_sim_cycles = len(data)+1
+    setNumOfSimCycles(len(data)+1)
     mean_events_available = np.mean(reject_outliers(data))
     data = pd.Series(reject_outliers(data)).value_counts()
     data = data.sort_index()
