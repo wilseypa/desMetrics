@@ -63,6 +63,10 @@ total_lps = model_summary["total_lps"]
 total_events = model_summary["total_events"]
 
 #--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+# functions to plot events available for execution
+
+#--------------------------------------------------------------------------------
 # plot the number of events that are available by simulation cycle
 
 # TOM/CHI: it would be nice to have a bit more spacing between the right ylabel and the
@@ -111,10 +115,7 @@ def events_per_sim_cycle_raw():
     #pylab.plot(gaussian_filter1d(data, sigma=9), label='Gaussian Filter')
     #pylab.plot(savgol_filter(data, window_length=9, polyorder=2), label='Savitzky-Golay Filter')
     #if (max(data) / 10) > np.mean(data): pylab.yscale('log')
-
     return
-
-events_per_sim_cycle_raw()
 
 #--------------------------------------------------------------------------------
 # plot histograms on simulation cycles and the number/percentage of events available for execution
@@ -122,9 +123,9 @@ events_per_sim_cycle_raw()
 # standard histogram using builtin pylab.hist plotting command
 
 def events_per_sim_cycle_histograms():
+    pylab.title('Events Available for Execution (outliers removed).')
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
-    pylab.title('Events Available for Execution (outliers removed).')
     pylab.hist(reject_outliers(data), bins=10, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
@@ -153,88 +154,99 @@ def events_per_sim_cycle_histograms():
     ax2.set_ylabel('Percent of Simulation Cycles (%d) w/ Events Available' % total_num_of_sim_cycles)
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
     display_graph(outFile)
-
     return
 
-events_per_sim_cycle_histograms()
-
-sys.exit()
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+# functions to plot the local/total event counts
 
 #--------------------------------------------------------------------------------
 # plot the local/total events executed by each LP (sorted)
 
-# skip the first column of LP names
-data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
-outFile = outDir + 'totalEventsProcessedByLP.pdf'
-
-# sort the data by the total events executed
-sorted_data = data[data[:,2].argsort()]
-
-# need a vector of values for the for the x-axis
-x_index = np.arange(len(data))
-
-pylab.title('Total Events processed by each LP (sorted)')
-# plotting as bars exhausted memory
-pylab.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
-pylab.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
-pylab.legend(loc='upper left')
-display_graph(outFile)
+def total_local_events_exec_by_lp():
+    # skip the first column of LP names
+    pylab.title('Total Events processed by each LP (sorted)')
+    data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
+    outFile = outDir + 'totalEventsProcessedByLP.pdf'
+    # sort the data by the total events executed
+    sorted_data = data[data[:,2].argsort()]
+    # need a vector of values for the for the x-axis
+    x_index = np.arange(len(data))
+    # plotting as bars exhausted memory
+    pylab.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
+    pylab.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
+    pylab.legend(loc='upper left')
+    display_graph(outFile)
+    return
 
 #--------------------------------------------------------------------------------
 # histograms of events executed by each LP
 
-local_events = []
-for i in np.arange(len(data)) :
-    local = float(data[i,0])
-    total = float(data[i,2])
-    percent = round((local / total) * 100,2)
-    local_events.append(percent)
+# helper function to compute percent of events that are local
+def percent_of_LP_events_that_are_local(data):
+    local_events = []
+    for i in np.arange(len(data)) :
+        local = float(data[i,0])
+        total = float(data[i,2])
+        percent = round((local / total) * 100,2)
+        local_events.append(percent)
+    return local_events
 
-outFile = outDir + 'localEventsAsPercentofTotalByLP-histogram.pdf'
-pylab.title('Histogram of Local Events Executed by each LP')
-pylab.hist(sorted(local_events), bins=100)
-# turn off scientific notation on the x-axis
-ax = pylab.gca()
-ax.get_xaxis().get_major_formatter().set_useOffset(False)
-pylab.xlabel('Percent of Executed Events that were Locally Generated')
-pylab.ylabel('Number of LPs Containing Said Percentage')
-display_graph(outFile)
+def histograms_of_events_exec_by_lp():
+    pylab.title('Histogram of Local Events Executed by each LP')
+    outFile = outDir + 'localEventsAsPercentofTotalByLP-histogram.pdf'
+    data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
+    # convert data to percentage of total executed by that LP
+    pylab.hist(sorted(percent_of_LP_events_that_are_local(data)), bins=100)
+    # turn off scientific notation on the x-axis
+    ax = pylab.gca()
+    ax.get_xaxis().get_major_formatter().set_useOffset(False)
+    pylab.xlabel('Percent of Executed Events that were Locally Generated')
+    pylab.ylabel('Number of LPs Containing Said Percentage')
+    display_graph(outFile)
 
-outFile = outDir + 'localAndRemoteEventsExecuted-histogram.pdf'
-pylab.title('Local and Remote Events Executed by the LPs')
-pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
-pylab.xlabel('Number of Events')
-pylab.ylabel('Number of LPs Executing Said Events')
-pylab.legend(loc='best')
-display_graph(outFile)
-
-# THOMAS/CHI: repeat (only) the above graph but show totals of local and remote events as
-# a percent of the total executed by that each LP.  name the file
-# localAndRemoteEventsExecutedAsPercentofTotal-histogram.pdf'
-
+    pylab.title('Local and Remote Events Executed by the LPs')
+    outFile = outDir + 'localAndRemoteEventsExecuted-histogram-stacked.pdf'
+    pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
+    pylab.xlabel('Number of Events')
+    pylab.ylabel('Number of LPs Executing Said Events')
+    pylab.legend(loc='best')
+    display_graph(outFile)
+    return
 
 #--------------------------------------------------------------------------------
 # plot the percent of local events executed by each LP
 
-### using variables from above....
 
-outFile = outDir + 'percentOfExecutedEventsThatAreLocal.pdf'
-pylab.title('Percent of Events Executed that are Local (sorted)')
-pylab.plot(x_index, sorted(local_events))
-pylab.xlabel('LPs (sorted by percent local)')
-pylab.ylabel('Percent of Total Executed')
-pylab.ylim((0,100))
-# fill the area below the line
-ax = pylab.gca()
-ax.fill_between(x_index, sorted(local_events), 0, facecolor=colors[0])
-display_graph(outFile)
+def profile_of_local_events_exec_by_lp():
+    pylab.title('Percent of Events Executed that are Local (sorted)')
+    outFile = outDir + 'percentOfExecutedEventsThatAreLocal.pdf'
+    data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
+    x_index = np.arange(len(data))
+    pylab.plot(x_index, sorted(percent_of_LP_events_that_are_local(data)))
+    pylab.xlabel('LPs (sorted by percent local)')
+    pylab.ylabel('Percent of Total Executed')
+    pylab.ylim((0,100))
+    # fill the area below the line
+    ax = pylab.gca()
+    ax.fill_between(x_index, sorted(percent_of_LP_events_that_are_local(data)), 0, facecolor=colors[0])
+    display_graph(outFile)
 
-outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram.pdf'
-pylab.title('Histogram of Events Executed that are Local')
-pylab.hist(sorted(local_events))
-pylab.xlabel('Percent of Local Events Executed')
-pylab.ylabel('Number of LPs Executing Said Percentage')
-display_graph(outFile)
+    outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram.pdf'
+    pylab.title('Histogram of Events Executed that are Local')
+    pylab.hist(sorted(percent_of_LP_events_that_are_local(data)))
+    pylab.xlabel('Percent of Local Events Executed')
+    pylab.ylabel('Number of LPs Executing Said Percentage')
+    display_graph(outFile)
+    return
+
+events_per_sim_cycle_raw()
+events_per_sim_cycle_histograms()
+total_local_events_exec_by_lp()
+histograms_of_events_exec_by_lp()
+profile_of_local_events_exec_by_lp()
+
+sys.exit()
 
 #--------------------------------------------------------------------------------
 # display graphs of the event chain summaries
