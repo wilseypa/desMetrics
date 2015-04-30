@@ -382,7 +382,7 @@ func main() {
 	// the chain should also be included in the chain length computation
 
 	// all chains longer than this will be summed as if they are this length.
-	chainLength := 5
+	chainLength := 10
 
 	accumulateChain := func(chain []int, maxChainLength int, chainLength int) {
 		if chainLength >= maxChainLength {chain[maxChainLength - 1]++} else {chain[chainLength]++}
@@ -441,17 +441,17 @@ func main() {
 	localChainFile, err := os.Create("analysisData/localEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
-	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, >= 5\n")
+	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
-	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, >= 5\n")
+	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.csv")
 	if err != nil {panic(err)}
 	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
-	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, >= 5\n")
+	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	// location to write summaries of local and remote events received
 	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.csv")
