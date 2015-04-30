@@ -84,7 +84,7 @@ def events_per_sim_cycle_raw():
     #data = data.astype(float)
     #ax2.plot(data/float(total_lps))
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s) w/ Events Available' % total_lps)
+    ax2.set_ylabel('\n Percent of Total LPs (%s) w/ Events Available' % total_lps)
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     display_graph(outFile)
 
@@ -105,7 +105,7 @@ def events_per_sim_cycle_raw():
     #data = gaussian_filter1d(data, sigma=9)
     #ax2.plot(data, color=colors[1], label='Filtered')
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s) w/ Events Available' % total_lps)
+    ax2.set_ylabel('\n Percent of Total LPs (%s) w/ Events Available' % total_lps)
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     #pylab.legend(loc='best')
     display_graph(outFile)
