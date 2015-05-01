@@ -254,7 +254,7 @@ def plot_event_chain_summaries():
     pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
     pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
     pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
-    pylab.xticks(data[:,0] + bar_width, ('1', '2', '3', '4', '>=5'))
+    pylab.xticks(data[:,0] + bar_width, ('1', '2', '3', '4', '5', '6', '7', '8', '9', '>=10'))
     pylab.legend(loc='best')
     pylab.xlabel('Chain Length')
     pylab.ylabel('Total Chains of Length X Found')
@@ -273,7 +273,7 @@ def plot_event_chain_cumulative_summaries():
     pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
     pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
     pylab.bar(data[:,0] + bar_width + bar_width, data[:,3], bar_width, color=colors[2], label="Global")
-    pylab.xticks(data[:,0] + bar_width, ('1', '>=2', '>=3', '>=4', '>=5'))
+    pylab.xticks(data[:,0] + bar_width, ('1', '>=2', '>=3', '>=4', '>=5', '>=6', '>=7', '>=8', '>=9', '>=10'))
     pylab.xlabel('Chain Length')
     pylab.ylabel('Total Chains of Length >= X Found')
     pylab.legend(loc='best')
@@ -285,7 +285,7 @@ def plot_event_chain_cumulative_summaries():
 def plot_event_chain_summaries_pie_charts(data, type):
     pylab.title('Distribution of %s Event Chains\n' % type)
     outFile = outDir + 'eventChainSummary-pie-chart-%s.pdf'%type
-    labels = '1', '2', '3', '4', '>=5'
+    labels = '1', '2', '3', '4', '5', '6', '7', '8', '9', '>=10'
     percentages = data.astype(float)/float(np.sum(data))
     pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
     pylab.axis('equal')
@@ -295,13 +295,18 @@ def plot_event_chain_summaries_pie_charts(data, type):
 def plot_percent_of_events_in_event_chains(data, type):
     pylab.title('Percent of Events in %s Event Chains\n' % type)
     outFile = outDir + 'eventChainSummary-pie-chart-%s.pdf'%type
-    labels = '1', '2', '3', '4', '>=5'
+    labels = '1', '2', '3', '4', '5', '6', '7', '8', '9', '>=10'
     # convert the counts of chains to counts of events 
     data[1] = data[1] * 2
     data[2] = data[2] * 3
     data[3] = data[3] * 4
-    data[4] = 0
-    data[4] = total_events - np.sum(data)
+    data[4] = data[4] * 4
+    data[5] = data[5] * 4
+    data[6] = data[6] * 4
+    data[7] = data[7] * 4
+    data[8] = data[8] * 4
+    data[9] = 0
+    data[9] = total_events - np.sum(data)
     percentages = data.astype(float)/float(total_events)
     pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
     pylab.axis('equal')
@@ -321,7 +326,17 @@ def plot_event_chains_by_lp(data, type):
     sorted_data = data[data[:,3].argsort()]
     pylab.plot(sorted_data[:,3], label='Len=4')
     sorted_data = data[data[:,4].argsort()]
-    pylab.plot(sorted_data[:,4], label='Len>=5')
+    pylab.plot(sorted_data[:,4], label='Len=5')
+    sorted_data = data[data[:,5].argsort()]
+    pylab.plot(sorted_data[:,5], label='Len=6')
+    sorted_data = data[data[:,6].argsort()]
+    pylab.plot(sorted_data[:,6], label='Len=7')
+    sorted_data = data[data[:,7].argsort()]
+    pylab.plot(sorted_data[:,7], label='Len=8')
+    sorted_data = data[data[:,8].argsort()]
+    pylab.plot(sorted_data[:,8], label='Len=9')
+    sorted_data = data[data[:,9].argsort()]
+    pylab.plot(sorted_data[:,9], label='Len>=10')
     pylab.xlabel('LPs')
     pylab.ylabel('Number of Chains')
     pylab.legend(loc='best')
