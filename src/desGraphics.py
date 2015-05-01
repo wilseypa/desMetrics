@@ -266,8 +266,8 @@ def plot_event_chain_cumulative_summaries():
     pylab.title('Cumulative Number Event Chains of length X\n')
     outFile = outDir + 'eventChainSummary-cumulative.pdf'
     data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    for i in range(len(data)-2,0,-1) :
-        for j in range(1,len(data[0:])-1) :
+    for i in range(len(data)-2,-1,-1) :
+        for j in range(1,len(data[0])) :
             data[i,j] = data[i,j] + data[i+1,j]
     bar_width = .3
     pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
@@ -300,11 +300,11 @@ def plot_percent_of_events_in_event_chains(data, type):
     data[1] = data[1] * 2
     data[2] = data[2] * 3
     data[3] = data[3] * 4
-    data[4] = data[4] * 4
-    data[5] = data[5] * 4
-    data[6] = data[6] * 4
-    data[7] = data[7] * 4
-    data[8] = data[8] * 4
+    data[4] = data[4] * 5
+    data[5] = data[5] * 6
+    data[6] = data[6] * 7
+    data[7] = data[7] * 8
+    data[8] = data[8] * 9
     data[9] = 0
     data[9] = total_events - np.sum(data)
     percentages = data.astype(float)/float(total_events)
@@ -382,11 +382,11 @@ plot_percent_of_events_in_event_chains(data[:,1], 'Local')
 plot_percent_of_events_in_event_chains(data[:,2], 'Linked')
 plot_percent_of_events_in_event_chains(data[:,3], 'Global')
 num_of_sender_lps_to_cover_ninety_five_prct_of_remote_events()
-data = np.loadtxt("analysisData/localEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
+data = np.loadtxt("analysisData/localEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6,7,8,9,10))
 plot_event_chains_by_lp(data, 'Local')
-data = np.loadtxt("analysisData/linkedEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
+data = np.loadtxt("analysisData/linkedEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6,7,8,9,10))
 plot_event_chains_by_lp(data, 'Linked')
-data = np.loadtxt("analysisData/globalEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
+data = np.loadtxt("analysisData/globalEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6,7,8,9,10))
 plot_event_chains_by_lp(data, 'Global')
 
 sys.exit()
@@ -474,6 +474,3 @@ pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Global Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent\n(Normalized so Integral will sum to 1)')
 display_graph(outFile)
-
-
-
