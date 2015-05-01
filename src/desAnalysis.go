@@ -419,7 +419,7 @@ func main() {
 			j := i + 1
 			// find end of chain
 			for ; j < len(lp.events) && lp.events[j].companionLP == lp.lpId && lp.events[j].sendTime <= lp.events[j-1].receiveTime ; {j++}
-			accumulateChain(local, chainLength, j-i-1)
+			accumulateChain(linked, chainLength, j-i-1)
 			i = j
 		}
 		
