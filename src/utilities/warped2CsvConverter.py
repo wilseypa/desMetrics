@@ -42,4 +42,4 @@ for event in events :
 
 # print closing
 #--------------------------------------------------------------------------------
-outFile.write("]\n}")
+outFile.write("]\n}\n")
