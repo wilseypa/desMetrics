@@ -77,7 +77,7 @@ def events_per_sim_cycle_raw():
     outFile = outDir + 'eventsAvailableBySimCycle.pdf'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     ax1.plot(data)
-    ax1.set_xlabel('Simulation Cycle (assumes instantaneous event execution)')
+    ax1.set_xlabel('Simulation Cycle (assumes unit time event execution)')
     ax1.set_ylabel('Number of Events Available for Execution')
     ax2=ax1.twinx()
     # this is an unnecessary computation
@@ -99,7 +99,7 @@ def events_per_sim_cycle_raw():
     data = reject_outliers(data)
     #ax1.plot(data, color=colors[0], label='Outliers Removed')
     ax1.plot(data)
-    ax1.set_xlabel('Simulation Cycle (assumes instantaneous event execution)')
+    ax1.set_xlabel('Simulation Cycle (assumes unit time event execution)')
     ax1.set_ylabel('Number of Events Available for Execution')
     ax2=ax1.twinx()
     #data = gaussian_filter1d(data, sigma=9)
