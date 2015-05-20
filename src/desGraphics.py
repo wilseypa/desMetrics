@@ -294,7 +294,7 @@ def plot_event_chain_summaries_pie_charts(data, type):
 
 def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     pylab.title('Percent of Events in %s Event Chains\n' % type)
-    outFile = outDir + 'eventChainSummary-pie-chart-%s.pdf'%type
+    outFile = outDir + 'eventChainEventTotals-pie-chart-%s.pdf'%type
     labels = '1', '2', '3', '4', '>=5'
     # convert the counts of chains to counts of events 
     data[1] = data[1] * 2
