@@ -125,7 +125,7 @@ def events_per_sim_cycle_histograms():
     pylab.title('Events Available for Execution (outliers removed)')
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
-    pylab.hist(reject_outliers(data), bins=10, histtype='stepfilled')
+    pylab.hist(reject_outliers(data), bins=100, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
     display_graph(outFile)
