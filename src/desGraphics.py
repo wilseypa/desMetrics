@@ -175,11 +175,16 @@ def total_local_events_exec_by_lp():
     pylab.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
     pylab.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
     pylab.legend(loc='upper left')
+    pylab.xlabel('LPs (sorted by total events executed)')
+    pylab.ylabel('Number of Events Executed')
     display_graph(outFile)
     return
 
 #--------------------------------------------------------------------------------
 # histograms of events executed by each LP
+
+# expand to show % of LPs on right y-axis
+
 
 # helper function to compute percent of events that are local
 def percent_of_LP_events_that_are_local(data):
