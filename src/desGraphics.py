@@ -27,8 +27,18 @@ mpl.rcParams['axes.color_cycle'] = colors
 
 # define a function to display/save the pylab figures.
 def display_graph(fileName) :
-    pylab.savefig(fileName, bbox_inches='tight')
-    pylab.show()
+    print "Creating graphics " + fileName
+    print "    ....writing pdf"
+    pylab.savefig(fileName + ".pdf", bbox_inches='tight')
+    print "    ....writing eps"
+    pylab.savefig(fileName + ".eps", bbox_inches='tight')
+# this conversion takes an enormous amount of time.  uncomment and use only when you really need it.
+#    print "    ....converting to jpg"
+#    os.system("convert " + fileName + ".eps " + fileName + ".jpg")
+    pylab.clf()
+#    pylab.show()
+    return
+
 
 # function to remove outliers from the mean
 def reject_outliers(data, m=2):
@@ -74,7 +84,7 @@ total_events = model_summary["total_events"]
 def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
     pylab.title('Events Available for Execution')
-    outFile = outDir + 'eventsAvailableBySimCycle.pdf'
+    outFile = outDir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (assumes unit time event execution)')
@@ -94,7 +104,7 @@ def events_per_sim_cycle_raw():
 
     fig, ax1 = pylab.subplots()
     pylab.title('Events Available for Execution (outliers removed)')
-    outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved.pdf'
+    outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     data = reject_outliers(data)
     #ax1.plot(data, color=colors[0], label='Outliers Removed')
@@ -124,7 +134,7 @@ def events_per_sim_cycle_raw():
 def events_per_sim_cycle_histograms():
     pylab.title('Events Available for Execution (outliers removed)')
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    outFile = outDir + 'eventsAvailableBySimCycle-histogram-std.pdf'
+    outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
     pylab.hist(reject_outliers(data), bins=100, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
@@ -136,7 +146,7 @@ def events_per_sim_cycle_histograms():
     
     fig, ax1 = pylab.subplots()
     pylab.title('Events Available for Execution (outliers removed)')
-    outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual.pdf'
+    outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual'
     #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     #total_num_of_sim_cycles = len(data)+1
     setNumOfSimCycles(len(data)+1)
@@ -166,7 +176,7 @@ def total_local_events_exec_by_lp():
     # skip the first column of LP names
     pylab.title('Total Events processed by each LP (sorted)')
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
-    outFile = outDir + 'totalEventsProcessedByLP.pdf'
+    outFile = outDir + 'totalEventsProcessedByLP'
     # sort the data by the total events executed
     sorted_data = data[data[:,2].argsort()]
     # need a vector of values for the for the x-axis
@@ -198,7 +208,7 @@ def percent_of_LP_events_that_are_local(data):
 
 def histograms_of_events_exec_by_lp():
     pylab.title('Local Events Executed by each LP')
-    outFile = outDir + 'localEventsAsPercentofTotalByLP-histogram.pdf'
+    outFile = outDir + 'localEventsAsPercentofTotalByLP-histogram'
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     # convert data to percentage of total executed by that LP
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)), bins=100)
@@ -210,7 +220,7 @@ def histograms_of_events_exec_by_lp():
     display_graph(outFile)
 
     pylab.title('Local and Remote Events Executed by the LPs')
-    outFile = outDir + 'localAndRemoteEventsExecuted-histogram-stacked.pdf'
+    outFile = outDir + 'localAndRemoteEventsExecuted-histogram-stacked'
     pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of LPs Executing Said Events')
@@ -224,7 +234,7 @@ def histograms_of_events_exec_by_lp():
 
 def profile_of_local_events_exec_by_lp():
     pylab.title('Locally Generated Events')
-    outFile = outDir + 'percentOfExecutedEventsThatAreLocal.pdf'
+    outFile = outDir + 'percentOfExecutedEventsThatAreLocal'
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     x_index = np.arange(len(data))
     pylab.plot(x_index, sorted(percent_of_LP_events_that_are_local(data)))
@@ -237,7 +247,7 @@ def profile_of_local_events_exec_by_lp():
     display_graph(outFile)
 
     pylab.title('Locally Generated Events Executed')
-    outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram.pdf'
+    outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram'
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)))
     pylab.xlabel('Percent of Local Events Executed')
     pylab.ylabel('Number of LPs Executing Said Percentage')
@@ -254,7 +264,7 @@ def profile_of_local_events_exec_by_lp():
 def plot_event_chain_summaries():
     pylab.title('Number of Event Chains of length X')
     data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    outFile = outDir + 'eventChainSummary-individual.pdf'
+    outFile = outDir + 'eventChainSummary-individual'
     bar_width = .3
     pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
     pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
@@ -269,7 +279,7 @@ def plot_event_chain_summaries():
 # show the cumulative event chains (i.e., for chains of length 2, also count longer chains)
 def plot_event_chain_cumulative_summaries():
     pylab.title('Cumulative Number Event Chains of length X')
-    outFile = outDir + 'eventChainSummary-cumulative.pdf'
+    outFile = outDir + 'eventChainSummary-cumulative'
     data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     for i in range(len(data)-2,-1,-1) :
         for j in range(1,len(data[0])) :
@@ -289,7 +299,7 @@ def plot_event_chain_cumulative_summaries():
 
 def plot_event_chain_summaries_pie_charts(data, type):
     pylab.title('Distribution of %s Event Chains\n' % type)
-    outFile = outDir + 'eventChainSummary-pie-chart-%s.pdf'%type
+    outFile = outDir + 'eventChainSummary-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
     percentages = data.astype(float)/float(np.sum(data))
     pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
@@ -299,7 +309,7 @@ def plot_event_chain_summaries_pie_charts(data, type):
 
 def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     pylab.title('Percent of Events in %s Event Chains\n' % type)
-    outFile = outDir + 'eventChainEventTotals-pie-chart-%s.pdf'%type
+    outFile = outDir + 'eventChainEventTotals-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
     # convert the counts of chains to counts of events 
     data[1] = data[1] * 2
@@ -316,7 +326,7 @@ def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
 # plot event chains by LP
 def plot_event_chains_by_lp(data, type):
     pylab.title('%s Event Chains by LP (individually sorted)' % type)
-    outFile = outDir + 'eventChains-byLP-%s.pdf'%type
+    outFile = outDir + 'eventChains-byLP-%s'%type
     sorted_data = data[data[:,0].argsort()]
     pylab.plot(sorted_data[:,0], label='Len=1')
     sorted_data = data[data[:,1].argsort()]
@@ -342,7 +352,7 @@ def plot_event_chains_by_lp(data, type):
 def num_of_sender_lps_to_cover_ninety_five_prct_of_remote_events():
     pylab.title('How many LPs are involved in sending 95% of remote events')
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(4,5))
-    outFile = outDir + 'numberOfLPsSending95PercentOfRemoteEvents.pdf'
+    outFile = outDir + 'numberOfLPsSending95PercentOfRemoteEvents'
     pylab.hist(data[:,1], bins=20)
     pylab.xlabel('Number of Sending LPs')
     pylab.ylabel('Frequency')
@@ -391,7 +401,7 @@ sys.exit()
 ## Local Chains
 
 data = np.loadtxt("analysisData/localEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-local-histogram.pdf'
+outFile = outDir + 'eventChains-byLP-local-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -407,7 +417,7 @@ pylab.xlabel('Percent of Total Local Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
 display_graph(outFile)
 
-outFile = outDir + 'eventChains-byLP-local-histogram-normalized.pdf'
+outFile = outDir + 'eventChains-byLP-local-histogram-normalized'
 pylab.title('Histogram of Local Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Local Chains of Length > 1')
@@ -417,7 +427,7 @@ display_graph(outFile)
 ## Linked Chains
 
 data = np.loadtxt("analysisData/linkedEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-linked-histogram.pdf'
+outFile = outDir + 'eventChains-byLP-linked-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -433,7 +443,7 @@ pylab.xlabel('Percent of Total Linked Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
 display_graph(outFile)
 
-outFile = outDir + 'eventChains-byLP-linked-histogram-normalized.pdf'
+outFile = outDir + 'eventChains-byLP-linked-histogram-normalized'
 pylab.title('Histogram of Linked Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Linked Chains of Length > 1')
@@ -443,7 +453,7 @@ display_graph(outFile)
 ## Global Chains
 
 data = np.loadtxt("analysisData/globalEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-global-histogram.pdf'
+outFile = outDir + 'eventChains-byLP-global-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -459,7 +469,7 @@ pylab.xlabel('Percent of Total Global Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
 display_graph(outFile)
 
-outFile = outDir + 'eventChains-byLP-global-histogram-normalized.pdf'
+outFile = outDir + 'eventChains-byLP-global-histogram-normalized'
 pylab.title('Histogram of Global Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Global Chains of Length > 1')
