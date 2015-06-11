@@ -212,18 +212,18 @@ def histograms_of_events_exec_by_lp():
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     # convert data to percentage of total executed by that LP
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)), bins=100)
-    # turn off scientific notation on the x-axis
+    # set the x-axis formatting....<ugh>
     ax = pylab.gca()
-    ax.get_xaxis().get_major_formatter().set_useOffset(False)
-    pylab.xlabel('Percent of Executed Events that were Locally Generated')
-    pylab.ylabel('Number of LPs Containing Said Percentage')
+    ax.get_xaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
+    pylab.xlabel('Percent of Total Events that are Local')
+    pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
     display_graph(outFile)
 
     pylab.title('Local and Remote Events Executed by the LPs')
     outFile = outDir + 'localAndRemoteEventsExecuted-histogram-stacked'
     pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
     pylab.xlabel('Number of Events')
-    pylab.ylabel('Number of LPs Executing Said Events')
+    pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
     pylab.legend(loc='best')
     display_graph(outFile)
     return
