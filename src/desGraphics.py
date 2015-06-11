@@ -30,8 +30,8 @@ def display_graph(fileName) :
     print "Creating graphics " + fileName
     print "    ....writing pdf"
     pylab.savefig(fileName + ".pdf", bbox_inches='tight')
-    print "    ....writing eps"
-    pylab.savefig(fileName + ".eps", bbox_inches='tight')
+#    print "    ....writing eps"
+#    pylab.savefig(fileName + ".eps", bbox_inches='tight')
 # this conversion takes an enormous amount of time.  uncomment and use only when you really need it.
 #    print "    ....converting to jpg"
 #    os.system("convert " + fileName + ".eps " + fileName + ".jpg")
@@ -87,14 +87,14 @@ def events_per_sim_cycle_raw():
     outFile = outDir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     ax1.plot(data)
-    ax1.set_xlabel('Simulation Cycle (assumes unit time event execution)')
-    ax1.set_ylabel('Number of Events Available for Execution')
+    ax1.set_xlabel('Simulation Cycle (max=%s)' % "{:,}".format(len(data)))
+    ax1.set_ylabel('Number of Events (ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
     # this is an unnecessary computation
     #data = data.astype(float)
     #ax2.plot(data/float(total_lps))
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s) w/ Events Available' % "{:,}".format(total_lps))
+    ax2.set_ylabel('Percent of Total LPs (%s)' % "{:,}".format(total_lps))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     display_graph(outFile)
 
@@ -106,16 +106,17 @@ def events_per_sim_cycle_raw():
     pylab.title('Events Available for Execution (outliers removed)')
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+    total_sim_cycles = len(data)
     data = reject_outliers(data)
     #ax1.plot(data, color=colors[0], label='Outliers Removed')
     ax1.plot(data)
-    ax1.set_xlabel('Simulation Cycle (assumes unit time event execution)')
-    ax1.set_ylabel('Number of Events Available for Execution')
+    ax1.set_xlabel('Simulation Cycle (max=%s)' % "{:,}".format(total_sim_cycles))
+    ax1.set_ylabel('Number of Events (ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
     #data = gaussian_filter1d(data, sigma=9)
     #ax2.plot(data, color=colors[1], label='Filtered')
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s) w/ Events Available' % "{:,}".format(total_lps))
+    ax2.set_ylabel('Percent of Total LPs (%s)' % "{:,}".format(total_lps))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     #pylab.legend(loc='best')
     display_graph(outFile)
