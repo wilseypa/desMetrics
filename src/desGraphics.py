@@ -231,7 +231,6 @@ def histograms_of_events_exec_by_lp():
 #--------------------------------------------------------------------------------
 # plot the percent of local events executed by each LP
 
-
 def profile_of_local_events_exec_by_lp():
     pylab.title('Locally Generated Events')
     outFile = outDir + 'percentOfExecutedEventsThatAreLocal'
@@ -243,14 +242,17 @@ def profile_of_local_events_exec_by_lp():
     pylab.ylim((0,100))
     # fill the area below the line
     ax = pylab.gca()
-    ax.fill_between(x_index, sorted(percent_of_LP_events_that_are_local(data)), 0, facecolor=colors[0])
+#    ax.fill_between(x_index, sorted(percent_of_LP_events_that_are_local(data)), 0, facecolor=colors[0])
+    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     display_graph(outFile)
 
     pylab.title('Locally Generated Events Executed')
     outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram'
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)))
+    ax = pylab.gca()
+    ax.get_xaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     pylab.xlabel('Percent of Local Events Executed')
-    pylab.ylabel('Number of LPs Executing Said Percentage')
+    pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
     display_graph(outFile)
     return
 
