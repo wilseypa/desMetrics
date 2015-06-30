@@ -173,8 +173,9 @@ def events_per_sim_cycle_histograms():
 # plot the local/total events executed by each LP (sorted)
 
 def total_local_events_exec_by_lp():
-    # skip the first column of LP names
+    fig, ax1 = pylab.subplots()
     pylab.title('Total Events processed by each LP (sorted)')
+    # skip the first column of LP names
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     outFile = outDir + 'totalEventsProcessedByLP'
     # sort the data by the total events executed
@@ -182,11 +183,19 @@ def total_local_events_exec_by_lp():
     # need a vector of values for the for the x-axis
     x_index = np.arange(len(data))
     # plotting as bars exhausted memory
-    pylab.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
-    pylab.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
-    pylab.legend(loc='upper left')
-    pylab.xlabel('LPs (sorted by total events executed)')
-    pylab.ylabel('Number of Events Executed')
+    lns1 = ax1.plot(x_index, sorted_data[:,0], color=colors[0], label="Local")
+    lns2 = ax1.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
+#    ax1.legend(loc='upper left')
+    ax1.set_xlabel('LPs (sorted by total events executed)')
+    ax1.set_ylabel('Number of Events Executed')
+    ax2=ax1.twinx()
+    lns3 = ax2.plot(percent_of_LP_events_that_are_local(sorted_data), color=colors[2], label="% of Total (scale right)")
+    ax2.set_ylabel('Percent of Total Events (by LP) that are Local')
+    ax2.set_ylim(0, 100)
+    ax2.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
+    lns = lns1 + lns2 + lns3
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc='best')
     display_graph(outFile)
     return
 
