@@ -104,9 +104,9 @@ following generic format:
     // optional, include as needed
     "configuration_information" : "any significant configuration information",
 
-    "events": [
-      { "sLP":"source LP", "sTS": <send_time>, "rLP":"destination LP", "rTS":<receive_time> },
-        "....forall events processed...."
+    "events" : [
+      ["source LP",  <send_time>, "destination LP", <receive_time> ],
+      //  "....forall events processed...."
       ]
     }
 
