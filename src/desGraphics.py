@@ -361,7 +361,7 @@ def plot_event_chains_by_lp(data, type):
 # column 5 has the data we need
 
 def num_of_sender_lps_to_cover_ninety_five_prct_of_remote_events():
-    pylab.title('How many LPs are involved in sending 95% of remote events')
+    pylab.title('Histogram of the number of LPs that sending 95% of remote events')
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(4,5))
     outFile = outDir + 'numberOfLPsSending95PercentOfRemoteEvents'
     pylab.hist(data[:,1], bins=20)
@@ -393,13 +393,14 @@ total_local_events = np.sum(np.loadtxt("analysisData/eventsExecutedByLP.csv", dt
 plot_percent_of_events_in_event_chains(data[:,1], total_local_events, 'Local')
 plot_percent_of_events_in_event_chains(data[:,2], total_local_events, 'Linked')
 plot_percent_of_events_in_event_chains(data[:,3], total_events, 'Global')
-num_of_sender_lps_to_cover_ninety_five_prct_of_remote_events()
 data = np.loadtxt("analysisData/localEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
 plot_event_chains_by_lp(data, 'Local')
 data = np.loadtxt("analysisData/linkedEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
 plot_event_chains_by_lp(data, 'Linked')
 data = np.loadtxt("analysisData/globalEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
 plot_event_chains_by_lp(data, 'Global')
+
+num_of_sender_lps_to_cover_ninety_five_prct_of_remote_events()
 
 sys.exit()
 
