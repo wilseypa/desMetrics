@@ -357,23 +357,24 @@ def plot_event_chains_by_lp(data, type):
 #--------------------------------------------------------------------------------
 # plots of the number of LPs each LP receives events from
 
-def plot_number_of_lps_communicating_remote_events(filename,title,fmt,data):
-    pylab.title(title)
-    outFile = outDir + filename
-    pylab.plot(data[:,1], fmt[0], label = '75% of total remote events')
-#    pylab.plot(data[:,2], fmt[1], label = '80% of total remote events')
-#    pylab.plot(data[:,3], fmt[2], label = '90% of total remote events')
-    pylab.plot(data[:,4], fmt[3], label = '95% of total remote events')
-    pylab.plot(data[:,5], fmt[4], label = '100% of total remote events')
-    pylab.xlabel('LPs')
-    pylab.ylabel('Number of LPs')
+def plot_number_of_lps_communicating_remote_events(data):
+    pylab.title('Number of LPs Communicating Remote Events')
+    outFile = outDir + 'numberOfCommunicatingLPs'
+    pylab.plot(data[data[:,5].argsort()][:,5], color=colors[0], label = '100% of total remote events')
+    pylab.plot(data[data[:,4].argsort()][:,4], color=colors[1], label = '95% of total remote events')
+#    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[3], label = '80% of total remote events')
+#    pylab.plot(data[data[:,3].argsort()][:,3], color=colors[4], label = '90% of total remote events')
+    pylab.plot(data[data[:,1].argsort()][:,1], color=colors[2], label = '75% of total remote events')
+    pylab.xlabel('Receiving LP (Total=%s)' % "{:,}".format(total_lps))
+    pylab.tick_params(axis='x',labelbottom='off')
+    pylab.ylabel('Number of Sending LPs')
     pylab.legend(loc='best')
     display_graph(outFile)
     return
 
 # let's look at how many LPs provide 95% of the messages to each LP
 # column 5 has the data we need
-def histogram_of_lps_generating_95_percent_of_remote_events(data):
+def histogram_of_lps_communicating_95_percent_of_remote_events(data):
     pylab.title('How many LPs are involved in sending 95% of remote events')
     outFile = outDir + 'covering95PercentOfRemoteEvents-hist'
     pylab.hist(data[:,5], bins=20)
@@ -418,15 +419,12 @@ def plot_event_chain_data():
 
 def plot_communication_data():
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6))
-    plot_number_of_lps_communicating_remote_events('numberCommunicatingLPs-sortedBy75Percent','Number of LPs communicating remote events',['b-','y^','ro','k+','g+'],data[data[:,1].argsort()])
-    plot_number_of_lps_communicating_remote_events('numberCommunicatingLPs-sortedBy95Percent','Number of LPs communicating remote events',['b*','y^','ro','k-','g+'],data[data[:,4].argsort()])
-    plot_number_of_lps_communicating_remote_events('numberCommunicatingLPs-sortedBy100Percent','Number of LPs communicating remote events',['b*','y^','ro','k+','g-'],data[data[:,5].argsort()])
-    
-    histogram_of_lps_generating_95_percent_of_remote_events(data)
+    plot_number_of_lps_communicating_remote_events(data)
+    histogram_of_lps_communicating_95_percent_of_remote_events(data)
     return
 
-plot_event_execution_data()
-plot_event_chain_data()
+#plot_event_execution_data()
+#plot_event_chain_data()
 plot_communication_data()
 
 sys.exit()
