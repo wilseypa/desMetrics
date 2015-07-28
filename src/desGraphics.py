@@ -187,6 +187,7 @@ def total_local_events_exec_by_lp():
     lns2 = ax1.plot(x_index, sorted_data[:,2], color=colors[1], label="Local+Remote (Total)")
 #    ax1.legend(loc='upper left')
     ax1.set_xlabel('LPs (sorted by total events executed)')
+    ax1.tick_params(axis='x',labelbottom='off')
     ax1.set_ylabel('Number of Events Executed')
     ax2=ax1.twinx()
     lns3 = ax2.plot(percent_of_LP_events_that_are_local(sorted_data), color=colors[2], label="% of Total (scale right)")
@@ -247,6 +248,7 @@ def profile_of_local_events_exec_by_lp():
     x_index = np.arange(len(data))
     pylab.plot(x_index, sorted(percent_of_LP_events_that_are_local(data)))
     pylab.xlabel('LPs (sorted by percent local)')
+    pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Percent of Total Executed')
     pylab.ylim((0,100))
     # fill the area below the line
@@ -349,6 +351,7 @@ def plot_event_chains_by_lp(data, type):
     sorted_data = data[data[:,4].argsort()]
     pylab.plot(sorted_data[:,4], label='Len>=5')
     pylab.xlabel('LPs')
+    pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Number of Chains')
     pylab.legend(loc='best')
     display_graph(outFile)
@@ -423,8 +426,8 @@ def plot_communication_data():
     histogram_of_lps_communicating_95_percent_of_remote_events(data)
     return
 
-#plot_event_execution_data()
-#plot_event_chain_data()
+plot_event_execution_data()
+plot_event_chain_data()
 plot_communication_data()
 
 sys.exit()
