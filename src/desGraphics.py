@@ -55,7 +55,7 @@ def setNumOfSimCycles(x):
     return
 
 def toPercentOfTotalLPs(x, pos=0):
-    return '%.1f%%'%((100*x)/total_lps)
+    return '%.3f%%'%((100*x)/total_lps)
 
 def toPercentOfTotalSimCycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
@@ -86,6 +86,7 @@ def events_per_sim_cycle_raw():
     pylab.title('Events Available for Execution')
     outFile = outDir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+    setNumOfSimCycles(len(data)+1)
     ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
@@ -94,7 +95,7 @@ def events_per_sim_cycle_raw():
     #data = data.astype(float)
     #ax2.plot(data/float(total_lps))
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s)' % "{:,}".format(total_lps))
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     display_graph(outFile)
 
@@ -115,7 +116,7 @@ def events_per_sim_cycle_raw():
     #data = gaussian_filter1d(data, sigma=9)
     #ax2.plot(data, color=colors[1], label='Filtered')
     ax2.plot(data)
-    ax2.set_ylabel('Percent of Total LPs (%s)' % "{:,}".format(total_lps))
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
     #pylab.legend(loc='best')
     display_graph(outFile)
@@ -190,8 +191,8 @@ def total_local_events_exec_by_lp():
     ax1.tick_params(axis='x',labelbottom='off')
     ax1.set_ylabel('Number of Events Executed')
     ax2=ax1.twinx()
-    lns3 = ax2.plot(percent_of_LP_events_that_are_local(sorted_data), color=colors[2], label="% of Total (scale right)")
-    ax2.set_ylabel('Percent of Total Events (by LP) that are Local')
+    lns3 = ax2.plot(percent_of_LP_events_that_are_local(sorted_data), color=colors[2], label="% Local (scale right)")
+    ax2.set_ylabel('Percent of Local Events (Ave=%.2f%%)' % np.mean(percent_of_LP_events_that_are_local(sorted_data)))
     ax2.set_ylim(0, 100)
     ax2.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     lns = lns1 + lns2 + lns3
@@ -249,7 +250,7 @@ def profile_of_local_events_exec_by_lp():
     pylab.plot(x_index, sorted(percent_of_LP_events_that_are_local(data)))
     pylab.xlabel('LPs (sorted by percent local)')
     pylab.tick_params(axis='x',labelbottom='off')
-    pylab.ylabel('Percent of Total Executed')
+    pylab.ylabel('Percent of Total Executed (Ave=%.2f%%)' % np.mean(percent_of_LP_events_that_are_local(data)))
     pylab.ylim((0,100))
     # fill the area below the line
     ax = pylab.gca()
@@ -361,7 +362,7 @@ def plot_event_chains_by_lp(data, type):
 # plots of the number of LPs each LP receives events from
 
 def plot_number_of_lps_communicating_remote_events(data):
-    pylab.title('Number of LPs Communicating Remote Events')
+    pylab.title('Number of LPs Communicating Remote Events (sorted)')
     outFile = outDir + 'numberOfCommunicatingLPs'
     pylab.plot(data[data[:,5].argsort()][:,5], color=colors[0], label = '100% of total remote events')
     pylab.plot(data[data[:,4].argsort()][:,4], color=colors[1], label = '95% of total remote events')
