@@ -119,7 +119,8 @@ def events_per_sim_cycle_raw():
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
     sorted_data = sorted(data)
     ax1.plot(sorted_data)
-    ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.set_xlabel('Some Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.tick_params(axis='x',labelbottom='off')
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
     ax2.plot(sorted_data)
