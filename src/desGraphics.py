@@ -361,9 +361,9 @@ def plot_event_chains_by_lp(data, type):
 #--------------------------------------------------------------------------------
 # plots of the number of LPs each LP receives events from
 
-def plot_number_of_lps_communicating_remote_events(data):
-    pylab.title('Number of LPs Communicating Remote Events (sorted)')
-    outFile = outDir + 'numberOfCommunicatingLPs'
+def plot_number_of_lps_sending_remote_events(data):
+    pylab.title('Number of LPs Sending Remote Events (sorted)')
+    outFile = outDir + 'numberOfSendingLPs'
     pylab.plot(data[data[:,5].argsort()][:,5], color=colors[0], label = '100% of total remote events')
     pylab.plot(data[data[:,4].argsort()][:,4], color=colors[1], label = '95% of total remote events')
 #    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[3], label = '80% of total remote events')
@@ -378,14 +378,49 @@ def plot_number_of_lps_communicating_remote_events(data):
 
 # let's look at how many LPs provide 95% of the messages to each LP
 # column 5 has the data we need
-def histogram_of_lps_communicating_95_percent_of_remote_events(data):
+def histogram_of_lps_sending_95_percent_of_remote_events(data):
     pylab.title('How many LPs are involved in sending 95% of remote events')
-    outFile = outDir + 'covering95PercentOfRemoteEvents-hist'
+    outFile = outDir + 'sending95PercentOfRemoteEvents-hist'
     pylab.hist(data[:,5], bins=20)
     pylab.xlabel('Number of Sending LPs')
     pylab.ylabel('Frequency')
     display_graph(outFile)
     return
+
+def plots_of_lp_event_exchanges():
+    pylab.title('Remote Events Sent Between LPs')
+    data = np.loadtxt("analysisData/eventsExchanged.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(2,3,4,5))
+    outFile = outDir + 'counts_of_lp_to_lp_event_exchanges'
+    pylab.plot(data[data[:,0].argsort()][:,0])
+#    pylab.xlabel('Number of Events')
+    pylab.tick_params(axis='x',labelbottom='off')
+    pylab.ylabel('Number of Events Sent')
+    display_graph(outFile)
+
+    pylab.title('Timestamp Deltas of Remote Events')
+    outFile = outDir + 'timeStampDeltasOfRemoteEvents'
+    pylab.plot(data[data[:,1].argsort()][:,1], color=colors[0], label="Minimum")
+    pylab.plot(data[data[:,3].argsort()][:,3], color=colors[1], label="Average")
+#    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[2], label="Maximum")
+    pylab.tick_params(axis='x',labelbottom='off')
+    pylab.ylabel('Timestamp Delta (ReceiveTime - SendTime)')
+    pylab.ylim([-1,np.amax(data[:,3])+1])
+#    pylab.yscale('log')
+    pylab.legend(loc='best')
+    display_graph(outFile)
+
+    pylab.title('Histogram of Timestamp Deltas of Remote Events')
+    outFile = outDir + 'timeStampDeltasOfRemoteEvents-hist'
+    pylab.hist((data[:,1],data[:,3],data[:,2]), label=('Minimum', 'Average', 'Maximum'), color=(colors[0], colors[1], colors[2]), bins=10)
+    pylab.xlabel('Timestamp Delta (ReceiveTime - SendTime)')    
+    pylab.ylabel('Number of LPs')
+    pylab.legend(loc='best')
+    display_graph(outFile)
+
+    return
+
+#--------------------------------------------------------------------------------
+# functions to plot graphs by category
 
 def plot_event_execution_data():
     # plot total event data
@@ -423,9 +458,13 @@ def plot_event_chain_data():
 
 def plot_communication_data():
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6))
-    plot_number_of_lps_communicating_remote_events(data)
-    histogram_of_lps_communicating_95_percent_of_remote_events(data)
+    plot_number_of_lps_sending_remote_events(data)
+    histogram_of_lps_sending_95_percent_of_remote_events(data)
+    plots_of_lp_event_exchanges()
     return
+
+#--------------------------------------------------------------------------------
+# the start plotting by analsysis class
 
 plot_event_execution_data()
 plot_event_chain_data()
