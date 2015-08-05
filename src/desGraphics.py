@@ -389,9 +389,9 @@ def histogram_of_lps_sending_95_percent_of_remote_events(data):
 
 def plots_of_lp_event_exchanges():
     pylab.title('Remote Events Sent Between LPs')
-    data = np.loadtxt("analysisData/eventsExchanged.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(2,3,4,5))
+    data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.float_, delimiter = ",", skiprows=2, usecols=(2,3,4,5))
     outFile = outDir + 'counts_of_lp_to_lp_event_exchanges'
-    pylab.plot(data[data[:,0].argsort()][:,0])
+    pylab.plot(data[data[:,0].argsort()][:,0].astype(np.intc))
 #    pylab.xlabel('Number of Events')
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Number of Events Sent')
@@ -404,7 +404,7 @@ def plots_of_lp_event_exchanges():
 #    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[2], label="Maximum")
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Timestamp Delta (ReceiveTime - SendTime)')
-    pylab.ylim([-1,np.amax(data[:,3])+1])
+    pylab.ylim([-.1,np.amax(data[:,3].astype(np.intc))+1])
 #    pylab.yscale('log')
     pylab.legend(loc='best')
     display_graph(outFile)

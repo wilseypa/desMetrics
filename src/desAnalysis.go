@@ -554,11 +554,17 @@ func main() {
 	// command line argument "--no-comm-matrix" can be used to suppress it's creation.
 
 	if commSwitchOff == false {
-		outFile, err = os.Create("analysisData/eventsExchanged.csv")
+		outFile, err = os.Create("analysisData/eventsExchanged-remote.csv")
 		if err != nil {panic(err)}
 
-		fmt.Fprintf(outFile,"# event exchanged matrix data\n")
+		outFile2, err := os.Create("analysisData/eventsExchanged-local.csv")
+		if err != nil {panic(err)}
+
+		fmt.Fprintf(outFile,"# event exchanged matrix data (remote)\n")
 		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
+
+		fmt.Fprintf(outFile2,"# event exchanged matrix data (local)\n")
+		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
 		
 		lpEventSendCount := make([]int,numOfLPs)
 		aveSendTimeDelta := make([]float64,numOfLPs)
@@ -580,7 +586,11 @@ func main() {
 			}
 			for i := range lpEventSendCount {
 				if lpEventSendCount[i] != 0 {
-					fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+					if i != j {
+						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+					} else {
+						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+					}
 				}
 			}
 		}
