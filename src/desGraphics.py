@@ -91,9 +91,6 @@ def events_per_sim_cycle_raw():
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
-    # this is an unnecessary computation
-    #data = data.astype(float)
-    #ax2.plot(data/float(total_lps))
     ax2.plot(data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
@@ -106,25 +103,29 @@ def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
     pylab.title('Events Available for Execution (outliers removed)')
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
-    data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+#    data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     data = reject_outliers(data)
-    #ax1.plot(data, color=colors[0], label='Outliers Removed')
     ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
-    #data = gaussian_filter1d(data, sigma=9)
-    #ax2.plot(data, color=colors[1], label='Filtered')
     ax2.plot(data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
-    #pylab.legend(loc='best')
     display_graph(outFile)
 
-    # keeping these around as examples in case....
-    #pylab.plot(gaussian_filter1d(data, sigma=9), label='Gaussian Filter')
-    #pylab.plot(savgol_filter(data, window_length=9, polyorder=2), label='Savitzky-Golay Filter')
-    #if (max(data) / 10) > np.mean(data): pylab.yscale('log')
+    fig, ax1 = pylab.subplots()
+    pylab.title('Events Available for Execution (sorted, outliers removed)')
+    outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
+    sorted_data = sorted(data)
+    ax1.plot(sorted_data)
+    ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
+    ax2=ax1.twinx()
+    ax2.plot(sorted_data)
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
+    display_graph(outFile)
     return
 
 #--------------------------------------------------------------------------------
