@@ -399,9 +399,10 @@ def plots_of_lp_event_exchanges():
 
     pylab.title('Timestamp Deltas of Remote Events')
     outFile = outDir + 'timeStampDeltasOfRemoteEvents'
-    pylab.plot(data[data[:,1].argsort()][:,1], color=colors[0], label="Minimum")
-    pylab.plot(data[data[:,3].argsort()][:,3], color=colors[1], label="Average")
-#    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[2], label="Maximum")
+    stride = max(int(max(len(data[:,1]),len(data[:,2]),len(data[:,3]))/20),1)
+    pylab.plot(data[data[:,1].argsort()][:,1], color=colors[0], label="Minimum", marker='o', markevery=stride)
+    pylab.plot(data[data[:,3].argsort()][:,3], color=colors[1], label="Average", marker='x', markevery=stride)
+#    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[2], label="Maximum", marker='*', markevery=stride)
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Timestamp Delta (ReceiveTime - SendTime)')
     pylab.ylim([-.1,np.amax(data[:,3].astype(np.intc))+1])
