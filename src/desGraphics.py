@@ -55,7 +55,7 @@ def setNumOfSimCycles(x):
     return
 
 def toPercentOfTotalLPs(x, pos=0):
-    return '%.3f%%'%((100*x)/total_lps)
+    return '%.3f%%'%(100*(x/total_lps))
 
 def toPercentOfTotalSimCycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
@@ -83,13 +83,13 @@ total_events = model_summary["total_events"]
 
 def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
-    pylab.title('Events Available for Execution')
     outFile = outDir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+    pylab.title('Total LPs: %s' % "{:,}".format(total_lps))
     setNumOfSimCycles(len(data)+1)
-    ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
+    ax1.plot(data)
     ax2=ax1.twinx()
     ax2.plot(data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
@@ -101,9 +101,9 @@ def events_per_sim_cycle_raw():
     # following graphs less than useful.  therefore, we will remove outliers and plot again
 
     fig, ax1 = pylab.subplots()
-    pylab.title('Events Available for Execution (outliers removed)')
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
 #    data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     data = reject_outliers(data)
     ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
@@ -115,11 +115,11 @@ def events_per_sim_cycle_raw():
     display_graph(outFile)
 
     fig, ax1 = pylab.subplots()
-    pylab.title('Events Available for Execution (sorted, outliers removed)')
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
     sorted_data = sorted(data)
     ax1.plot(sorted_data)
-    ax1.set_xlabel('Some Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.set_xlabel('Simulation Cycles sorted by # events avail (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.tick_params(axis='x',labelbottom='off')
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
     ax2=ax1.twinx()
@@ -135,9 +135,9 @@ def events_per_sim_cycle_raw():
 # standard histogram using builtin pylab.hist plotting command
 
 def events_per_sim_cycle_histograms():
-    pylab.title('Events Available for Execution (outliers removed)')
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     pylab.hist(reject_outliers(data), bins=100, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
@@ -148,10 +148,8 @@ def events_per_sim_cycle_histograms():
     # events are available for execution on the right y-axis. 
     
     fig, ax1 = pylab.subplots()
-    pylab.title('Events Available for Execution (outliers removed)')
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual'
-    #data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    #total_num_of_sim_cycles = len(data)+1
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     setNumOfSimCycles(len(data)+1)
     mean_events_available = np.mean(reject_outliers(data))
     data = pd.Series(reject_outliers(data)).value_counts()
