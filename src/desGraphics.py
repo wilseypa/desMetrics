@@ -43,7 +43,7 @@ def display_graph(fileName) :
 # function to remove outliers from the mean
 def reject_outliers(data, m=2):
     outData = data[abs(data - np.mean(data)) < m * np.std(data)]
-    if len(outData >0) : return outData 
+    if len(outData > 0) : return outData 
     return data
 
 # need this as a global variable for the axis printing function
@@ -54,11 +54,22 @@ def setNumOfSimCycles(x):
     total_num_of_sim_cycles = x
     return
 
+# need this as a global variable for x-axis printing function on trimmed plots
+xLabelOffsetVal = 0
+
+def setxLabelOffset(x):
+    global xLabelOffsetVal
+    xLabelOffsetVal = x
+    return
+
 def toPercentOfTotalLPs(x, pos=0):
     return '%.3f%%'%(100*(x/total_lps))
 
 def toPercentOfTotalSimCycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
+
+def xlabelsOffset(x, pos=0):
+    return int(x+xLabelOffsetVal)
 
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
@@ -78,9 +89,6 @@ total_events = model_summary["total_events"]
 #--------------------------------------------------------------------------------
 # plot the number of events that are available by simulation cycle
 
-# TOM/CHI: it would be nice to have a bit more spacing between the right ylabel and the
-# scale on the right y-axis.  can you make that happen for the next two plots?? 
-
 def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle'
@@ -98,11 +106,31 @@ def events_per_sim_cycle_raw():
 
     # it is not unusual for simulations to have large outliers on number of events available
     # during simulation startup and/or shutdown.  these outliers can dominate making the
-    # following graphs less than useful.  therefore, we will remove outliers and plot again
+    # following graphs less than useful.  often these outliers occur at startup/teardown.
+    # thus, we will use two separate techniques to explore removing these outliers.  in
+    # the first, we will simply trim the first and last 1% of the simulation cycles and
+    # plot the middle 98%.  in the second will remove outliers that lie outside 2 std
+    # deviations of the mean. 
+
+    fig, ax1 = pylab.subplots()
+    outFile = outDir + 'eventsAvailableBySimCycle-trimmed'
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + 'First/Last 1% of Sim Cycles Removed')
+    trimLength = (len(data)+1)/100
+    trimmedData = data[trimLength-1:len(data)-trimLength]
+    setNumOfSimCycles(len(trimmedData))
+    ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
+    ax1.plot(trimmedData)
+    setxLabelOffset(trimLength-1)
+    ax1.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(xlabelsOffset))
+    ax2=ax1.twinx()
+    ax2.plot(trimmedData)
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmedData)/total_lps)*100))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
+    display_graph(outFile)
 
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
-#    data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     data = reject_outliers(data)
     ax1.plot(data)
