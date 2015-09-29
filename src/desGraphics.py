@@ -5,6 +5,7 @@ import pylab
 import matplotlib as mpl
 import numpy as np
 import brewer2mpl
+import seaborn as sb
 import pandas as pd
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
@@ -18,7 +19,7 @@ if not os.path.exists(outDir):
     os.makedirs(outDir)
 
 # set brewer colormap and make it the default
-bmap = brewer2mpl.get_map('Set1', 'qualitative', 4)
+bmap = brewer2mpl.get_map('Set1', 'qualitative', 8)
 colors = bmap.mpl_colors
 mpl.rcParams['axes.color_cycle'] = colors
 
@@ -45,6 +46,11 @@ def reject_outliers(data, m=2):
     outData = data[abs(data - np.mean(data)) < m * np.std(data)]
     if len(outData > 0) : return outData 
     return data
+
+# function to remove the first and last 1% of events as outliers
+dev reject_first_last_outliers(data):
+    trimLength = int((len(data)+1)/100)
+    return data[trimLength-1:len(data)-trimLength]
 
 # need this as a global variable for the axis printing function
 total_num_of_sim_cycles = 0
@@ -130,6 +136,27 @@ def events_per_sim_cycle_raw():
     display_graph(outFile)
 
     fig, ax1 = pylab.subplots()
+    outFile = outDir + 'eventsAvailableBySimCycle-trimmed-withSorted'
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + 'First/Last 1% of Sim Cycles Removed')
+    trimLength = (len(data)+1)/100
+    trimmedData = data[trimLength-1:len(data)-trimLength]
+    setNumOfSimCycles(len(trimmedData))
+    ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
+    ax1.tick_params(axis='x',labelbottom='off')
+    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
+    lns1 = ax1.plot(trimmedData, color=colors[0], label='Events Available: Runtime order')
+    ax2=ax1.twinx()
+    lns2 = ax2.plot(sorted(trimmedData), color=colors[1], label='Events Available: Sorted order')
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmedData)/total_lps)*100))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
+    lns = lns1 + lns2
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc='best', frameon=True)
+    ax1.set_xlim([0, len(trimmedData)+(trimLength/2)])
+    ax2.set_xlim([0, len(trimmedData)+(trimLength/2)])
+    display_graph(outFile)
+
+    fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     data = reject_outliers(data)
@@ -171,6 +198,15 @@ def events_per_sim_cycle_histograms():
     pylab.ylabel('Number of Simulation Cycles')
     display_graph(outFile)
 
+    # ok, so now let's build a histogram of the % of LPs with active events.
+
+    outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
+    pylab.hist(reject_outliers(data), bins=100, histtype='stepfilled')
+    pylab.xlabel('Number of Events')
+    pylab.ylabel('Number of Simulation Cycles')
+    display_graph(outFile)
+
     # ok, let's try to build a histogram to show (i) the raw number of cycles that X events
     # are available for execution on the left y-axis and (ii) the percent of cycles that X
     # events are available for execution on the right y-axis. 
@@ -192,6 +228,7 @@ def events_per_sim_cycle_histograms():
     ax2.set_ylabel('Percent of Simulation Cycles')
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
     display_graph(outFile)
+
     return
 
 #--------------------------------------------------------------------------------
