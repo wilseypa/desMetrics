@@ -191,7 +191,7 @@ def events_per_sim_cycle_histograms():
     trimmedData = reject_first_last_outliers(data)
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(trimmedData)))
-    pylab.hist(trimmedData), bins=100, histtype='stepfilled')
+    pylab.hist(trimmedData, bins=100, histtype='stepfilled')
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of Simulation Cycles')
     display_graph(outFile)
