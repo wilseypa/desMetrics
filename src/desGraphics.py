@@ -209,7 +209,7 @@ def events_per_sim_cycle_histograms():
     pylab.ylabel('Number of Sim Cycles said Percentage Occurs')
     ax = pylab.gca()
     ax.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
-    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
+#    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     display_graph(outFile)
 
     # ok, let's present the histogram data using pandas series/value_counts.  much nicer plot.
