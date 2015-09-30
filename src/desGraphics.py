@@ -204,18 +204,15 @@ def events_per_sim_cycle_histograms():
     outFile = outDir + 'percentOfLPsWithAvailableEvents'
     pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
     
-    pylab.hist(trimmedData.astype(float)/float(total_lps), bins=100, normed=True, histtype='stepfilled')
+    pylab.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
     pylab.xlabel('Percent of LPs with Available Events')
-    pylab.ylabel('Percent of Sim Cycles')
+    pylab.ylabel('Number of Sim Cycles said Percentage Occurs')
     ax = pylab.gca()
     ax.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
     ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     display_graph(outFile)
 
-    # ok, let's try to build a histogram to show (i) the raw number of cycles that X events
-    # are available for execution on the left y-axis and (ii) the percent of cycles that X
-    # events are available for execution on the right y-axis. 
-    
+    # ok, let's present the histogram data using pandas series/value_counts.  much nicer plot.
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(trimmedData)))
