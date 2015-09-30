@@ -205,7 +205,7 @@ def events_per_sim_cycle_histograms():
     pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
     
     pylab.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
-    pylab.xlabel('Percent of LPs with Available Events')
+    pylab.xlabel('Number of Events as a percentage of Total LPs')
     pylab.ylabel('Number of Sim Cycles said Percentage Occurs')
     ax = pylab.gca()
     ax.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
@@ -535,8 +535,8 @@ def plot_communication_data():
 # the start plotting by analsysis class
 
 plot_event_execution_data()
-#plot_event_chain_data()
-#plot_communication_data()
+plot_event_chain_data()
+plot_communication_data()
 
 sys.exit()
 
