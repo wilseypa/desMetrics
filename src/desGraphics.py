@@ -71,6 +71,9 @@ def setxLabelOffset(x):
 def toPercentOfTotalLPs(x, pos=0):
     return '%.3f%%'%(100*(x/total_lps))
 
+def toPercent(x, pos=0):
+    return '%.1f%%'%(100*x)
+
 def toPercentOfTotalSimCycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
 
@@ -199,10 +202,14 @@ def events_per_sim_cycle_histograms():
     # ok, so now let's build a histogram of the % of LPs with active events.
 
     outFile = outDir + 'percentOfLPsWithAvailableEvents'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
-    pylab.hist(trimmedData/total_lps, bins=100, histtype='stepfilled')
+    pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
+    
+    pylab.hist(trimmedData.astype(float)/float(total_lps), bins=100, normed=True, histtype='stepfilled')
     pylab.xlabel('Percent of LPs with Available Events')
-    pylab.ylabel('Frequency')
+    pylab.ylabel('Percent of Sim Cycles')
+    ax = pylab.gca()
+    ax.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
+    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     display_graph(outFile)
 
     # ok, let's try to build a histogram to show (i) the raw number of cycles that X events
@@ -531,8 +538,8 @@ def plot_communication_data():
 # the start plotting by analsysis class
 
 plot_event_execution_data()
-plot_event_chain_data()
-plot_communication_data()
+#plot_event_chain_data()
+#plot_communication_data()
 
 sys.exit()
 
