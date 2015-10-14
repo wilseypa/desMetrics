@@ -102,7 +102,8 @@ def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    pylab.title('Total LPs: %s' % "{:,}".format(total_lps))
+    pylab.title('Total LPs: %s. ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
     setNumOfSimCycles(len(data)+1)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
@@ -123,9 +124,10 @@ def events_per_sim_cycle_raw():
 
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-trimmed'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + 'First/Last 1% of Sim Cycles Removed')
     trimmedData = reject_first_last_outliers(data)
     trimLength = len(data) - len(trimmedData)
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
     setNumOfSimCycles(len(trimmedData))
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
@@ -140,7 +142,8 @@ def events_per_sim_cycle_raw():
 
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-trimmed-withSorted'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + 'First/Last 1% of Sim Cycles Removed')
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.tick_params(axis='x',labelbottom='off')
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
@@ -158,8 +161,9 @@ def events_per_sim_cycle_raw():
 
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
     data = reject_outliers(data)
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
     ax1.plot(data)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
@@ -170,7 +174,8 @@ def events_per_sim_cycle_raw():
     display_graph(outFile)
 
     fig, ax1 = pylab.subplots()
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(reject_outliers(data))))
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
     outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
     sorted_data = sorted(data)
     ax1.plot(sorted_data)
@@ -192,30 +197,42 @@ def events_per_sim_cycle_raw():
 def events_per_sim_cycle_histograms():
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     trimmedData = reject_first_last_outliers(data)
+    fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(trimmedData)))
-    pylab.hist(trimmedData, bins=100, histtype='stepfilled')
-    pylab.xlabel('Number of Events')
-    pylab.ylabel('Number of Simulation Cycles')
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
+    ax1.hist(trimmedData, bins=100, histtype='stepfilled')
+    ax1.set_xlabel('Number of Events')
+    ax1.set_ylabel('Number of Simulation Cycles')
+    ax2=ax1.twinx()
+    ax2.hist(trimmedData, bins=100, histtype='stepfilled')
+    ax2.set_ylabel('Percent of Simulation Cycles')
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
     display_graph(outFile)
 
     # ok, so now let's build a histogram of the % of LPs with active events.
 
+    fig, ax1 = pylab.subplots()
     outFile = outDir + 'percentOfLPsWithAvailableEvents'
     pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
     
-    pylab.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
-    pylab.xlabel('Number of Events as a percentage of Total LPs')
-    pylab.ylabel('Number of Sim Cycles said Percentage Occurs')
-    ax = pylab.gca()
-    ax.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
+    ax1.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
+    ax1.set_xlabel('Number of Events as a percentage of Total LPs')
+    ax1.set_ylabel('Number of Sim Cycles said Percentage Occurs')
+#    ax1 = pylab.gca()
+    ax1.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
 #    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
+    ax2=ax1.twinx()
+    ax2.hist(trimmedData, bins=100, histtype='stepfilled')
+    ax2.set_ylabel('Percent of Simulation Cycles')
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
     display_graph(outFile)
 
     # ok, let's present the histogram data using pandas series/value_counts.  much nicer plot.
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual'
-    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) + '# outliers: %s'% "{:,}".format(len(data) - len(trimmedData)))
+    pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
     setNumOfSimCycles(len(data)+1)
     mean_events_available = np.mean(trimmedData)
     data = pd.Series(trimmedData).value_counts()
