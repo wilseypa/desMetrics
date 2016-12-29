@@ -23,6 +23,11 @@ bmap = brewer2mpl.get_map('Set1', 'qualitative', 8)
 colors = bmap.mpl_colors
 mpl.rcParams['axes.color_cycle'] = colors
 
+# tell matplotlib to use type 1 fonts....
+mpl.rcParams['ps.useafm'] = True
+mpl.rcParams['pdf.use14corefonts'] = True
+mpl.rcParams['text.usetex'] = False
+
 #--------------------------------------------------------------------------------
 # here are some helper functions that we can use.
 

@@ -29,14 +29,14 @@ import "flag"
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
-// store the other "companion" LP internally
+// store the other "companion" LP internally.
 type eventData struct {
 	companionLP int
 	sendTime float64
 	receiveTime float64
 }
 
-// setup a data structure for LPs
+// setup a data structure for LPs; each LP has a unique id and a list of events it generates.
 type lpData struct {
 	lpId int
 	events []eventData
@@ -70,22 +70,27 @@ func main() {
 	// distributed among the LPs.  in the second pass, we will store the events into our internal data
 	// structures.  we will use the function processEvent to mahage each step.  between parses it will be
 	// changed to point to the addEvent function.
+
+	// variables to record the total number of LPs and events; numOfLPs will also be used to
+	// enumerate unique integers for each LP recorded; set during the first pass over the JSON file.
 	numOfLPs := 0
 	numOfEvents := 0
 
+	// record a unique int value for each LP and store the total number of sent and received events by that LP.
 	type lpMap struct {
 		toInt int
 		sentEvents int
 		receivedEvents int
 	}
 
-	lpNameMap :=make(map[string]*lpMap)
+	lpNameMap := make(map[string]*lpMap)
 
-	// ultimately we will use these to hold event data
+	// ultimately we will use lps to hold event data; and lpIndex to record advancements of analysis among the lps
 	var lps []lpData
 	var lpIndex []int
 
-	addLP := func(lp string) *lpMap {
+	// if necessary, build lpNameMap for each new LP and then return pointer to lpMap of said LP
+	defineLP := func(lp string) *lpMap {
 		item, present := lpNameMap[lp]
 		if !present {
 			lpNameMap[lp] = new(lpMap)
@@ -95,17 +100,20 @@ func main() {
 		}
 		return item
 	}
-	// this is the event processing function for the first pass
+
+	// during the first pass over the JSON file: record all new LPs into the lpNameMap and count
+	// the number of events sent/received by each LP; also count the total number of events in
+	// the simulation 
 	processEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
-		// count the events
 		numOfEvents++
-		// build a map of LPs to ints and record the number of sent and received events at each
-		lp := addLP(sLP)
+		lp := defineLP(sLP)
 		lp.sentEvents++
-		lp = addLP(rLP)
+		lp = defineLP(rLP)
 		lp.receivedEvents++
 	}
-	// this is the event processing function for the second pass
+
+	// this is the event processing function for the second pass over the JSON file; basically
+	// fill in the information for the lps matrix that records events received by each LP
 	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
 		rLPint := lpNameMap[rLP].toInt
 		lpIndex[rLPint]++
