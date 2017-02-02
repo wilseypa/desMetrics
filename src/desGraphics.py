@@ -7,6 +7,7 @@ import numpy as np
 import brewer2mpl
 import seaborn as sb
 import pandas as pd
+import collections
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 
@@ -509,6 +510,37 @@ def plots_of_lp_event_exchanges():
 
     return
 
+# plots in and out degree of LPs (degree = # of LPs an LP sends to or receives from)
+def plot_lp_degrees():
+	outFile = outDir + 'countsOfDegreeLPbyLP'
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1))
+
+	out = [x[1] for x in data]
+	inDegree = collections.Counter()
+	outDegree = collections.Counter()
+	inCount = collections.Counter()
+	outCount = collections.Counter()
+
+	for i in np.arange(len(data)):
+		inDegree[data[i,0]] += 1
+		outDegree[out[i]] += 1
+
+	for i in np.arange(len(inDegree)):
+		inCount[inDegree[i]] += 1
+		outCount[outDegree[i]] += 1
+
+	bar_width = 0.30
+	pylab.bar(np.arange(len(inCount)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	pylab.xticks(np.arange(len(inCount)), inCount.keys())
+	pylab.bar(np.arange(len(outCount))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	pylab.xticks(np.arange(len(outCount)), outCount.keys())
+	pylab.xlabel('LP Degree Count')
+	pylab.ylabel('Number of LPs')
+	pylab.title('LP by LP Communication - remote')
+	pylab.legend(loc='best')
+	display_graph(outFile)
+	return
+	
 #--------------------------------------------------------------------------------
 # functions to plot graphs by category
 
@@ -551,6 +583,7 @@ def plot_communication_data():
     plot_number_of_lps_sending_remote_events(data)
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
+    plot_lp_degrees()
     return
 
 #--------------------------------------------------------------------------------
