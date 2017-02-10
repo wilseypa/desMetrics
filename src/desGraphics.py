@@ -515,27 +515,30 @@ def plot_lp_degrees():
 	outFile = outDir + 'countsOfDegreeLPbyLP'
 	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1))
 
-	out = [x[1] for x in data]
+	inLP = [x[0] for x in data]
+	outLP = [x[1] for x in data]
 	inDegree = collections.Counter()
 	outDegree = collections.Counter()
 	inCount = collections.Counter()
 	outCount = collections.Counter()
 
 	for i in np.arange(len(data)):
-		inDegree[data[i,0]] += 1
-		outDegree[out[i]] += 1
+		inDegree[inLP[i]] += 1
+		outDegree[outLP[i]] += 1
 
 	for i in np.arange(len(inDegree)):
 		inCount[inDegree[i]] += 1
 		outCount[outDegree[i]] += 1
-
+	fig, ax = pylab.subplots()
 	bar_width = 0.30
-	pylab.bar(np.arange(len(inCount)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	pylab.xticks(np.arange(len(inCount)), inCount.keys())
-	pylab.bar(np.arange(len(outCount))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
-	pylab.xticks(np.arange(len(outCount)), outCount.keys())
-	pylab.xlabel('LP Degree Count')
-	pylab.ylabel('Number of LPs')
+
+	ax.bar(np.arange(len(inCount)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	ax.bar(np.arange(len(outCount))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	
+	start, end = ax.get_xlim()
+	ax.set_xlim(start, end)
+	ax.set_xlabel('LP Degree Counts')
+	ax.set_ylabel('Number of LPs')
 	pylab.title('LP by LP Communication - remote')
 	pylab.legend(loc='best')
 	display_graph(outFile)
