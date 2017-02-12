@@ -196,6 +196,10 @@ func main() {
 					sendingLP = string(tokenText)
 					token, tokenText = Scan()
 					scanAssume(COMMA)
+					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
+						tokenText = append(tokenText[:0], tokenText[1:]...)
+						tokenText = tokenText[:len(tokenText)-1]
+					}
 					sendTime, err = strconv.ParseFloat(string(tokenText),64)
 					if err != nil {panic(err)}
 					token, tokenText = Scan()
@@ -203,6 +207,10 @@ func main() {
 					receivingLP = string(tokenText)
 					token, tokenText = Scan()
 					scanAssume(COMMA)
+					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
+						tokenText = append(tokenText[:0], tokenText[1:]...)
+						tokenText = tokenText[:len(tokenText)-1]
+					}
 					receiveTime, err = strconv.ParseFloat(string(tokenText),64)
 					if err != nil {panic(err)}
 					token, tokenText = Scan()
