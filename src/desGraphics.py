@@ -23,10 +23,21 @@ bmap = brewer2mpl.get_map('Set1', 'qualitative', 8)
 colors = bmap.mpl_colors
 mpl.rcParams['axes.color_cycle'] = colors
 
+# ok, here's another (better) way to change colors (maybe)....
+mpl.style.use('ggplot')
+
 # tell matplotlib to use type 1 fonts....
 mpl.rcParams['ps.useafm'] = True
 mpl.rcParams['pdf.use14corefonts'] = True
 mpl.rcParams['text.usetex'] = False
+
+# increase size of default fonts
+mpl.rcParams.update({'font.size': 18})
+mpl.rcParams.update({'font.size': 18})
+mpl.rcParams.update({'axes.titlesize': 18})
+mpl.rcParams.update({'xtick.labelsize': 16})
+mpl.rcParams.update({'ytick.labelsize': 16})
+
 
 #--------------------------------------------------------------------------------
 # here are some helper functions that we can use.
@@ -405,7 +416,7 @@ def plot_event_chain_summaries_pie_charts(data, type):
     outFile = outDir + 'eventChainSummary-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
     percentages = data.astype(float)/float(np.sum(data))
-    pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
+    pylab.pie(percentages, labels=labels, colors=colors, autopct='%1.1f%%')
     pylab.axis('equal')
     display_graph(outFile)
     return
@@ -421,7 +432,7 @@ def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     data[4] = 0
     data[4] = total_events_of_class - np.sum(data)
     percentages = data.astype(float)/float(total_events_of_class)
-    pylab.pie(percentages, labels=labels, autopct='%1.1f%%')
+    pylab.pie(percentages, labels=labels, colors=colors, autopct='%1.1f%%')
     pylab.axis('equal')
     display_graph(outFile)
     return
