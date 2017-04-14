@@ -524,35 +524,56 @@ def plots_of_lp_event_exchanges():
 # plots in and out degree of LPs (degree = # of LPs an LP sends to or receives from)
 def plot_lp_degrees():
 	outFile = outDir + 'countsOfDegreeLPbyLP'
-	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1))
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
 
+	# data structures for holding LPs sent, received, and the number of events
 	inLP = [x[0] for x in data]
 	outLP = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
 	inDegree = collections.Counter()
 	outDegree = collections.Counter()
 	inCount = collections.Counter()
 	outCount = collections.Counter()
+	eventsSent = collections.Counter()
+	eventsCount = collections.Counter()
+	eventsAvg = {}
 
+	# count the in and out degree of a given LP, and total the events sent
 	for i in np.arange(len(data)):
 		inDegree[inLP[i]] += 1
 		outDegree[outLP[i]] += 1
+		eventsSent[inLP[i]] += weights[i]
 
+	# count the number of LPs who have the same degree and their events
 	for i in np.arange(len(inDegree)):
 		inCount[inDegree[i]] += 1
 		outCount[outDegree[i]] += 1
-	fig, ax = pylab.subplots()
+		eventsCount[inDegree[i]] += eventsSent[i]
+		
+	# take the average events sent by LP degree
+	for i in inCount:
+		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
+		
+	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
-
-	ax.bar(np.arange(len(inCount)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	ax.bar(np.arange(len(outCount))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
-	
-	start, end = ax.get_xlim()
-	ax.set_xlim(start, end)
-	ax.set_xlabel('LP Degree Counts')
-	ax.set_ylabel('Number of LPs')
-	pylab.title('LP by LP Communication - remote')
-	pylab.legend(loc='best')
+	start = min(inCount.keys(), key=int)
+	end = max(inCount.keys(), key=int)
+	ind = np.arange(start,end+1)
+	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
+	ax1.bar(ind, inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	ax1.bar(ind+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	ax1.set_xticklabels(ind)
+	ax2 = ax1.twinx()
+	ax2.plot(eventsCount.keys(),eventsAvg.values(), marker='o',color=colors[2], label="average events")
+	ax1.grid(b=False)
+	ax2.grid(b=False)
+	ax1.set_xlabel('LP Degree Counts')
+	ax1.set_ylabel('Number of LPs')
+	ax2.set_ylabel('Events Sent')
+	pylab.title('LP by LP Communication')
+	ax1.legend(loc='best')
 	display_graph(outFile)
+
 	return
 	
 #--------------------------------------------------------------------------------
