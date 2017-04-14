@@ -610,6 +610,31 @@ def plot_graph_centrality():
 	display_graph(outFile)
 	return
 	
+# plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
+def plot_modularity():
+	outFile = outDir + 'Communities'
+	data = np.loadtxt(outFileName, dtype=np.intc, delimiter = ",", skiprows=1, usecols=(4,))
+	modularity = collections.Counter()
+	for i in np.arange(len(data)):
+		modularity[data[i]] +=1
+		
+	mean = np.mean(modularity.values())
+	std_dev = np.std(modularity.values())
+	start = min(modularity.keys(), key=int)
+	end = max(modularity.keys(), key=int)
+
+	fig, ax = pylab.subplots()
+	ax.scatter(modularity.keys(),modularity.values(),color=colors[0])
+	pylab.axhline(mean,color=colors[2],label="mean")
+	pylab.axhline(mean+std_dev,color=colors[1],label="standard deviation")
+	pylab.axhline(mean-std_dev,color=colors[1])
+	ax.set_ylabel('Number of LPs')
+	ax.set_xlabel('Modularity Class')
+	pylab.xticks(np.arange(start, end+1, 10))
+	pylab.title('Communities in LP Communication Graph')
+	pylab.legend(loc='best', shadow=True)
+	display_graph(outFile)
+	
 #--------------------------------------------------------------------------------
 # functions to plot graphs by category
 
@@ -654,8 +679,11 @@ def plot_communication_data():
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
     
-	#plotting these graphs can take some time, leave commented until needed
+	# plotting these graphs can take some time, leave commented until needed
     #plot_graph_centrality()
+    
+    # uncomment after getting csv from gephi. Working on a way to do it in desGraphics
+    #plot_modularity()
     return
 
 #--------------------------------------------------------------------------------
