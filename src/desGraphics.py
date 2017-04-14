@@ -8,6 +8,7 @@ import brewer2mpl
 import seaborn as sb
 import pandas as pd
 import collections
+import networkx as nx
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 
@@ -573,7 +574,40 @@ def plot_lp_degrees():
 	pylab.title('LP by LP Communication')
 	ax1.legend(loc='best')
 	display_graph(outFile)
+	return
 
+# plots both betweenness and closeness centralities
+def plot_graph_centrality():
+	outFile = outDir + 'Betweeness Centrality'
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
+
+	nodes = [x[0] for x in data]
+	edges = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
+	G = nx.Graph()
+	for i in np.arange(len(data)):
+		G.add_node(int(nodes[i]))
+		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))
+		
+	centrality = nx.betweenness_centrality(G)
+	fig, ax = pylab.subplots()
+	# bins vary by graphs, need to find a better way to make them
+	ax.hist(centrality.values(), bins=[0,.002,.004,.006,.008,.01])
+	ax.set_ylabel('Frequency')
+	ax.set_xlabel('Betweeness Centrality Value')
+	pylab.title('Betweenness Centrality of LP by LP Communication')
+	pylab.legend(loc='best')
+	display_graph(outFile)
+	
+	outFile = outDir + 'Closeness Centrality'
+	centrality = nx.closeness_centrality(G)
+	fig, ax = pylab.subplots()
+	ax.hist(centrality.values(), bins=[0,.01,.02,.03,.04,.05])
+	ax.set_ylabel('Frequency')
+	ax.set_xlabel('Betweeness Centrality Value')
+	pylab.title('Betweeness Centrality of LP by LP Communication')
+	pylab.legend(loc='best')
+	display_graph(outFile)
 	return
 	
 #--------------------------------------------------------------------------------
@@ -619,6 +653,9 @@ def plot_communication_data():
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
+    
+	#plotting these graphs can take some time, leave commented until needed
+    #plot_graph_centrality()
     return
 
 #--------------------------------------------------------------------------------
