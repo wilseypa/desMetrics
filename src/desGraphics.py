@@ -8,6 +8,7 @@ import brewer2mpl
 import seaborn as sb
 import pandas as pd
 import collections
+import networkx as nx
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 
@@ -524,36 +525,115 @@ def plots_of_lp_event_exchanges():
 # plots in and out degree of LPs (degree = # of LPs an LP sends to or receives from)
 def plot_lp_degrees():
 	outFile = outDir + 'countsOfDegreeLPbyLP'
-	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1))
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
 
+	# data structures for holding LPs sent, received, and the number of events
 	inLP = [x[0] for x in data]
 	outLP = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
 	inDegree = collections.Counter()
 	outDegree = collections.Counter()
 	inCount = collections.Counter()
 	outCount = collections.Counter()
+	eventsSent = collections.Counter()
+	eventsCount = collections.Counter()
+	eventsAvg = {}
 
+	# count the in and out degree of a given LP, and total the events sent
 	for i in np.arange(len(data)):
 		inDegree[inLP[i]] += 1
 		outDegree[outLP[i]] += 1
+		eventsSent[inLP[i]] += weights[i]
 
+	# count the number of LPs who have the same degree and their events
 	for i in np.arange(len(inDegree)):
 		inCount[inDegree[i]] += 1
 		outCount[outDegree[i]] += 1
-	fig, ax = pylab.subplots()
+		eventsCount[inDegree[i]] += eventsSent[i]
+		
+	# take the average events sent by LP degree
+	for i in inCount:
+		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
+		
+	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
+	start = min(inCount.keys(), key=int)
+	end = max(inCount.keys(), key=int)
+	ind = np.arange(start,end+1)
+	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
+	ax1.bar(ind, inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	ax1.bar(ind+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	ax1.set_xticklabels(ind)
+	ax2 = ax1.twinx()
+	ax2.plot(eventsCount.keys(),eventsAvg.values(), marker='o',color=colors[2], label="average events")
+	ax1.grid(b=False)
+	ax2.grid(b=False)
+	ax1.set_xlabel('LP Degree Counts')
+	ax1.set_ylabel('Number of LPs')
+	ax2.set_ylabel('Events Sent')
+	pylab.title('LP by LP Communication')
+	ax1.legend(loc='best')
+	display_graph(outFile)
+	return
 
-	ax.bar(np.arange(len(inCount)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	ax.bar(np.arange(len(outCount))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+# plots both betweenness and closeness centralities
+def plot_graph_centrality():
+	outFile = outDir + 'Betweeness Centrality'
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
+
+	nodes = [x[0] for x in data]
+	edges = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
+	G = nx.Graph()
+	for i in np.arange(len(data)):
+		G.add_node(int(nodes[i]))
+		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))
+		
+	centrality = nx.betweenness_centrality(G)
+	fig, ax = pylab.subplots()
+	# bins vary by graphs, need to find a better way to make them
+	ax.hist(centrality.values(), bins=[0,.002,.004,.006,.008,.01])
+	ax.set_ylabel('Frequency')
+	ax.set_xlabel('Betweeness Centrality Value')
+	pylab.title('Betweenness Centrality of LP by LP Communication')
+	pylab.legend(loc='best')
+	display_graph(outFile)
 	
-	start, end = ax.get_xlim()
-	ax.set_xlim(start, end)
-	ax.set_xlabel('LP Degree Counts')
-	ax.set_ylabel('Number of LPs')
-	pylab.title('LP by LP Communication - remote')
+	outFile = outDir + 'Closeness Centrality'
+	centrality = nx.closeness_centrality(G)
+	fig, ax = pylab.subplots()
+	ax.hist(centrality.values(), bins=[0,.01,.02,.03,.04,.05])
+	ax.set_ylabel('Frequency')
+	ax.set_xlabel('Betweeness Centrality Value')
+	pylab.title('Betweeness Centrality of LP by LP Communication')
 	pylab.legend(loc='best')
 	display_graph(outFile)
 	return
+	
+# plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
+def plot_modularity():
+	outFile = outDir + 'Communities'
+	data = np.loadtxt(outFileName, dtype=np.intc, delimiter = ",", skiprows=1, usecols=(4,))
+	modularity = collections.Counter()
+	for i in np.arange(len(data)):
+		modularity[data[i]] +=1
+		
+	mean = np.mean(modularity.values())
+	std_dev = np.std(modularity.values())
+	start = min(modularity.keys(), key=int)
+	end = max(modularity.keys(), key=int)
+
+	fig, ax = pylab.subplots()
+	ax.scatter(modularity.keys(),modularity.values(),color=colors[0])
+	pylab.axhline(mean,color=colors[2],label="mean")
+	pylab.axhline(mean+std_dev,color=colors[1],label="standard deviation")
+	pylab.axhline(mean-std_dev,color=colors[1])
+	ax.set_ylabel('Number of LPs')
+	ax.set_xlabel('Modularity Class')
+	pylab.xticks(np.arange(start, end+1, 10))
+	pylab.title('Communities in LP Communication Graph')
+	pylab.legend(loc='best', shadow=True)
+	display_graph(outFile)
 	
 #--------------------------------------------------------------------------------
 # functions to plot graphs by category
@@ -598,6 +678,12 @@ def plot_communication_data():
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
+    
+	# plotting these graphs can take some time, leave commented until needed
+    #plot_graph_centrality()
+    
+    # uncomment after getting csv from gephi. Working on a way to do it in desGraphics
+    #plot_modularity()
     return
 
 #--------------------------------------------------------------------------------
