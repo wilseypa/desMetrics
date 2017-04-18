@@ -33,11 +33,11 @@ mpl.rcParams['pdf.use14corefonts'] = True
 mpl.rcParams['text.usetex'] = False
 
 # increase size of default fonts
-mpl.rcParams.update({'font.size': 18})
-mpl.rcParams.update({'font.size': 18})
-mpl.rcParams.update({'axes.titlesize': 18})
-mpl.rcParams.update({'xtick.labelsize': 16})
-mpl.rcParams.update({'ytick.labelsize': 16})
+mpl.rcParams.update({'font.size': 16})
+mpl.rcParams.update({'font.size': 16})
+mpl.rcParams.update({'axes.titlesize': 16})
+mpl.rcParams.update({'xtick.labelsize': 14})
+mpl.rcParams.update({'ytick.labelsize': 14})
 
 
 #--------------------------------------------------------------------------------
