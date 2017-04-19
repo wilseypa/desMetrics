@@ -604,8 +604,8 @@ def plot_graph_centrality():
 	fig, ax = pylab.subplots()
 	ax.hist(centrality.values(), bins=[0,.01,.02,.03,.04,.05])
 	ax.set_ylabel('Frequency')
-	ax.set_xlabel('Betweeness Centrality Value')
-	pylab.title('Betweeness Centrality of LP by LP Communication')
+	ax.set_xlabel('Closeness Centrality Value')
+	pylab.title('Closeness Centrality of LP by LP Communication')
 	pylab.legend(loc='best')
 	display_graph(outFile)
 	return
