@@ -528,8 +528,8 @@ def plot_lp_degrees():
 	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
 
 	# data structures for holding LPs sent, received, and the number of events
-	inLP = [x[0] for x in data]
-	outLP = [x[1] for x in data]
+	inLP = [x[1] for x in data]
+	outLP = [x[0] for x in data]
 	weights = [int(x[2]) for x in data]
 	inDegree = collections.Counter()
 	outDegree = collections.Counter()
@@ -554,18 +554,24 @@ def plot_lp_degrees():
 	# take the average events sent by LP degree
 	for i in inCount:
 		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
+	
+	keyList = sorted(list(set(inCount.keys() + outCount.keys())))
+	for key in keyList:
+		if key not in inCount:
+			inCount[key] = 0
+		if key not in outCount:
+			outCount[key] = 0
+		if key not in eventsAvg:
+			eventsAvg[key] = 0
 		
 	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
-	start = min(inCount.keys(), key=int)
-	end = max(inCount.keys(), key=int)
-	ind = np.arange(start,end+1)
 	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
-	ax1.bar(ind, inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	ax1.bar(ind+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
-	ax1.set_xticklabels(ind)
+	ax1.bar(np.arange(len(keyList)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	ax1.bar(np.arange(len(keyList))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	ax1.set_xticklabels(sorted(keyList))
 	ax2 = ax1.twinx()
-	ax2.plot(eventsCount.keys(),eventsAvg.values(), marker='o',color=colors[2], label="average events")
+	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()), marker='o',color=colors[2], label="average events")
 	ax1.grid(b=False)
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
