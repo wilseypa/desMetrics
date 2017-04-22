@@ -11,6 +11,7 @@ import seaborn as sb
 import pandas as pd
 import collections
 import networkx as nx
+import community
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 
@@ -589,25 +590,14 @@ def plot_lp_degrees():
 	return
 
 # plots both betweenness and closeness centralities. this is an expensive computation and may fail for very large graphs
-def plot_graph_centrality():
+def plot_graph_centrality(G):
 	outFile = outDir + 'Betweeness Centrality'
-	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
-
-	nodes = [x[0] for x in data]
-	edges = [x[1] for x in data]
-	weights = [int(x[2]) for x in data]
-	G = nx.Graph()
-	
-	# create all nodes and edges along with their weights
-	for i in np.arange(len(data)):
-		G.add_node(int(nodes[i]))
-		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))
 	
 	# plot betweenness centrality 
 	centrality = nx.betweenness_centrality(G)
 	fig, ax = pylab.subplots()
 	# bins vary by graphs, need to find a better way to make them
-	ax.hist(centrality.values(), bins=[0,.002,.004,.006,.008,.01])
+	ax.hist(centrality.values(), bins=10)
 	ax.set_ylabel('Frequency')
 	ax.set_xlabel('Betweeness Centrality Value')
 	pylab.title('Betweenness Centrality of LP by LP Communication')
@@ -618,7 +608,7 @@ def plot_graph_centrality():
 	outFile = outDir + 'Closeness Centrality'
 	centrality = nx.closeness_centrality(G)
 	fig, ax = pylab.subplots()
-	ax.hist(centrality.values(), bins=[0,.01,.02,.03,.04,.05])
+	ax.hist(centrality.values(), bins=10)
 	ax.set_ylabel('Frequency')
 	ax.set_xlabel('Closeness Centrality Value')
 	pylab.title('Closeness Centrality of LP by LP Communication')
@@ -627,13 +617,15 @@ def plot_graph_centrality():
 	return
 	
 # plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
-def plot_modularity():
+def plot_modularity(G):
 	outFile = outDir + 'Communities'
-	data = np.loadtxt(outFileName, dtype=np.intc, delimiter = ",", skiprows=1, usecols=(4,))
 	modularity = collections.Counter()
-	for i in np.arange(len(data)):
-		modularity[data[i]] +=1
-		
+	mod = community.best_partition(G)
+	modList = mod.values()
+
+	for i in np.arange(len(modList)):
+		modularity[modList[i]] += 1
+
 	mean = np.mean(modularity.values())
 	std_dev = np.std(modularity.values())
 	start = min(modularity.keys(), key=int)
@@ -688,18 +680,30 @@ def plot_event_chain_data():
     plot_event_chains_by_lp(data, 'Global')
     return
 
+def create_comm_graph():
+	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
+	nodes = [x[0] for x in data]
+	edges = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
+	G = nx.Graph()
+	for i in np.arange(len(data)):
+		G.add_node(int(nodes[i]))
+		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
+	return G
+
 def plot_communication_data():
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6))
     plot_number_of_lps_sending_remote_events(data)
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
-
+    
+    Graph = create_comm_graph()
     # plotting these graphs can take some time, leave commented until needed
-    #plot_graph_centrality()
+    plot_graph_centrality(Graph)
     
     # uncomment after getting csv from gephi. Working on a way to do it in desGraphics
-    #plot_modularity()
+    plot_modularity(Graph)
     return
 
 #--------------------------------------------------------------------------------
