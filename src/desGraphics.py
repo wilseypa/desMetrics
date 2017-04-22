@@ -529,7 +529,7 @@ def plot_lp_degrees():
 	outFile = outDir + 'countsOfDegreeLPbyLP'
 	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
 
-	# data structures for holding LPs sent, received, and the number of events
+	# data structures for holding LPs sent, received, and the number of events. weights are events sent
 	inLP = [x[0] for x in data]
 	outLP = [x[1] for x in data]
 	weights = [int(x[2]) for x in data]
@@ -556,18 +556,28 @@ def plot_lp_degrees():
 	# take the average events sent by LP degree
 	for i in inCount:
 		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
+	
+	# get all x values for the easier graphing
+	keyList = sorted(list(set(inCount.keys() + outCount.keys())))
+	for key in keyList:
+		if key not in inCount:
+			inCount[key] = 0
+		if key not in outCount:
+			outCount[key] = 0
+		if key not in eventsAvg:
+			eventsAvg[key] = 0
 		
 	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
-	start = min(inCount.keys(), key=int)
-	end = max(inCount.keys(), key=int)
-	ind = np.arange(start,end+1)
-	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
-	ax1.bar(ind, inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	ax1.bar(ind+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
-	ax1.set_xticklabels(ind)
+	
+	# plot in and out degrees and have average events show up in the legend
+	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events") 
+	ax1.bar(np.arange(len(keyList)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
+	ax1.bar(np.arange(len(keyList))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
+	ax1.set_xticklabels(sorted(keyList))
 	ax2 = ax1.twinx()
-	ax2.plot(eventsCount.keys(),eventsAvg.values(), marker='o',color=colors[2], label="average events")
+	# plot average events
+	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()), marker='o',color=colors[2], label="average events")
 	ax1.grid(b=False)
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
@@ -578,7 +588,7 @@ def plot_lp_degrees():
 	display_graph(outFile)
 	return
 
-# plots both betweenness and closeness centralities
+# plots both betweenness and closeness centralities. this is an expensive computation and may fail for very large graphs
 def plot_graph_centrality():
 	outFile = outDir + 'Betweeness Centrality'
 	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
@@ -587,10 +597,13 @@ def plot_graph_centrality():
 	edges = [x[1] for x in data]
 	weights = [int(x[2]) for x in data]
 	G = nx.Graph()
+	
+	# create all nodes and edges along with their weights
 	for i in np.arange(len(data)):
 		G.add_node(int(nodes[i]))
 		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))
-		
+	
+	# plot betweenness centrality 
 	centrality = nx.betweenness_centrality(G)
 	fig, ax = pylab.subplots()
 	# bins vary by graphs, need to find a better way to make them
@@ -601,6 +614,7 @@ def plot_graph_centrality():
 	pylab.legend(loc='best')
 	display_graph(outFile)
 	
+	# plot closeness centrality
 	outFile = outDir + 'Closeness Centrality'
 	centrality = nx.closeness_centrality(G)
 	fig, ax = pylab.subplots()
@@ -680,8 +694,8 @@ def plot_communication_data():
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
-    
-	# plotting these graphs can take some time, leave commented until needed
+
+    # plotting these graphs can take some time, leave commented until needed
     #plot_graph_centrality()
     
     # uncomment after getting csv from gephi. Working on a way to do it in desGraphics
