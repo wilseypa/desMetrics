@@ -1,8 +1,10 @@
 import sys
 import os
 import json
-import pylab
 import matplotlib as mpl
+# Force matplotlib to not use any Xwindows backend
+mpl.use('Agg')
+import pylab
 import numpy as np
 import brewer2mpl
 import seaborn as sb
