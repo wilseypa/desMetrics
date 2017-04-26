@@ -51,7 +51,9 @@ func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].recei
 func main() {
 
 	var commSwitchOff bool
+	var debug bool
 	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false, "turn off generation of the file eventsExchanged.csv")
+	flag.BoolVar(&debug, "debug", false, "turn on debugging.")
 	flag.Parse()
 
 	// enable the use of all CPUs on the system
@@ -224,6 +226,7 @@ func main() {
 							sendingLP, sendTime, receivingLP, receiveTime)
 						panic("Aborting")
 					}
+					if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)}
 					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
 					if token == R_BRACKET {break parsingLoop}
 					scanAssume(COMMA)
