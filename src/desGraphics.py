@@ -573,18 +573,17 @@ def plot_lp_degrees():
 	
 	# plot in and out degrees and have average events show up in the legend
 	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events") 
-	ax1.bar(np.arange(len(keyList)), inCount.values(), width=bar_width, align='edge', label='In-Degree', color=colors[0])
-	ax1.bar(np.arange(len(keyList))+bar_width, outCount.values(), width=bar_width, align='edge', label='Out-Degree',color=colors[1])
-	ax1.set_xticklabels(sorted(keyList))
+	ax1.bar(np.arange(len(keyList)), inCount.values(), width=bar_width, label='In-Degree', color=colors[0])
+	ax1.bar(np.arange(len(keyList))+bar_width, outCount.values(), width=bar_width, label='Out-Degree',color=colors[1])
+	pylab.xticks(np.arange(len(keyList))+bar_width,sorted(keyList))
 	ax2 = ax1.twinx()
 	# plot average events
 	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()), marker='o',color=colors[2], label="average events")
-	ax1.grid(b=False)
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
-	ax1.set_ylabel('Number of LPs')
+	ax1.set_ylabel('Number of LPs(Total=%s)' % "{:,}".format(total_lps))
 	ax2.set_ylabel('Events Sent')
-	pylab.title('LP by LP Communication')
+	pylab.title('LP Connectivity')
 	ax1.legend(loc='best')
 	display_graph(outFile)
 	return
