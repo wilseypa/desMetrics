@@ -11,7 +11,7 @@ import seaborn as sb
 import pandas as pd
 import collections
 import networkx as nx
-import community
+import community # install from python-louvain
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 
@@ -700,8 +700,6 @@ def plot_communication_data():
     Graph = create_comm_graph()
     # plotting these graphs can take some time, leave commented until needed
     plot_graph_centrality(Graph)
-    
-    # uncomment after getting csv from gephi. Working on a way to do it in desGraphics
     plot_modularity(Graph)
     return
 
