@@ -605,16 +605,16 @@ def plot_graph_centrality(G):
 	display_graph(outFile)
 	
 	# plot closeness centrality
-	outFile = outDir + 'Closeness Centrality'
-	centrality = nx.closeness_centrality(G)
-	fig, ax = pylab.subplots()
-	ax.hist(centrality.values(), bins=10)
-	ax.set_ylabel('Frequency')
-	ax.set_xlabel('Closeness Centrality Value')
-	pylab.title('Closeness Centrality of LP by LP Communication')
-	pylab.legend(loc='best')
-	display_graph(outFile)
-	return
+#	outFile = outDir + 'Closeness Centrality'
+#	centrality = nx.closeness_centrality(G)
+#	fig, ax = pylab.subplots()
+#	ax.hist(centrality.values(), bins=10)
+#	ax.set_ylabel('Frequency')
+#	ax.set_xlabel('Closeness Centrality Value')
+#	pylab.title('Closeness Centrality of LP by LP Communication')
+#	pylab.legend(loc='best')
+#	display_graph(outFile)
+#	return
 	
 # plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
 def plot_modularity(G):
