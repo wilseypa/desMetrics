@@ -591,7 +591,7 @@ def plot_lp_degrees():
 
 # plots both betweenness and closeness centralities. this is an expensive computation and may fail for very large graphs
 def plot_graph_centrality(G):
-	outFile = outDir + 'Betweeness Centrality'
+	outFile = outDir + 'betweeness_centrality'
 	
 	# plot betweenness centrality 
 	centrality = nx.betweenness_centrality(G)
@@ -618,7 +618,7 @@ def plot_graph_centrality(G):
 	
 # plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
 def plot_modularity(G):
-	outFile = outDir + 'Communities'
+	outFile = outDir + 'communities'
 	modularity = collections.Counter()
 	mod = community.best_partition(G)
 	modList = mod.values()
