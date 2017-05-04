@@ -578,7 +578,7 @@ def plot_lp_degrees():
 	pylab.xticks(np.arange(len(keyList))+bar_width,sorted(keyList))
 	ax2 = ax1.twinx()
 	# plot average events
-	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()), marker='o',color=colors[2], label="average events")
+	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()),ms=2, marker='o',color=colors[2], label="average events")
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
 	ax1.set_ylabel('Number of LPs(Total=%s)' % "{:,}".format(total_lps))
@@ -617,7 +617,7 @@ def plot_graph_centrality(G):
 	
 # plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
 def plot_modularity(G):
-	outFile = outDir + 'Communities'
+	outFile = outDir + 'communities'
 	modularity = collections.Counter()
 	mod = community.best_partition(G)
 	modList = mod.values()
@@ -637,7 +637,10 @@ def plot_modularity(G):
 	pylab.axhline(mean-std_dev,color=colors[1])
 	ax.set_ylabel('Number of LPs')
 	ax.set_xlabel('Modularity Class')
-	pylab.xticks(np.arange(start, end+1, 10))
+	ax.ticklabel_format(useOffset=False)
+	ya = ax.get_yaxis()
+	ya.set_major_locator(pylab.MaxNLocator(integer=True))
+	pylab.xticks(np.arange(start, end+1,10)) # change 10 to 1 (or smaller number) if # of communities is small
 	pylab.title('Communities in LP Communication Graph')
 	pylab.legend(loc='best', shadow=True)
 	display_graph(outFile)
