@@ -18,9 +18,6 @@ from scipy.signal import savgol_filter
 #for arg in sys.argv:
 #    print arg
 
-
-
-
 # create a directory to write output graphs
 outDir = 'outputGraphics/'
 if not os.path.exists(outDir):
@@ -87,21 +84,21 @@ def set_num_of_sim_cycles(x):
 # need this as a global variable for x-axis printing function on trimmed plots
 xLabelOffsetVal = 0
 
-def setxLabelOffset(x):
+def set_x_label_offset(x):
     global xLabelOffsetVal
     xLabelOffsetVal = x
     return
 
-def toPercentOfTotalLPs(x, pos=0):
+def to_percent_of_total_lPs(x, pos=0):
     return '%.3f%%'%(100*(x/total_lps))
 
-def toPercent(x, pos=0):
+def to_percent(x, pos=0):
     return '%.1f%%'%(100*x)
 
-def toPercentOfTotalSimCycles(x, pos=0):
+def to_percent_of_total_sim_cycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
 
-def xlabelsOffset(x, pos=0):
+def x_labels_offset(x, pos=0):
     return int(x+xLabelOffsetVal)
 
 #--------------------------------------------------------------------------------
@@ -316,7 +313,7 @@ def total_local_events_exec_by_lp():
 
 
 # helper function to compute percent of events that are local
-def percent_of_LP_events_that_are_local(data):
+def percent_of_lp_events_that_are_local(data):
     local_events = []
     for i in np.arange(len(data)) :
         local = float(data[i,0])
