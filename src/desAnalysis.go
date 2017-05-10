@@ -334,8 +334,9 @@ func main() {
 	// received messages).
 	numOfLPsToCover := func(total int, data []int, percent int) int {
 		// add .99 because int() truncates and we actually want rounding
-		numRequired := total
-		if (percent < 100) {numRequired = int(((float32(total) * float32(percent)) / float32(100)) + .99)}
+		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
+		// ok, we had a corner case where this test is needed
+		if (numRequired > total) {numRequired = total}
 		lpCount := 0
 		eventCount := 0
 		for i := range data {
