@@ -567,24 +567,29 @@ def plot_lp_degrees():
 			outCount[key] = 0
 		if key not in eventsAvg:
 			eventsAvg[key] = 0
-		
+			
+	# these sort their respective dictionaries by their keys, and store their values in a list
+	sort_inCount = [value for (key, value) in sorted(inCount.items())]
+	sort_outCount = [value for (key, value) in sorted(outCount.items())]
+	sort_eventsAvg = [value for (key, value) in sorted(eventsAvg.items())]
+	
 	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
 	
 	# plot in and out degrees and have average events show up in the legend
 	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events") 
-	ax1.bar(np.arange(len(keyList)), inCount.values(), width=bar_width, label='In-Degree', color=colors[0])
-	ax1.bar(np.arange(len(keyList))+bar_width, outCount.values(), width=bar_width, label='Out-Degree',color=colors[1])
-	pylab.xticks(np.arange(len(keyList))+bar_width,sorted(keyList))
+	ax1.bar(np.arange(len(keyList)), sort_inCount, width=bar_width, label='In-Degree', color=colors[0])
+	ax1.bar(np.arange(len(keyList))+bar_width, sort_outCount, width=bar_width, label='Out-Degree',color=colors[1])
+	pylab.xticks(np.arange(len(keyList))+bar_width,keyList)
 	ax2 = ax1.twinx()
 	# plot average events
-	ax2.plot(np.arange(len(keyList)),sorted(eventsAvg.values()),ms=2, marker='o',color=colors[2], label="average events")
+	ax2.plot(np.arange(len(keyList)),sort_eventsAvg,ms=5, marker='o',color=colors[2], label="average events")
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
 	ax1.set_ylabel('Number of LPs(Total=%s)' % "{:,}".format(total_lps))
 	ax2.set_ylabel('Events Sent')
 	pylab.title('LP Connectivity')
-	ax1.legend(loc='best')
+	ax1.legend(loc='upper center')
 	display_graph(outFile)
 	return
 
@@ -614,8 +619,8 @@ def plot_graph_centrality(G):
 #	pylab.legend(loc='best')
 #	display_graph(outFile)
 #	return
-	
-# plots modularity of a graph. Right now, needs csv from gephi until modularity is calculated here
+
+# plots modularity of a graph
 def plot_modularity(G):
 	outFile = outDir + 'communities'
 	modularity = collections.Counter()
