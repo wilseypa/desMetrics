@@ -334,7 +334,8 @@ func main() {
 	// received messages).
 	numOfLPsToCover := func(total int, data []int, percent int) int {
 		// add .99 because int() truncates and we actually want rounding
-		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
+		numRequired := total
+		if (percent < 100) {numRequired = int(((float32(total) * float32(percent)) / float32(100)) + .99)}
 		lpCount := 0
 		eventCount := 0
 		for i := range data {
@@ -344,7 +345,8 @@ func main() {
 				return lpCount
 			}
 		}
-		panic("ERROR: something's amiss in this computation\n")
+		fmt.Printf("ERROR: something's amiss in this computation: %v, %v, %v, %v, %v\n", total, percent, numRequired, eventCount, len(data))
+		panic("aborting.")
 	}
 
 	// data type to capture each LP's event summary data
