@@ -18,6 +18,9 @@ from scipy.signal import savgol_filter
 #for arg in sys.argv:
 #    print arg
 
+
+
+
 # create a directory to write output graphs
 outDir = 'outputGraphics/'
 if not os.path.exists(outDir):
@@ -76,7 +79,7 @@ def reject_first_last_outliers(data):
 # need this as a global variable for the axis printing function
 total_num_of_sim_cycles = 0
 
-def setNumOfSimCycles(x):
+def set_num_of_sim_cycles(x):
     global total_num_of_sim_cycles
     total_num_of_sim_cycles = x
     return
