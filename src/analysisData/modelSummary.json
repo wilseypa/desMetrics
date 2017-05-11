@@ -1,8 +1,0 @@
-{
-  "simulator_name" : "warped2",
-  "model_name" : "NeMo",
-  "capture_date" : "Wed Apr  5 06:42:46 2017 (when captured by warped2CsvConverter.py)",
-  "command_line_args" : "./bin/NeMo --end=1000 --cores=128 --extramem=32767 --event-trace=1",
-  "total_lps" : 65664,
-  "total_events" : 121372541
-}
