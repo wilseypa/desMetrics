@@ -1,0 +1,4 @@
+lex.yy.go
+desAnalysis
+analysisData/
+outputGraphics/
