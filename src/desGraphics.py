@@ -546,7 +546,7 @@ def plot_lp_degrees():
 	for i in np.arange(len(data)):
 		inDegree[inLP[i]] += 1
 		outDegree[outLP[i]] += 1
-		eventsSent[inLP[i]] += weights[i]
+		eventsSent[outLP[i]] += weights[i]
 
 	# count the number of LPs who have the same degree and their events
 	for i in np.arange(len(inDegree)):
@@ -588,8 +588,9 @@ def plot_lp_degrees():
 	ax1.set_xlabel('LP Degree Counts')
 	ax1.set_ylabel('Number of LPs(Total=%s)' % "{:,}".format(total_lps))
 	ax2.set_ylabel('Events Sent')
+	ax2.get_yaxis().get_major_formatter().set_scientific(False)
 	pylab.title('LP Connectivity')
-	ax1.legend(loc='upper center')
+	ax1.legend(loc='upper right')
 	display_graph(outFile)
 	return
 
