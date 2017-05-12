@@ -596,7 +596,7 @@ def plot_lp_degrees():
 
 # plots both betweenness and closeness centralities. this is an expensive computation and may fail for very large graphs
 def plot_graph_centrality(G):
-	outFile = outDir + 'Betweeness Centrality'
+	outFile = outDir + 'betweeness_centrality'
 	
 	# plot betweenness centrality 
 	centrality = nx.betweenness_centrality(G)
