@@ -65,7 +65,7 @@ def display_graph(fileName) :
 # function to remove outliers from the mean
 def reject_outliers(data, m=2):
     outData = data[abs(data - np.mean(data)) < m * np.std(data)]
-    if len(outData > 0) : return outData 
+    if len(outData > 0) : return outData
     return data
 
 # function to remove the first and last 1% of events as outliers
@@ -76,7 +76,7 @@ def reject_first_last_outliers(data):
 # need this as a global variable for the axis printing function
 total_num_of_sim_cycles = 0
 
-def setNumOfSimCycles(x):
+def set_num_of_sim_cycles(x):
     global total_num_of_sim_cycles
     total_num_of_sim_cycles = x
     return
@@ -84,21 +84,21 @@ def setNumOfSimCycles(x):
 # need this as a global variable for x-axis printing function on trimmed plots
 xLabelOffsetVal = 0
 
-def setxLabelOffset(x):
+def set_x_label_offset(x):
     global xLabelOffsetVal
     xLabelOffsetVal = x
     return
 
-def toPercentOfTotalLPs(x, pos=0):
+def to_percent_of_total_lPs(x, pos=0):
     return '%.3f%%'%(100*(x/total_lps))
 
-def toPercent(x, pos=0):
+def to_percent(x, pos=0):
     return '%.1f%%'%(100*x)
 
-def toPercentOfTotalSimCycles(x, pos=0):
+def to_percent_of_total_sim_cycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
 
-def xlabelsOffset(x, pos=0):
+def x_labels_offset(x, pos=0):
     return int(x+xLabelOffsetVal)
 
 #--------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ def events_per_sim_cycle_raw():
     # thus, we will use two separate techniques to explore removing these outliers.  in
     # the first, we will simply trim the first and last 1% of the simulation cycles and
     # plot the middle 98%.  in the second will remove outliers that lie outside 2 std
-    # deviations of the mean. 
+    # deviations of the mean.
 
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'eventsAvailableBySimCycle-trimmed'
@@ -236,7 +236,7 @@ def events_per_sim_cycle_histograms():
     fig, ax1 = pylab.subplots()
     outFile = outDir + 'percentOfLPsWithAvailableEvents'
     pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
-    
+
     ax1.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
     ax1.set_xlabel('Number of Events as a percentage of Total LPs')
     ax1.set_ylabel('Number of Sim Cycles said Percentage Occurs')
@@ -313,7 +313,7 @@ def total_local_events_exec_by_lp():
 
 
 # helper function to compute percent of events that are local
-def percent_of_LP_events_that_are_local(data):
+def percent_of_lp_events_that_are_local(data):
     local_events = []
     for i in np.arange(len(data)) :
         local = float(data[i,0])
@@ -430,7 +430,7 @@ def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     pylab.title('Percent of Events in %s Event Chains\n' % type)
     outFile = outDir + 'eventChainEventTotals-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
-    # convert the counts of chains to counts of events 
+    # convert the counts of chains to counts of events
     data[1] = data[1] * 2
     data[2] = data[2] * 3
     data[3] = data[3] * 4
@@ -518,7 +518,7 @@ def plots_of_lp_event_exchanges():
     pylab.title('Histogram of Timestamp Deltas of Remote Events')
     outFile = outDir + 'timeStampDeltasOfRemoteEvents-hist'
     pylab.hist((data[:,1],data[:,3],data[:,2]), label=('Minimum', 'Average', 'Maximum'), color=(colors[0], colors[1], colors[2]), bins=10)
-    pylab.xlabel('Timestamp Delta (ReceiveTime - SendTime)')    
+    pylab.xlabel('Timestamp Delta (ReceiveTime - SendTime)')
     pylab.ylabel('Number of LPs')
     pylab.legend(loc='best')
     display_graph(outFile)
@@ -557,7 +557,7 @@ def plot_lp_degrees():
 	# take the average events sent by LP degree
 	for i in inCount:
 		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
-	
+
 	# get all x values for the easier graphing
 	keyList = sorted(list(set(inCount.keys() + outCount.keys())))
 	for key in keyList:
@@ -567,17 +567,17 @@ def plot_lp_degrees():
 			outCount[key] = 0
 		if key not in eventsAvg:
 			eventsAvg[key] = 0
-			
+
 	# these sort their respective dictionaries by their keys, and store their values in a list
 	sort_inCount = [value for (key, value) in sorted(inCount.items())]
 	sort_outCount = [value for (key, value) in sorted(outCount.items())]
 	sort_eventsAvg = [value for (key, value) in sorted(eventsAvg.items())]
-	
+
 	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
 	
 	# plot in and out degrees and have average events show up in the legend
-	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events") 
+	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
 	ax1.bar(np.arange(len(keyList)), sort_inCount, width=bar_width, label='In-Degree', color=colors[0])
 	ax1.bar(np.arange(len(keyList))+bar_width, sort_outCount, width=bar_width, label='Out-Degree',color=colors[1])
 	pylab.xticks(np.arange(len(keyList))+bar_width,keyList)
@@ -610,16 +610,16 @@ def plot_graph_centrality(G):
 	display_graph(outFile)
 	
 	# plot closeness centrality
-#	outFile = outDir + 'Closeness Centrality'
-#	centrality = nx.closeness_centrality(G)
-#	fig, ax = pylab.subplots()
-#	ax.hist(centrality.values(), bins=10)
-#	ax.set_ylabel('Frequency')
-#	ax.set_xlabel('Closeness Centrality Value')
-#	pylab.title('Closeness Centrality of LP by LP Communication')
-#	pylab.legend(loc='best')
-#	display_graph(outFile)
-#	return
+	outFile = outDir + 'Closeness Centrality'
+	centrality = nx.closeness_centrality(G)
+	fig, ax = pylab.subplots()
+	ax.hist(centrality.values(), bins=10)
+	ax.set_ylabel('Frequency')
+	ax.set_xlabel('Closeness Centrality Value')
+	pylab.title('Closeness Centrality of LP by LP Communication')
+	pylab.legend(loc='best')
+	display_graph(outFile)
+	return
 
 # plots modularity of a graph
 def plot_modularity(G):
@@ -650,7 +650,7 @@ def plot_modularity(G):
 	pylab.title('Communities in LP Communication Graph')
 	pylab.legend(loc='best', shadow=True)
 	display_graph(outFile)
-	
+
 #--------------------------------------------------------------------------------
 # functions to plot graphs by category
 
@@ -659,7 +659,7 @@ def plot_event_execution_data():
     events_per_sim_cycle_raw()
     events_per_sim_cycle_histograms()
 
-    # plot events by being local (self generated) or remote (generated by some other LP) 
+    # plot events by being local (self generated) or remote (generated by some other LP)
     total_local_events_exec_by_lp()
     histograms_of_events_exec_by_lp()
     profile_of_local_events_exec_by_lp()
@@ -696,7 +696,7 @@ def create_comm_graph():
 	G = nx.Graph()
 	for i in np.arange(len(data)):
 		G.add_node(int(nodes[i]))
-		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
+		G.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))
 	return G
 
 def plot_communication_data():
@@ -705,7 +705,7 @@ def plot_communication_data():
     histogram_of_lps_sending_95_percent_of_remote_events(data)
     plots_of_lp_event_exchanges()
     plot_lp_degrees()
-    
+
     Graph = create_comm_graph()
     # plotting these graphs can take some time, leave commented until needed
     plot_graph_centrality(Graph)
@@ -722,7 +722,7 @@ plot_communication_data()
 sys.exit()
 
 # i do not believe that the plots below are of any further use.  i am leaving the code
-# here, but removing them from our normal plot generation. 
+# here, but removing them from our normal plot generation.
 
 #--------------------------------------------------------------------------------
 # histograms of event chains longer than 1
@@ -739,7 +739,7 @@ for i in np.arange(len(data)) :
                         num_chains = num_chains + float(data[i,j])
     percent = round(((num_chains - float(data[i,0])) / num_chains) * 100,2)
     percent_long_chains.append(percent)
-    
+
 pylab.title('Histogram of Local Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Local Chains of Length > 1')
@@ -765,7 +765,7 @@ for i in np.arange(len(data)) :
                         num_chains = num_chains + float(data[i,j])
     percent = round(((num_chains - float(data[i,0])) / num_chains) * 100,2)
     percent_long_chains.append(percent)
-    
+
 pylab.title('Histogram of Linked Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Linked Chains of Length > 1')
@@ -791,7 +791,7 @@ for i in np.arange(len(data)) :
                         num_chains = num_chains + float(data[i,j])
     percent = round(((num_chains - float(data[i,0])) / num_chains) * 100,2)
     percent_long_chains.append(percent)
-    
+
 pylab.title('Histogram of Global Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Global Chains of Length > 1')
