@@ -2,8 +2,6 @@ import sys
 import os
 import json
 import matplotlib as mpl
-# Force matplotlib to not use any Xwindows backend
-mpl.use('Agg')
 import pylab
 import numpy as np
 import brewer2mpl
@@ -19,9 +17,12 @@ from scipy.signal import savgol_filter
 #    print arg
 
 # create a directory to write output graphs
-outDir = 'outputGraphics/'
-if not os.path.exists(outDir):
-    os.makedirs(outDir)
+out_dir = 'outputGraphics/'
+if not os.path.exists(out_dir):
+    os.makedirs(out_dir)
+
+# Force matplotlib to not use any Xwindows backend
+mpl.use('Agg')
 
 # set brewer colormap and make it the default
 bmap = brewer2mpl.get_map('Set1', 'qualitative', 8)
@@ -45,18 +46,18 @@ mpl.rcParams.update({'ytick.labelsize': 14})
 
 
 #--------------------------------------------------------------------------------
-# here are some helper functions that we can use.
+# here are some helper functions that are used for plotting
 
 # define a function to display/save the pylab figures.
-def display_graph(fileName) :
-    print "Creating graphics " + fileName
+def display_graph(file_name) :
+    print "Creating graphics " + file_name
     print "    ....writing pdf"
-    pylab.savefig(fileName + ".pdf", bbox_inches='tight')
+    pylab.savefig(file_name + ".pdf", bbox_inches='tight')
 #    print "    ....writing eps"
-#    pylab.savefig(fileName + ".eps", bbox_inches='tight')
+#    pylab.savefig(file_name + ".eps", bbox_inches='tight')
 # this conversion takes an enormous amount of time.  uncomment and use only when you really need it.
 #    print "    ....converting to jpg"
-#    os.system("convert " + fileName + ".eps " + fileName + ".jpg")
+#    os.system("convert " + file_name + ".eps " + file_name + ".jpg")
     pylab.clf()
 #    pylab.show()
     return
@@ -64,14 +65,14 @@ def display_graph(fileName) :
 
 # function to remove outliers from the mean
 def reject_outliers(data, m=2):
-    outData = data[abs(data - np.mean(data)) < m * np.std(data)]
-    if len(outData > 0) : return outData
+    out_data = data[abs(data - np.mean(data)) < m * np.std(data)]
+    if len(out_data > 0) : return out_data
     return data
 
 # function to remove the first and last 1% of events as outliers
 def reject_first_last_outliers(data):
-    trimLength = int((len(data)+1)/100)
-    return data[trimLength-1:len(data)-trimLength]
+    trim_length = int((len(data)+1)/100)
+    return data[trim_length-1:len(data)-trim_length]
 
 # need this as a global variable for the axis printing function
 total_num_of_sim_cycles = 0
@@ -82,14 +83,14 @@ def set_num_of_sim_cycles(x):
     return
 
 # need this as a global variable for x-axis printing function on trimmed plots
-xLabelOffsetVal = 0
+x_label_offset_val = 0
 
 def set_x_label_offset(x):
-    global xLabelOffsetVal
-    xLabelOffsetVal = x
+    global x_label_offset_val
+    x_label_offset_val = x
     return
 
-def to_percent_of_total_lPs(x, pos=0):
+def to_percent_of_total_LPs(x, pos=0):
     return '%.3f%%'%(100*(x/total_lps))
 
 def to_percent(x, pos=0):
@@ -99,7 +100,51 @@ def to_percent_of_total_sim_cycles(x, pos=0):
     return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
 
 def x_labels_offset(x, pos=0):
-    return int(x+xLabelOffsetVal)
+    return int(x+x_label_offset_val)
+
+in_count = collections.Counter()
+out_count = collections.Counter()
+events_avg = {}
+def lp_degrees_helper(data):
+	# data structures for holding LPs sent, received, and the number of events. weights are events sent
+	global in_count
+	global out_count
+	global events_avg
+	in_LP = [x[0] for x in data]
+	out_LP = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
+	in_degree = collections.Counter()
+	out_degree = collections.Counter()
+	events_sent = collections.Counter()
+	events_count = collections.Counter()
+
+	# count the in and out degree of a given LP, and total the events sent
+	for i in np.arange(len(data)):
+		in_degree[in_LP[i]] += 1
+		out_degree[out_LP[i]] += 1
+		events_sent[out_LP[i]] += weights[i]
+
+	# count the number of LPs who have the same degree and their events
+	for i in np.arange(len(in_degree)):
+		in_count[in_degree[i]] += 1
+		out_count[out_degree[i]] += 1
+		events_count[in_degree[i]] += events_sent[i]
+		
+	# take the average events sent by LP degree
+	for i in in_count:
+		events_avg[i] = float(events_count[i]) / int(in_count[i])
+
+	# get all x values for the easier graphing
+	key_list = sorted(list(set(in_count.keys() + out_count.keys())))
+	for key in key_list:
+		if key not in in_count:
+			in_count[key] = 0
+		if key not in out_count:
+			out_count[key] = 0
+		if key not in events_avg:
+			events_avg[key] = 0
+			
+	return key_list
 
 #--------------------------------------------------------------------------------
 # import the json file of model summary information
@@ -121,19 +166,19 @@ total_events = model_summary["total_events"]
 
 def events_per_sim_cycle_raw():
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle'
+    out_file = out_dir + 'eventsAvailableBySimCycle'
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     pylab.title('Total LPs: %s. ' % "{:,}".format(total_lps) +
                 'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
-    setNumOfSimCycles(len(data)+1)
+    set_num_of_sim_cycles(len(data)+1)
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(data))
     ax1.plot(data)
     ax2=ax1.twinx()
     ax2.plot(data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_LPs))
+    display_graph(out_file)
 
     # it is not unusual for simulations to have large outliers on number of events available
     # during simulation startup and/or shutdown.  these outliers can dominate making the
@@ -144,44 +189,44 @@ def events_per_sim_cycle_raw():
     # deviations of the mean.
 
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle-trimmed'
-    trimmedData = reject_first_last_outliers(data)
-    trimLength = len(data) - len(trimmedData)
+    out_file = out_dir + 'eventsAvailableBySimCycle-trimmed'
+    trimmed_data = reject_first_last_outliers(data)
+    trim_length = len(data) - len(trimmed_data)
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
-                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
-    setNumOfSimCycles(len(trimmedData))
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmed_data)))
+    set_num_of_sim_cycles(len(trimmed_data))
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
-    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
-    ax1.plot(trimmedData)
-    setxLabelOffset(trimLength-1)
-    ax1.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(xlabelsOffset))
+    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmed_data))
+    ax1.plot(trimmed_data)
+    set_x_label_offset(trim_length-1)
+    ax1.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(x_labels_offset))
     ax2=ax1.twinx()
-    ax2.plot(trimmedData)
-    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmedData)/total_lps)*100))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
-    display_graph(outFile)
+    ax2.plot(trimmed_data)
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmed_data)/total_lps)*100))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_LPs))
+    display_graph(out_file)
 
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle-trimmed-withSorted'
+    out_file = out_dir + 'eventsAvailableBySimCycle-trimmed-withSorted'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
-                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmed_data)))
     ax1.set_xlabel('Simulation Cycle (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
     ax1.tick_params(axis='x',labelbottom='off')
-    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmedData))
-    lns1 = ax1.plot(trimmedData, color=colors[0], label='Events Available: Runtime order')
+    ax1.set_ylabel('Number of Events (Ave=%.2f)' % np.mean(trimmed_data))
+    lns1 = ax1.plot(trimmed_data, color=colors[0], label='Events Available: Runtime order')
     ax2=ax1.twinx()
-    lns2 = ax2.plot(sorted(trimmedData), color=colors[1], label='Events Available: Sorted order')
-    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmedData)/total_lps)*100))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
+    lns2 = ax2.plot(sorted(trimmed_data), color=colors[1], label='Events Available: Sorted order')
+    ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(trimmed_data)/total_lps)*100))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_LPs))
     lns = lns1 + lns2
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs, loc='best', frameon=True)
-    ax1.set_xlim([0, len(trimmedData)+(trimLength/2)])
-    ax2.set_xlim([0, len(trimmedData)+(trimLength/2)])
-    display_graph(outFile)
+    ax1.set_xlim([0, len(trimmed_data)+(trim_length/2)])
+    ax2.set_xlim([0, len(trimmed_data)+(trim_length/2)])
+    display_graph(out_file)
 
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved'
+    out_file = out_dir + 'eventsAvailableBySimCycle-outliersRemoved'
     data = reject_outliers(data)
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
                 'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
@@ -191,13 +236,13 @@ def events_per_sim_cycle_raw():
     ax2=ax1.twinx()
     ax2.plot(data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_LPs))
+    display_graph(out_file)
 
     fig, ax1 = pylab.subplots()
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
                 'Total Sim Cycles: %s. '% "{:,}".format(len(data)))
-    outFile = outDir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
+    out_file = out_dir + 'eventsAvailableBySimCycle-outliersRemoved-sorted'
     sorted_data = sorted(data)
     ax1.plot(sorted_data)
     ax1.set_xlabel('Simulation Cycles sorted by # events avail (Total=%s)' % "{:,}".format(total_num_of_sim_cycles))
@@ -206,8 +251,8 @@ def events_per_sim_cycle_raw():
     ax2=ax1.twinx()
     ax2.plot(sorted_data)
     ax2.set_ylabel('Percent of Total LPs (Ave=%.3f%%)' % ((np.mean(data)/total_lps)*100))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalLPs))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_LPs))
+    display_graph(out_file)
     return
 
 #--------------------------------------------------------------------------------
@@ -217,46 +262,46 @@ def events_per_sim_cycle_raw():
 
 def events_per_sim_cycle_histograms():
     data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    trimmedData = reject_first_last_outliers(data)
+    trimmed_data = reject_first_last_outliers(data)
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle-histogram-std'
+    out_file = out_dir + 'eventsAvailableBySimCycle-histogram-std'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
-                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
-    ax1.hist(trimmedData, bins=100, histtype='stepfilled')
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmed_data)))
+    ax1.hist(trimmed_data, bins=100, histtype='stepfilled')
     ax1.set_xlabel('Number of Events')
     ax1.set_ylabel('Number of Simulation Cycles')
     ax2=ax1.twinx()
-    ax2.hist(trimmedData, bins=100, histtype='stepfilled')
+    ax2.hist(trimmed_data, bins=100, histtype='stepfilled')
     ax2.set_ylabel('Percent of Simulation Cycles')
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_sim_cycles))
+    display_graph(out_file)
 
     # ok, so now let's build a histogram of the % of LPs with active events.
 
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'percentOfLPsWithAvailableEvents'
+    out_file = out_dir + 'percentOfLPsWithAvailableEvents'
     pylab.title('Percent of LPs w/ Available Events as a Percentage of the Total Sim Cycles')
 
-    ax1.hist(trimmedData.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
+    ax1.hist(trimmed_data.astype(float)/float(total_lps), bins=100, histtype='stepfilled')
     ax1.set_xlabel('Number of Events as a percentage of Total LPs')
     ax1.set_ylabel('Number of Sim Cycles said Percentage Occurs')
 #    ax1 = pylab.gca()
-    ax1.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(toPercent))
+    ax1.get_xaxis().set_major_formatter(mpl.ticker.FuncFormatter(to_percent))
 #    ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     ax2=ax1.twinx()
-    ax2.hist(trimmedData, bins=100, histtype='stepfilled')
+    ax2.hist(trimmed_data, bins=100, histtype='stepfilled')
     ax2.set_ylabel('Percent of Simulation Cycles')
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_sim_cycles))
+    display_graph(out_file)
 
     # ok, let's present the histogram data using pandas series/value_counts.  much nicer plot.
     fig, ax1 = pylab.subplots()
-    outFile = outDir + 'eventsAvailableBySimCycle-histogram-dual'
+    out_file = out_dir + 'eventsAvailableBySimCycle-histogram-dual'
     pylab.title('Total LPs: %s; ' % "{:,}".format(total_lps) +
-                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmedData)))
-    setNumOfSimCycles(len(data)+1)
-    mean_events_available = np.mean(trimmedData)
-    data = pd.Series(trimmedData).value_counts()
+                'Total Sim Cycles: %s. '% "{:,}".format(len(trimmed_data)))
+    set_num_of_sim_cycles(len(data)+1)
+    mean_events_available = np.mean(trimmed_data)
+    data = pd.Series(trimmed_data).value_counts()
     data = data.sort_index()
     x_values = np.array(data.keys())
     y_values = np.array(data)
@@ -266,8 +311,8 @@ def events_per_sim_cycle_histograms():
     ax2=ax1.twinx()
     ax2.plot(x_values, y_values)
     ax2.set_ylabel('Percent of Simulation Cycles')
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(toPercentOfTotalSimCycles))
-    display_graph(outFile)
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(to_percent_of_total_sim_cycles))
+    display_graph(out_file)
 
     return
 
@@ -283,7 +328,7 @@ def total_local_events_exec_by_lp():
     pylab.title('Total Events processed by each LP (sorted)')
     # skip the first column of LP names
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
-    outFile = outDir + 'totalEventsProcessedByLP'
+    out_file = out_dir + 'totalEventsProcessedByLP'
     # sort the data by the total events executed
     sorted_data = data[data[:,2].argsort()]
     # need a vector of values for the for the x-axis
@@ -303,7 +348,7 @@ def total_local_events_exec_by_lp():
     lns = lns1 + lns2 + lns3
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs, loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 #--------------------------------------------------------------------------------
@@ -313,7 +358,7 @@ def total_local_events_exec_by_lp():
 
 
 # helper function to compute percent of events that are local
-def percent_of_lp_events_that_are_local(data):
+def percent_of_LP_events_that_are_local(data):
     local_events = []
     for i in np.arange(len(data)) :
         local = float(data[i,0])
@@ -324,7 +369,7 @@ def percent_of_lp_events_that_are_local(data):
 
 def histograms_of_events_exec_by_lp():
     pylab.title('Local Events Executed by each LP')
-    outFile = outDir + 'localEventsAsPercentofTotalByLP-histogram'
+    out_file = out_dir + 'localEventsAsPercentofTotalByLP-histogram'
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     # convert data to percentage of total executed by that LP
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)), bins=100)
@@ -333,15 +378,15 @@ def histograms_of_events_exec_by_lp():
     ax.get_xaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     pylab.xlabel('Percent of Total Events that are Local')
     pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
-    display_graph(outFile)
+    display_graph(out_file)
 
     pylab.title('Local and Remote Events Executed by the LPs')
-    outFile = outDir + 'localAndRemoteEventsExecuted-histogram-stacked'
+    out_file = out_dir + 'localAndRemoteEventsExecuted-histogram-stacked'
     pylab.hist((data[:,0], data[:,1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
     pylab.xlabel('Number of Events')
     pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 #--------------------------------------------------------------------------------
@@ -349,7 +394,7 @@ def histograms_of_events_exec_by_lp():
 
 def profile_of_local_events_exec_by_lp():
     pylab.title('Locally Generated Events')
-    outFile = outDir + 'percentOfExecutedEventsThatAreLocal'
+    out_file = out_dir + 'percentOfExecutedEventsThatAreLocal'
     data = np.loadtxt("analysisData/eventsExecutedByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3))
     x_index = np.arange(len(data))
     pylab.plot(x_index, sorted(percent_of_LP_events_that_are_local(data)))
@@ -361,16 +406,16 @@ def profile_of_local_events_exec_by_lp():
     ax = pylab.gca()
 #    ax.fill_between(x_index, sorted(percent_of_LP_events_that_are_local(data)), 0, facecolor=colors[0])
     ax.get_yaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
-    display_graph(outFile)
+    display_graph(out_file)
 
     pylab.title('Locally Generated Events Executed')
-    outFile = outDir + 'percentOfExecutedEventsThatAreLocal-histogram'
+    out_file = out_dir + 'percentOfExecutedEventsThatAreLocal-histogram'
     pylab.hist(sorted(percent_of_LP_events_that_are_local(data)))
     ax = pylab.gca()
     ax.get_xaxis().set_major_formatter(mpl.ticker.FormatStrFormatter('%.1f%%'))
     pylab.xlabel('Percent of Local Events Executed')
     pylab.ylabel('Number of LPs (Total=%s)' % "{:,}".format(total_lps))
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 #--------------------------------------------------------------------------------
@@ -383,7 +428,7 @@ def profile_of_local_events_exec_by_lp():
 def plot_event_chain_summaries():
     pylab.title('Number of Event Chains of length X')
     data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
-    outFile = outDir + 'eventChainSummary-individual'
+    out_file = out_dir + 'eventChainSummary-individual'
     bar_width = .3
     pylab.bar(data[:,0], data[:,1], bar_width, color=colors[0], label="Local")
     pylab.bar(data[:,0] + bar_width, data[:,2], bar_width, color=colors[1], label="Linked")
@@ -392,13 +437,13 @@ def plot_event_chain_summaries():
     pylab.legend(loc='best')
     pylab.xlabel('Chain Length')
     pylab.ylabel('Total Chains of Length X Found')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 # show the cumulative event chains (i.e., for chains of length 2, also count longer chains)
 def plot_event_chain_cumulative_summaries():
     pylab.title('Cumulative Number Event Chains of length X')
-    outFile = outDir + 'eventChainSummary-cumulative'
+    out_file = out_dir + 'eventChainSummary-cumulative'
     data = np.loadtxt("analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", skiprows=2)
     for i in range(len(data)-2,-1,-1) :
         for j in range(1,len(data[0])) :
@@ -411,24 +456,24 @@ def plot_event_chain_cumulative_summaries():
     pylab.xlabel('Chain Length')
     pylab.ylabel('Total Chains of Length >= X Found')
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 # display pie charts of event chain summaries
 
 def plot_event_chain_summaries_pie_charts(data, type):
     pylab.title('Distribution of %s Event Chains\n' % type)
-    outFile = outDir + 'eventChainSummary-pie-chart-%s'%type
+    out_file = out_dir + 'eventChainSummary-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
     percentages = data.astype(float)/float(np.sum(data))
     pylab.pie(percentages, labels=labels, colors=colors, autopct='%1.1f%%')
     pylab.axis('equal')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     pylab.title('Percent of Events in %s Event Chains\n' % type)
-    outFile = outDir + 'eventChainEventTotals-pie-chart-%s'%type
+    out_file = out_dir + 'eventChainEventTotals-pie-chart-%s'%type
     labels = '1', '2', '3', '4', '>=5'
     # convert the counts of chains to counts of events
     data[1] = data[1] * 2
@@ -439,13 +484,13 @@ def plot_percent_of_events_in_event_chains(data, total_events_of_class, type):
     percentages = data.astype(float)/float(total_events_of_class)
     pylab.pie(percentages, labels=labels, colors=colors, autopct='%1.1f%%')
     pylab.axis('equal')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 # plot event chains by LP
 def plot_event_chains_by_lp(data, type):
     pylab.title('%s Event Chains by LP (individually sorted)' % type)
-    outFile = outDir + 'eventChains-byLP-%s'%type
+    out_file = out_dir + 'eventChains-byLP-%s'%type
     sorted_data = data[data[:,0].argsort()]
     pylab.plot(sorted_data[:,0], label='Len=1')
     sorted_data = data[data[:,1].argsort()]
@@ -460,7 +505,7 @@ def plot_event_chains_by_lp(data, type):
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Number of Chains')
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 #--------------------------------------------------------------------------------
@@ -468,7 +513,7 @@ def plot_event_chains_by_lp(data, type):
 
 def plot_number_of_lps_sending_remote_events(data):
     pylab.title('Number of LPs Sending Remote Events (sorted)')
-    outFile = outDir + 'numberOfSendingLPs'
+    out_file = out_dir + 'numberOfSendingLPs'
     pylab.plot(data[data[:,5].argsort()][:,5], color=colors[0], label = '100% of total remote events')
     pylab.plot(data[data[:,4].argsort()][:,4], color=colors[1], label = '95% of total remote events')
 #    pylab.plot(data[data[:,2].argsort()][:,2], color=colors[3], label = '80% of total remote events')
@@ -478,32 +523,32 @@ def plot_number_of_lps_sending_remote_events(data):
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Number of Sending LPs')
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 # let's look at how many LPs provide 95% of the messages to each LP
 # column 5 has the data we need
 def histogram_of_lps_sending_95_percent_of_remote_events(data):
     pylab.title('How many LPs are involved in sending 95% of remote events')
-    outFile = outDir + 'sending95PercentOfRemoteEvents-hist'
+    out_file = out_dir + 'sending95PercentOfRemoteEvents-hist'
     pylab.hist(data[:,5], bins=20)
     pylab.xlabel('Number of Sending LPs')
     pylab.ylabel('Frequency')
-    display_graph(outFile)
+    display_graph(out_file)
     return
 
 def plots_of_lp_event_exchanges():
     pylab.title('Remote Events Sent Between LPs')
     data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.float_, delimiter = ",", skiprows=2, usecols=(2,3,4,5))
-    outFile = outDir + 'countsOfLpToLpEventExchanges'
+    out_file = out_dir + 'countsOfLpToLpEventExchanges'
     pylab.plot(data[data[:,0].argsort()][:,0].astype(np.intc))
 #    pylab.xlabel('Number of Events')
     pylab.tick_params(axis='x',labelbottom='off')
     pylab.ylabel('Number of Events Sent')
-    display_graph(outFile)
+    display_graph(out_file)
 
     pylab.title('Timestamp Deltas of Remote Events')
-    outFile = outDir + 'timeStampDeltasOfRemoteEvents'
+    out_file = out_dir + 'timeStampDeltasOfRemoteEvents'
     stride = max(int(max(len(data[:,1]),len(data[:,2]),len(data[:,3]))/20),1)
     pylab.plot(data[data[:,1].argsort()][:,1], color=colors[0], label="Minimum", marker='o', markevery=stride)
     pylab.plot(data[data[:,3].argsort()][:,3], color=colors[1], label="Average", marker='x', markevery=stride)
@@ -513,77 +558,40 @@ def plots_of_lp_event_exchanges():
     pylab.ylim([-.1,np.amax(data[:,3].astype(np.intc))+1])
 #    pylab.yscale('log')
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
 
     pylab.title('Histogram of Timestamp Deltas of Remote Events')
-    outFile = outDir + 'timeStampDeltasOfRemoteEvents-hist'
+    out_file = out_dir + 'timeStampDeltasOfRemoteEvents-hist'
     pylab.hist((data[:,1],data[:,3],data[:,2]), label=('Minimum', 'Average', 'Maximum'), color=(colors[0], colors[1], colors[2]), bins=10)
     pylab.xlabel('Timestamp Delta (ReceiveTime - SendTime)')
     pylab.ylabel('Number of LPs')
     pylab.legend(loc='best')
-    display_graph(outFile)
+    display_graph(out_file)
 
     return
-
+	
 # plots in and out degree of LPs (degree = # of LPs an LP sends to or receives from)
 def plot_lp_degrees():
-	outFile = outDir + 'countsOfDegreeLPbyLP'
+	out_file = out_dir + 'countsOfDegreeLPbyLP'
 	data = np.loadtxt("analysisData/eventsExchanged-remote.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
-
-	# data structures for holding LPs sent, received, and the number of events. weights are events sent
-	inLP = [x[0] for x in data]
-	outLP = [x[1] for x in data]
-	weights = [int(x[2]) for x in data]
-	inDegree = collections.Counter()
-	outDegree = collections.Counter()
-	inCount = collections.Counter()
-	outCount = collections.Counter()
-	eventsSent = collections.Counter()
-	eventsCount = collections.Counter()
-	eventsAvg = {}
-
-	# count the in and out degree of a given LP, and total the events sent
-	for i in np.arange(len(data)):
-		inDegree[inLP[i]] += 1
-		outDegree[outLP[i]] += 1
-		eventsSent[outLP[i]] += weights[i]
-
-	# count the number of LPs who have the same degree and their events
-	for i in np.arange(len(inDegree)):
-		inCount[inDegree[i]] += 1
-		outCount[outDegree[i]] += 1
-		eventsCount[inDegree[i]] += eventsSent[i]
-		
-	# take the average events sent by LP degree
-	for i in inCount:
-		eventsAvg[i] = float(eventsCount[i]) / int(inCount[i])
-
-	# get all x values for the easier graphing
-	keyList = sorted(list(set(inCount.keys() + outCount.keys())))
-	for key in keyList:
-		if key not in inCount:
-			inCount[key] = 0
-		if key not in outCount:
-			outCount[key] = 0
-		if key not in eventsAvg:
-			eventsAvg[key] = 0
-
-	# these sort their respective dictionaries by their keys, and store their values in a list
-	sort_inCount = [value for (key, value) in sorted(inCount.items())]
-	sort_outCount = [value for (key, value) in sorted(outCount.items())]
-	sort_eventsAvg = [value for (key, value) in sorted(eventsAvg.items())]
+	
+	key_list = lp_degrees_helper(data)
+		# these sort their respective dictionaries by their keys, and store their values in a list
+	sort_in_count = [value for (key, value) in sorted(in_count.items())]
+	sort_out_count = [value for (key, value) in sorted(out_count.items())]
+	sort_events_avg = [value for (key, value) in sorted(events_avg.items())]
 
 	fig, ax1 = pylab.subplots()
 	bar_width = 0.30
 	
 	# plot in and out degrees and have average events show up in the legend
 	ax1.plot(np.nan, '-', marker='o', color=colors[2], label = "average events")
-	ax1.bar(np.arange(len(keyList)), sort_inCount, width=bar_width, label='In-Degree', color=colors[0])
-	ax1.bar(np.arange(len(keyList))+bar_width, sort_outCount, width=bar_width, label='Out-Degree',color=colors[1])
-	pylab.xticks(np.arange(len(keyList))+bar_width,keyList)
+	ax1.bar(np.arange(len(key_list)), sort_in_count, width=bar_width, label='In-Degree', color=colors[0])
+	ax1.bar(np.arange(len(key_list))+bar_width, sort_out_count, width=bar_width, label='Out-Degree',color=colors[1])
+	pylab.xticks(np.arange(len(key_list))+bar_width,key_list)
 	ax2 = ax1.twinx()
 	# plot average events
-	ax2.plot(np.arange(len(keyList)),sort_eventsAvg,ms=5, marker='o',color=colors[2], label="average events")
+	ax2.plot(np.arange(len(key_list)),sort_events_avg,ms=5, marker='o',color=colors[2], label="average events")
 	ax2.grid(b=False)
 	ax1.set_xlabel('LP Degree Counts')
 	ax1.set_ylabel('Number of LPs(Total=%s)' % "{:,}".format(total_lps))
@@ -591,12 +599,12 @@ def plot_lp_degrees():
 	ax2.get_yaxis().get_major_formatter().set_scientific(False)
 	pylab.title('LP Connectivity')
 	ax1.legend(loc='upper right')
-	display_graph(outFile)
+	display_graph(out_file)
 	return
 
 # plots both betweenness and closeness centralities. this is an expensive computation and may fail for very large graphs
 def plot_graph_centrality(G):
-	outFile = outDir + 'betweeness_centrality'
+	out_file = out_dir + 'betweeness_centrality'
 	
 	# plot betweenness centrality 
 	centrality = nx.betweenness_centrality(G)
@@ -607,10 +615,10 @@ def plot_graph_centrality(G):
 	ax.set_xlabel('Betweeness Centrality Value')
 	pylab.title('Betweenness Centrality of LP by LP Communication')
 	pylab.legend(loc='best')
-	display_graph(outFile)
+	display_graph(out_file)
 	
 	# plot closeness centrality
-	outFile = outDir + 'Closeness Centrality'
+	out_file = out_dir + 'Closeness Centrality'
 	centrality = nx.closeness_centrality(G)
 	fig, ax = pylab.subplots()
 	ax.hist(centrality.values(), bins=10)
@@ -618,18 +626,18 @@ def plot_graph_centrality(G):
 	ax.set_xlabel('Closeness Centrality Value')
 	pylab.title('Closeness Centrality of LP by LP Communication')
 	pylab.legend(loc='best')
-	display_graph(outFile)
+	display_graph(out_file)
 	return
 
 # plots modularity of a graph
 def plot_modularity(G):
-	outFile = outDir + 'communities'
+	out_file = out_dir + 'communities'
 	modularity = collections.Counter()
 	mod = community.best_partition(G)
-	modList = mod.values()
+	mod_list = mod.values()
 
-	for i in np.arange(len(modList)):
-		modularity[modList[i]] += 1
+	for i in np.arange(len(mod_list)):
+		modularity[mod_list[i]] += 1
 
 	mean = np.mean(modularity.values())
 	std_dev = np.std(modularity.values())
@@ -649,7 +657,7 @@ def plot_modularity(G):
 	pylab.xticks(np.arange(start, end+1,10)) # change 10 to 1 (or smaller number) if # of communities is small
 	pylab.title('Communities in LP Communication Graph')
 	pylab.legend(loc='best', shadow=True)
-	display_graph(outFile)
+	display_graph(out_file)
 
 #--------------------------------------------------------------------------------
 # functions to plot graphs by category
@@ -701,22 +709,22 @@ def create_comm_graph():
 
 def plot_communication_data():
     data = np.loadtxt("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5,6))
-    plot_number_of_lps_sending_remote_events(data)
-    histogram_of_lps_sending_95_percent_of_remote_events(data)
-    plots_of_lp_event_exchanges()
+   # plot_number_of_lps_sending_remote_events(data)
+   # histogram_of_lps_sending_95_percent_of_remote_events(data)
+   # plots_of_lp_event_exchanges()
     plot_lp_degrees()
 
     Graph = create_comm_graph()
     # plotting these graphs can take some time, leave commented until needed
-    plot_graph_centrality(Graph)
-    plot_modularity(Graph)
+    #plot_graph_centrality(Graph)
+    #plot_modularity(Graph)
     return
 
 #--------------------------------------------------------------------------------
 # the start plotting by analsysis class
 
-plot_event_execution_data()
-plot_event_chain_data()
+#plot_event_execution_data()
+#plot_event_chain_data()
 plot_communication_data()
 
 sys.exit()
@@ -730,7 +738,7 @@ sys.exit()
 ## Local Chains
 
 data = np.loadtxt("analysisData/localEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-local-histogram'
+out_file = out_dir + 'eventChains-byLP-local-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -744,19 +752,19 @@ pylab.title('Histogram of Local Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Local Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
-display_graph(outFile)
+display_graph(out_file)
 
-outFile = outDir + 'eventChains-byLP-local-histogram-normalized'
+out_file = out_dir + 'eventChains-byLP-local-histogram-normalized'
 pylab.title('Histogram of Local Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Local Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent\n(Normalized so Integral will sum to 1)')
-display_graph(outFile)
+display_graph(out_file)
 
 ## Linked Chains
 
 data = np.loadtxt("analysisData/linkedEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-linked-histogram'
+out_file = out_dir + 'eventChains-byLP-linked-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -770,19 +778,19 @@ pylab.title('Histogram of Linked Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Linked Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
-display_graph(outFile)
+display_graph(out_file)
 
-outFile = outDir + 'eventChains-byLP-linked-histogram-normalized'
+out_file = out_dir + 'eventChains-byLP-linked-histogram-normalized'
 pylab.title('Histogram of Linked Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Linked Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent\n(Normalized so Integral will sum to 1)')
-display_graph(outFile)
+display_graph(out_file)
 
 ## Global Chains
 
 data = np.loadtxt("analysisData/globalEventChainsByLP.csv", dtype=np.intc, delimiter = ",", skiprows=2, usecols=(1,2,3,4,5))
-outFile = outDir + 'eventChains-byLP-global-histogram'
+out_file = out_dir + 'eventChains-byLP-global-histogram'
 
 percent_long_chains = []
 for i in np.arange(len(data)) :
@@ -796,11 +804,11 @@ pylab.title('Histogram of Global Event Chains Longer than 1')
 pylab.hist(sorted(percent_long_chains), bins=100)
 pylab.xlabel('Percent of Total Global Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent')
-display_graph(outFile)
+display_graph(out_file)
 
-outFile = outDir + 'eventChains-byLP-global-histogram-normalized'
+out_file = out_dir + 'eventChains-byLP-global-histogram-normalized'
 pylab.title('Histogram of Global Event Chains Longer than 1\n(Normalized so Integral will sum to 1)')
 pylab.hist(sorted(percent_long_chains), bins=100, normed=True)
 pylab.xlabel('Percent of Total Global Chains of Length > 1')
 pylab.ylabel('Number of LPs Containing Said Percent\n(Normalized so Integral will sum to 1)')
-display_graph(outFile)
+display_graph(out_file)
