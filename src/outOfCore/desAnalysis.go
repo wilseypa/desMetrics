@@ -108,6 +108,13 @@ func main() {
 		//lp.receivedEvents++
 	//}
 
+	// temporary data structure for semi-streaming on first pass
+	//procEvent := func(sendingLP string, sendTime string, receivingLP string, receiveTime string){
+	//	sLP := sendingLP
+	//	sT := sentTime
+	//	rLP := receivingLP
+	//	rT := receiveTime
+	//}
 
 	printInfo := func (format string, a ...interface{}) (n int, err error) {
 		n, err = fmt.Printf(format, a)
