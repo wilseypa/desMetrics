@@ -308,3 +308,122 @@ func main() {
 	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 	return
 }
+
+	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
+	// result in coverage of the percent of events received (basically how many LPs send X% of the
+	// received messages).
+	numOfLPsToCover := func(total int, data []int, percent int) int {
+		// add .99 because int() truncates and we actually want rounding
+		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
+		// ok, we had a corner case where this test is needed
+		if (numRequired > total) {numRequired = total}
+		lpCount := 0
+		eventCount := 0
+		for i := range data {
+			lpCount++
+			eventCount = eventCount + data[i]
+			if eventCount >= numRequired {
+				return lpCount
+			}
+		}
+		fmt.Printf("ERROR: something's amiss in this computation: %v, %v, %v, %v, %v\n", total, percent, numRequired, eventCount, len(data))
+		panic("aborting.")
+	}
+
+	// compute the local/remote events and cover statistics
+	computeLPEventsProcessed := func(lp lpData) lpEventSummary {
+		var es lpEventSummary
+		lpEventSendCount := make([]int,numOfLPs)
+		es.lpId = lp.lpId
+		es.local = 0
+		es.remote = 0
+		for _, event := range lp.events {
+			if lp.lpId != event.companionLP {
+				es.remote++
+				// we don't want to count self generated events in the sender set.
+				lpEventSendCount[event.companionLP]++
+			} else {
+				es.local++
+			}
+		}
+		sort.Sort(sort.Reverse(sort.IntSlice(lpEventSendCount)))
+		es.total = es.remote + es.local
+		// since we're tracking message transmissions, use only the remote event total
+		es.cover[0] = numOfLPsToCover(es.remote, lpEventSendCount, 75)  //  75% cutoff
+		es.cover[1] = numOfLPsToCover(es.remote, lpEventSendCount, 80)  //  80% cutoff
+		es.cover[2] = numOfLPsToCover(es.remote, lpEventSendCount, 90)  //  90% cutoff
+		es.cover[3] = numOfLPsToCover(es.remote, lpEventSendCount, 95)  //  95% cutoff
+		es.cover[4] = numOfLPsToCover(es.remote, lpEventSendCount, 100) // 100% cutoff
+		return es
+	}
+
+outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.csv")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
+	fmt.Fprintf(outFile,"# num of events ready for execution\n")
+
+	// setup/start the goroutines for simulation cycle analysis
+	in := make([]chan simCycleAnalysisResults, numThreads)
+	out := make([]chan simCycleAnalysisResults, numThreads)
+	for i := 0; i < numThreads; i++ {
+		in[i] = make(chan simCycleAnalysisResults)
+		out[i] = make(chan simCycleAnalysisResults)
+	}
+
+	// start the threads for simulation cycle analysis
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize
+		if i == numThreads - 1 {high = len(lps)}
+		go analyzeSimulationCycle(lps[low:high], in[i], out[i])
+	}
+
+	// initialize the first data to send into the simulation cycle goroutines
+	var nextCycle simCycleAnalysisResults
+	nextCycle.timeStamp = math.MaxFloat64
+	for _, lp := range lps {
+		if lp.events[0].receiveTime < nextCycle.timeStamp {
+			nextCycle.timeStamp = lp.events[0].receiveTime
+			nextCycle.definingLP = lp.lpId
+		}
+		lpIndex[lp.lpId] = 0 // reset these pointers
+	}
+
+	// process data to/from the simulation cycle analysis threads
+	simCycle := 0
+	maxEventsAvailable := 0
+	timesXEventsAvailable := make([]int, numOfEvents)
+	for ; ; {
+		for i := 0; i < numThreads; i++ {in[i] <- nextCycle}
+		nextCycle.timeStamp = math.MaxFloat64
+		nextCycle.eventsExhausted = true
+		nextCycle.numAvailable = 0
+		for i := 0; i < numThreads; i++ {
+			results := <- out[i]
+			if results.timeStamp < nextCycle.timeStamp {
+				nextCycle.timeStamp = results.timeStamp
+				nextCycle.definingLP = results.definingLP
+			}
+			if results.eventsExhausted == false {
+				nextCycle.eventsExhausted = false
+				nextCycle.numAvailable = nextCycle.numAvailable + results.numAvailable
+			}
+		}
+		if nextCycle.eventsExhausted == true {break}
+		fmt.Fprintf(outFile,"%v\n",nextCycle.numAvailable)
+		timesXEventsAvailable[nextCycle.numAvailable]++
+		if maxEventsAvailable < nextCycle.numAvailable {maxEventsAvailable = nextCycle.numAvailable}
+		simCycle++
+	}
+
+	// write out summary of events available
+	outFile, err = os.Create("analysisData/timesXeventsAvailable.csv")
+	if err != nil {panic(err)}
+	fmt.Fprintf(outFile,"# times X events are available for execution\n")
+	fmt.Fprintf(outFile,"# X, num of occurrences\n")
+	for i := 0; i < maxEventsAvailable; i++ {fmt.Fprintf(outFile,"%v,%v\n",i+1,timesXEventsAvailable[i+1])}
+	err = outFile.Close()
+	if err != nil {panic(err)}
+
+	fmt.Printf("%v: Finished.\n", printTime())
+	return
