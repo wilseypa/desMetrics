@@ -21,7 +21,7 @@ package main
 import "os"
 import "fmt"
 import "sort"
-//import "math"
+import "math"
 import "strconv"
 import "time"
 import "runtime"
@@ -224,7 +224,7 @@ func main() {
 					if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)}
 					
 					numOfEvents++
-					
+					// write the events out to a fie
 					fmt.Fprintf(outFile,"%v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)
 					
 					if token == R_BRACKET {break parsingLoop}
