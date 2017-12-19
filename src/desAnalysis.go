@@ -1,4 +1,6 @@
 
+// PHIL: fix these comments after conversion....
+
 // this program performs the analysis for the desMetrics project at UC
 // (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
 // events processed by a discrete event simulation engine and outputs cvs/data files containing various
@@ -130,6 +132,24 @@ func main() {
 		return n, err
 	}
 
+	// format of json file describing the model and location (csv file) of the event data
+	type ModelConfiguration struct {
+		simulatorName string `json:"simulator_name"`
+		modelName string `json:"model_name"`
+		captureDate string `json:"capture_date"`
+		commandLineArgs string `json:"command_line_arguments"`
+		eventData struct {
+			eventFile string `json:"file_name"`
+			fileFormat []string `json:"format"`
+		} `json:"event_data"`
+	}	
+
+// PHIL: you were here.
+
+	// decode the json file
+	modelJsonFile, err := os.Open(
+
+	
 	simulatorName := ""
 	modelName := ""
 	captureDate := ""
