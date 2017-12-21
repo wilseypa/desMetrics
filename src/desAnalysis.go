@@ -28,6 +28,8 @@ import "strconv"
 import "time"
 import "runtime"
 import "flag"
+import "log"
+import "encoding/json"
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -52,12 +54,80 @@ func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].recei
 
 func main() {
 
-	var commSwitchOff bool
-	var debug bool
-	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false, "turn off generation of the file eventsExchanged.csv")
-	flag.BoolVar(&debug, "debug", false, "turn on debugging.")
-	flag.Parse()
+	// --------------------------------------------------------------------------------
+	// process the command line
 
+	// for large event trace files, it is sometimes necessary to analyze only samples of the
+	// full event trace  data.  this argument permits the user to define an alternate event
+	// trace data file for analysis.
+	var altEventFileName string
+	flag.StringVar(&altEventFileName, "alternate-event-file", "",
+		"alternate file of events to analyze (used when analyzing only a sample of the full event file)")
+
+	// this file can be large, so we provide an options to turn it off.
+	var commSwitchOff bool
+	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false,
+		"turn off generation of the file eventsExchanged.csv")
+
+	// turns on a bunch of debug printing
+	var debug bool
+	flag.BoolVar(&debug, "debug", false,
+		"turn on debugging.")
+	
+	// the default help out from the flag library doesn't include a way to include argument
+	// definitions; these definitions permit us to define our own output from the -help flag.
+	var help bool
+	flag.BoolVar(&help, "help", false,
+		"print out help.")
+	flag.BoolVar(&help, "h", help,
+		"print out help.")
+
+	flag.Parse()
+	
+	printUsageAndExit := func() {
+		fmt.Print("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n")
+		flag.PrintDefaults()
+	}
+	if help { printUsageAndExit() }
+
+	if flag.NArg() != 1 {
+		fmt.Printf("Invalid number of arguments (%v); only one expected.\n\n",flag.NArg())
+		printUsageAndExit()
+	}
+
+	if debug {
+		fmt.Printf("Command Line: altEventFileName: %v, commSwitchOff: %v, debug: %v, Args: %v.\n",
+			altEventFileName, commSwitchOff, debug, flag.Arg(0))
+	}
+
+	// --------------------------------------------------------------------------------
+	// process the model json file
+
+	// format of json file describing the model and location (csv file) of the event data
+	type ModelConfiguration struct {
+		simulatorName string `json:"simulator_name"`
+		modelName string `json:"model_name"`
+		captureDate string `json:"capture_date"`
+		commandLineArgs string `json:"command_line_arguments"`
+		eventData struct {
+			eventFile string `json:"file_name"`
+			fileFormat []string `json:"format"`
+		} `json:"event_data"`
+	}	
+
+	var modelConfig ModelConfiguration
+	jsonFile, err := os.Open(flag.Arg(0))
+	defer jsonFile.Close()
+	if err != nil { panic(err) }
+	jsonParser := json.NewDecoder(jsonFile)
+	err = jsonParser.Decode(&modelConfig)
+	if err != nil {log.Fatal(err)}
+
+	if debug {fmt.Printf("Model Configuration file contents: %v\n", modelConfig)}
+
+	os.Exit(1)
+
+	// --------------------------------------------------------------------------------
 	// enable the use of all CPUs on the system
 	numThreads := runtime.NumCPU()
 	runtime.GOMAXPROCS(numThreads)
@@ -67,6 +137,9 @@ func main() {
 
 	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", printTime(), numThreads)
 
+	// --------------------------------------------------------------------------------
+	// now on to the heavy lifting (the actual analysis)
+	
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
 	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
 	// number of LPs, and the total number of events.  we will use these counts to build the principle
@@ -121,7 +194,7 @@ func main() {
 	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
 		rLPint := lpNameMap[rLP].toInt
 		lpIndex[rLPint]++
-		if lpIndex[rLPint] > cap(lps[rLPint].events) {panic("Something wrong, we should have computed the appropriate size on the first parse.\n")}
+		if lpIndex[rLPint] > cap(lps[rLPint].events) {log.Fatal("Something wrong, we should have computed the appropriate size on the first parse.\n")}
 		lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
 		lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
 		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
@@ -131,23 +204,6 @@ func main() {
 		n, err = fmt.Printf(format, a)
 		return n, err
 	}
-
-	// format of json file describing the model and location (csv file) of the event data
-	type ModelConfiguration struct {
-		simulatorName string `json:"simulator_name"`
-		modelName string `json:"model_name"`
-		captureDate string `json:"capture_date"`
-		commandLineArgs string `json:"command_line_arguments"`
-		eventData struct {
-			eventFile string `json:"file_name"`
-			fileFormat []string `json:"format"`
-		} `json:"event_data"`
-	}	
-
-// PHIL: you were here.
-
-	// decode the json file
-	modelJsonFile, err := os.Open(
 
 	
 	simulatorName := ""
@@ -167,7 +223,7 @@ func main() {
 		scanAssume:= func(expectedToken int) {
 			if expectedToken != token {
 				fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
-				panic("Aborting")
+				log.Fatal("Aborting")
 			}
 			token, tokenText = Scan()
 		}
@@ -244,7 +300,7 @@ func main() {
 					if sendTime > receiveTime {
 						fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
 							sendingLP, sendTime, receivingLP, receiveTime)
-						panic("Aborting")
+						log.Fatal("Aborting")
 					}
 					if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)}
 					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
@@ -254,7 +310,7 @@ func main() {
 			default:
 				// this should never happen
 				fmt.Printf("Mal formed json file at %v\n",fileLineNo)
-				panic("Aborting")
+				log.Fatal("Aborting")
 			}
 		}
 	}
