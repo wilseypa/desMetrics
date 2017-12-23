@@ -57,12 +57,16 @@ func main() {
 	// --------------------------------------------------------------------------------
 	// process the command line
 
-	// for large event trace files, it is sometimes necessary to analyze only samples of the
-	// full event trace  data.  this argument permits the user to define an alternate event
-	// trace data file for analysis.
-	var altEventFileName string
-	flag.StringVar(&altEventFileName, "alternate-event-file", "",
-		"alternate file of events to analyze (used when analyzing only a sample of the full event file)")
+	// i am removing this next argument for now; it is my belief that we should have a json profile for every
+	// sampled data set so we can trace it back to it's origins 
+
+
+	// for large event trace files, it is sometimes necessary to analyze only samples of the full event trace data.
+	// this argument permits the user to define an alternate event trace data file for analysis.
+
+//	var altEventFileName string
+//	flag.StringVar(&altEventFileName, "alternate-event-file", "",
+//		"alternate file of events to analyze (used when analyzing only a sample of the full event file)")
 
 	// this file can be large, so we provide an options to turn it off.
 	var commSwitchOff bool
@@ -74,8 +78,8 @@ func main() {
 	flag.BoolVar(&debug, "debug", false,
 		"turn on debugging.")
 	
-	// the default help out from the flag library doesn't include a way to include argument
-	// definitions; these definitions permit us to define our own output from the -help flag.
+	// the default help out from the flag library doesn't include a way to include argument definitions; these
+	// definitions permit us to define our own output from the -help flag.
 	var help bool
 	flag.BoolVar(&help, "help", false,
 		"print out help.")
@@ -96,71 +100,44 @@ func main() {
 	}
 
 	if debug {
-		fmt.Printf("Command Line: altEventFileName: %v, commSwitchOff: %v, debug: %v, Args: %v.\n",
-			altEventFileName, commSwitchOff, debug, flag.Arg(0))
+		fmt.Printf("Command Line: commSwitchOff: %v, debug: %v, Args: %v.\n",
+			commSwitchOff, debug, flag.Arg(0))
 	}
 
 	// --------------------------------------------------------------------------------
 	// process the model json file
 
+	// format of json file describing the model and location (csv file) of the event data
 	var desTraceData struct {
-		simulatorName string `json:"simulator_name"`
-		modelName string `json:"model_name"`
-		captureDate string `json:"capture_date"`
-		commandLineArgs string `json:"command_line_arguments"`
-		eventData struct {
-			csvFile string `json:"file_name"`
-			fileFormat []string `json:"format"`
+		SimulatorName string `json:"simulator_name"`
+		ModelName string `json:"model_name"`
+		CaptureDate string `json:"capture_date"`
+		CommandLineArgs string `json:"command_line_arguments"`
+		HowSampled string `json:"how_sampled"`
+		EventData struct {
+			CsvFile string `json:"file_name"`
+			FileFormat []string `json:"format"`
 		} `json:"event_data"`
-
-//		Events []struct {
-//			SendLP string  `json:"sLP"`
-//			SendTime float64  `json:"sTS"`
-//			ReceiveLP string  `json:"rLP"`
-//			ReceiveTime float64  `json:"rTS"`
-//		} `json:"events"`
 	}
 	
 	// get a handle to the input file and import/parse the json file
-	//	traceDataFile, err := os.Open(os.Args[1])
+//	traceDataFile, err := os.Open(os.Args[2])
 	traceDataFile, err := os.Open(flag.Arg(0))
 	defer traceDataFile.Close()
 	if err != nil { panic(err) }
-	fmt.Printf("Parsing input json file: %v\n",os.Args[1])
+	fmt.Printf("Parsing input json file: %v\n",flag.Arg(0))
 	jsonParser := json.NewDecoder(traceDataFile)
 	err = jsonParser.Decode(&desTraceData); 
 	if err != nil { panic(err) }
-	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Command line used for capture: %s\n    CSV File of Event Data: %s\n    Format of Event Data %v", 
-		desTraceData.simulatorName, 
-		desTraceData.modelName, 
-		desTraceData.captureDate, 
-		desTraceData.commandLineArgs,
-		desTraceData.eventData.csvFile,
-		desTraceData.eventData.fileFormat)
+	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Command line used for capture: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
+		desTraceData.SimulatorName, 
+		desTraceData.ModelName, 
+		desTraceData.CaptureDate, 
+		desTraceData.CommandLineArgs,
+		desTraceData.HowSampled,
+		desTraceData.EventData.CsvFile,
+		desTraceData.EventData.FileFormat)
 	}
-
-	// format of json file describing the model and location (csv file) of the event data
-//	type modelConfiguration struct {
-//		simulatorName string `json:"simulator_name"`
-//		modelName string `json:"model_name"`
-//		captureDate string `json:"capture_date"`
-//		commandLineArgs string `json:"command_line_arguments"`
-//		eventData struct {
-//			eventFile string `json:"file_name"`
-//			fileFormat []string `json:"format"`
-//		} `json:"event_data"`
-//	}	
-
-	//	var modelConfig ModelConfig
-//	modelConfig := &modelConfiguration{}
-//	jsonFile, err := os.Open(flag.Arg(0))
-//	defer jsonFile.Close()
-//	if err != nil { panic(err) }
-//	jsonParser := json.NewDecoder(jsonFile)
-//	err = jsonParser.Decode(modelConfig)
-//	if err != nil {log.Fatal(err)}
-
-//	if debug {fmt.Printf("Model Configuration file contents: %v\n", modelConfig)}
 
 	os.Exit(1)
 
