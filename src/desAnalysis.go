@@ -20,6 +20,7 @@
 
 package main
 
+import "io"
 import "os"
 import "fmt"
 import "sort"
@@ -29,7 +30,12 @@ import "time"
 import "runtime"
 import "flag"
 import "log"
+import "strings"
 import "encoding/json"
+import "compress/gzip"
+import "compress/bzip2"
+import "encoding/csv"
+
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -112,10 +118,10 @@ func main() {
 		SimulatorName string `json:"simulator_name"`
 		ModelName string `json:"model_name"`
 		CaptureDate string `json:"capture_date"`
-		CommandLineArgs string `json:"command_line_arguments"`
+		CaptureHistory [] string `json:"capture_command"`
 		HowSampled string `json:"how_sampled"`
 		EventData struct {
-			CsvFile string `json:"file_name"`
+			EventFile string `json:"file_name"`
 			FileFormat []string `json:"format"`
 		} `json:"event_data"`
 	}
@@ -129,17 +135,15 @@ func main() {
 	jsonParser := json.NewDecoder(traceDataFile)
 	err = jsonParser.Decode(&desTraceData); 
 	if err != nil { panic(err) }
-	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Command line used for capture: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
+	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Capture history: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
 		desTraceData.SimulatorName, 
 		desTraceData.ModelName, 
 		desTraceData.CaptureDate, 
-		desTraceData.CommandLineArgs,
+		desTraceData.CaptureHistory,
 		desTraceData.HowSampled,
-		desTraceData.EventData.CsvFile,
+		desTraceData.EventData.EventFile,
 		desTraceData.EventData.FileFormat)
 	}
-
-	os.Exit(1)
 
 	// --------------------------------------------------------------------------------
 	// enable the use of all CPUs on the system
@@ -150,6 +154,37 @@ func main() {
 	printTime := func () string {return time.Now().Format(time.RFC850)}
 
 	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", printTime(), numThreads)
+
+	// --------------------------------------------------------------------------------
+	// functions to connect to compressed (gz or bz2) and uncompressed event csv file 
+
+	openEventFile := func(fileName string) *csv.Reader {
+		eventFile, err := os.Open(fileName)
+		if err != nil { panic(err) }
+		var inFile *csv.Reader
+		if strings.HasSuffix(fileName, ".gz") || strings.HasSuffix(fileName, ".gzip") {
+			unpackRdr, err := gzip.NewReader(eventFile)
+			if err != nil { panic(err) }
+			inFile = csv.NewReader(unpackRdr)
+		} else { if strings.HasSuffix(fileName, "bz2") || strings.HasSuffix(fileName, "bzip2") {
+			unpackRdr := bzip2.NewReader(eventFile)
+			inFile = csv.NewReader(unpackRdr)
+			
+		} else {
+			inFile = csv.NewReader(eventFile)
+		}}
+		
+		return inFile
+	}
+
+	eventFile := openEventFile(desTraceData.EventData.EventFile)
+	readLoop: for {
+		eventRecord, err := eventFile.Read()
+		if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
+		fmt.Printf("Event Redord: %v\n",eventRecord)
+	}
+
+	os.Exit(1)
 
 	// --------------------------------------------------------------------------------
 	// now on to the heavy lifting (the actual analysis)
