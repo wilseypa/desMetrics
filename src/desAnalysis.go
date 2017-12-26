@@ -118,7 +118,7 @@ func main() {
 		SimulatorName string `json:"simulator_name"`
 		ModelName string `json:"model_name"`
 		CaptureDate string `json:"capture_date"`
-		CaptureHistory [] string `json:"capture_command"`
+		CaptureHistory [] string `json:"capture_history"`
 		HowSampled string `json:"how_sampled"`
 		EventData struct {
 			EventFile string `json:"file_name"`
