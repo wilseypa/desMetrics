@@ -142,7 +142,7 @@ func main() {
 	}
 
 	// so we need to map the csv fields from the event data file to the order we need for our internal data
-	// structures (sLP, rLP, sTS, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
+	// structures (sLP, sTS, rLP, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
 	// thus (for example), eventDataOrderTable[0] will hold the index where  the sLP field lies in
 	// desTraceData.EventData.FileFormat 
 
@@ -151,9 +151,9 @@ func main() {
 		switch entry {
 		case "sLP":
 			eventDataOrderTable[0] = i
-		case "rLP":
-			eventDataOrderTable[1] = i
 		case "sTS":
+			eventDataOrderTable[1] = i
+		case "rLP":
 			eventDataOrderTable[2] = i
 		case "rTS":
 			eventDataOrderTable[3] = i
@@ -205,38 +205,6 @@ func main() {
 		
 		return eventFile, inFile
 	}
-
-	eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
-	eventRecord, err := csvReader.Read()
-	if err != nil { panic(err) }
-	fmt.Printf("Event Record: %v\n",eventRecord)
-
-	err = eventFile.Close()
-	if err != nil { panic(err) }
-	
-	eventFile, csvReader = openEventFile(desTraceData.EventData.EventFile)
-	eventRecord, err = csvReader.Read()
-	if err == io.EOF {panic (err)}
-	if err != nil { panic(err) }
-	// remove leading/trailing quote characters (double quotes are stripped automatically by the csvReader.Read() fn
-	for i, _ := range eventRecord {
-		eventRecord[i] = strings.Trim(eventRecord[i], "'")
-		eventRecord[i] = strings.Trim(eventRecord[i], "`")
-	}
-
-	fmt.Printf("Event Record: %v\n",eventRecord)
-
-
-//	readLoop: for {
-//		eventRecord, err := csvReader.Read()
-//		if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
-//		fmt.Printf("Event Record: %v\n",eventRecord)
-//	}
-
-	err = eventFile.Close()
-	if err != nil { panic(err) }
-	
-	os.Exit(1)
 
 	// --------------------------------------------------------------------------------
 	// now on to the heavy lifting (the actual analysis)
@@ -301,131 +269,52 @@ func main() {
 		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
 	}
 
-	printInfo := func (format string, a ...interface{}) (n int, err error) {
-		n, err = fmt.Printf(format, a)
-		return n, err
-	}
+	// process the desTraceData file; processEvent is redefined on the second pass to do the heavy lifting
 
-	
-	simulatorName := ""
-	modelName := ""
-	captureDate := ""
-	commandLineArgs := ""
-	// this is the parser we will use
-	parseJsonFile := func(inputFile *os.File) {
+	processEventDataFile := func() {
 
-		// initialize the scanner
-		ScanInit(inputFile)
-		
-		var token int
-		var tokenText []byte
-		
-		// helper function
-		scanAssume:= func(expectedToken int) {
-			if expectedToken != token {
-				fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
+		eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
+
+		readLoop: for {
+
+			eventRecord, err := csvReader.Read()
+			if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
+			
+			// remove leading/trailing quote characters (double quotes are stripped automatically by the csvReader.Read() fn
+			for i, _ := range eventRecord {
+				eventRecord[i] = strings.Trim(eventRecord[i], "'")
+				eventRecord[i] = strings.Trim(eventRecord[i], "`")
+			}
+
+			// convert timestamps from strings to floats
+			sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrderTable[1]],64)
+			receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrderTable[3]],64)
+			
+			// we should require that the send time be strictly less than the receive time, but the ross
+			// (airport model) data actually has data with the send/receive times (and other sequential
+			// simulators are likely to have this as well), so we will weaken this constraint.
+			if sendTime > receiveTime {
+				log.Fatal("Event has send time greater than receive time: %v %v %v %v\n", 
+					eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
 				log.Fatal("Aborting")
 			}
-			token, tokenText = Scan()
-		}
-		
-		// parse the json data file, this is hugely fragile but functional
-		token, tokenText = Scan()
-		scanAssume(L_CURLY)
-		parsingLoop: for ; token != EOF; {
-			switch token {
-			case SIMULATOR_NAME:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Simulator Name: %v\n", string(tokenText))
-				simulatorName = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case MODEL_NAME:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Model Name: %v\n", string(tokenText))
-				modelName = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case CAPTURE_DATE:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Capture date: %v\n", string(tokenText))
-				captureDate = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case COMMAND_LINE_ARGS :
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Command line arguments: %v\n", string(tokenText))
-				commandLineArgs = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case EVENTS:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				scanAssume(L_BRACKET)
-				for ; token != EOF ; {
-					var sendingLP, receivingLP string
-					var sendTime, receiveTime float64
-					var err error
 
-					scanAssume(L_BRACKET) // sets token, tokenText of next token
-					sendingLP = string(tokenText)
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
-						tokenText = append(tokenText[:0], tokenText[1:]...)
-						tokenText = tokenText[:len(tokenText)-1]
-					}
-					sendTime, err = strconv.ParseFloat(string(tokenText),64)
-					if err != nil {panic(err)}
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					receivingLP = string(tokenText)
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
-						tokenText = append(tokenText[:0], tokenText[1:]...)
-						tokenText = tokenText[:len(tokenText)-1]
-					}
-					receiveTime, err = strconv.ParseFloat(string(tokenText),64)
-					if err != nil {panic(err)}
-					token, tokenText = Scan()
-					scanAssume(R_BRACKET)
-					// we should require that the send time be strictly less than the
-					// receive time, but the ross (airport model) data actually has data
-					// with the send/receive times (and other sequential simulators are
-					// likely to have this as well), so we will weaken this constraint.
-					if sendTime > receiveTime {
-						fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
-							sendingLP, sendTime, receivingLP, receiveTime)
-						log.Fatal("Aborting")
-					}
-					if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)}
-					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
-					if token == R_BRACKET {break parsingLoop}
-					scanAssume(COMMA)
-				}
-			default:
-				// this should never happen
-				fmt.Printf("Mal formed json file at %v\n",fileLineNo)
-				log.Fatal("Aborting")
-			}
+			if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)}
+
+			processEvent(eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
 		}
+			err = eventFile.Close()
+			if err != nil { panic(err) }
 	}
 
-	// this time we will collect information on the number of events and the number of LPs
-	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", 
-		printTime(), flag.Args())
-	inputFile, err := os.Open(flag.Arg(0))
-	if err != nil { panic(err) }
-	parseJsonFile(inputFile)
-	err = inputFile.Close()
+	// --------------------------------------------------------------------------------
+	// ok, now let's process the event data and populate our internal data structures
 
-	// reset this function so we don't print the model information in the second parse
-	printInfo = func (format string, a ...interface{}) (n int, err error) {return 0, nil}
+
+	// on the first pass, we will collect information on the number of events and the number of LPs
+
+	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", printTime(), desTraceData.EventData.EventFile)
+	processEventDataFile()
 
 	// lps is an array of the LPs; each LP entry will hold the events it received
 	lps = make([]lpData, len(lpNameMap))
@@ -439,13 +328,11 @@ func main() {
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
-	// this time we will save the events
+	// on the second pass,  we will save the events
+
 	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
 	processEvent = addEvent
-	inputFile, err = os.Open(flag.Arg(0))
-	if err != nil { panic(err) }
-	parseJsonFile(inputFile)
-	err = inputFile.Close()
+	processEventDataFile()
 
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
@@ -472,18 +359,23 @@ func main() {
 	err =  os.MkdirAll ("analysisData", 0777)
 	if err != nil {panic(err)}
 
+// --------------------------------------------------------------------------------
+// PHIL: add the total LPs and total events to the json file for writing to the analsysData directory....
+
 	outFile, err := os.Create("analysisData/modelSummary.json")
-	if err != nil {panic(err)}
-
-        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
-        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
-        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
-        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
-        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
-        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
-
+//	if err != nil {panic(err)}
+//
+//        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
+//        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
+//        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
+//        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
+//        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
+//        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
+//
 	err = outFile.Close()
 	if err != nil {panic(err)}
+// --------------------------------------------------------------------------------
+
 
 	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 
