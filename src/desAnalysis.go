@@ -180,7 +180,7 @@ func main() {
 	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", printTime(), numThreads)
 
 	// --------------------------------------------------------------------------------
-	// functions to connect to compressed (gz or bz2) and uncompressed event csv file 
+	// function to connect to compressed (gz or bz2) and uncompressed eventData csv files
 
 	openEventFile := func(fileName string) (*os.File, *csv.Reader) {
 		eventFile, err := os.Open(fileName)
@@ -200,6 +200,8 @@ func main() {
 		
 		// tell the csv reader to skip lines beginning with a '#' character
 		inFile.Comment = '#'
+		// force a count check on the number of entries per row with each read
+		inFile.FieldsPerRecord = len(desTraceData.EventData.FileFormat)
 		
 		return eventFile, inFile
 	}
