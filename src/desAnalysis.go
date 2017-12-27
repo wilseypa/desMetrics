@@ -115,11 +115,13 @@ func main() {
 		ModelName string `json:"model_name"`
 		OriginalCaptureDate string `json:"original_capture_date"`
 		CaptureHistory [] string `json:"capture_history"`
-		HowSampled string `json:"how_sampled"`
+		TotalLPs int `json:"total_lps"`
 		EventData struct {
 			EventFile string `json:"file_name"`
 			FileFormat []string `json:"format"`
+			NumEvents int `json:"total_events"`
 		} `json:"event_data"`
+		DateAnalyzed string `json:"date_analyzed"`
 	}
 	
 	// get a handle to the input file and import/parse the json file
@@ -128,18 +130,21 @@ func main() {
 	defer traceDataFile.Close()
 	if err != nil { panic(err) }
 	fmt.Printf("Processing input json file: %v\n",flag.Arg(0))
-	jsonParser := json.NewDecoder(traceDataFile)
-	err = jsonParser.Decode(&desTraceData); 
+	jsonDecoder := json.NewDecoder(traceDataFile)
+	err = jsonDecoder.Decode(&desTraceData); 
 	if err != nil { panic(err) }
-	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Original Capture Date: %s\n    Capture history: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
+	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Original Capture Date: %s\n    Capture history: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
 		desTraceData.SimulatorName, 
 		desTraceData.ModelName, 
 		desTraceData.OriginalCaptureDate, 
 		desTraceData.CaptureHistory,
-		desTraceData.HowSampled,
 		desTraceData.EventData.EventFile,
 		desTraceData.EventData.FileFormat)
 	}
+
+	desTraceData.TotalLPs = -1
+	desTraceData.EventData.NumEvents = -1
+	desTraceData.DateAnalyzed = ""
 
 	// so we need to map the csv fields from the event data file to the order we need for our internal data
 	// structures (sLP, sTS, rLP, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
@@ -175,9 +180,9 @@ func main() {
 	runtime.GOMAXPROCS(numThreads)
 
 	// function to print time as the program reports progress to stdout
-	printTime := func () string {return time.Now().Format(time.RFC850)}
+	getTime := func () string {return time.Now().Format(time.RFC850)}
 
-	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", printTime(), numThreads)
+	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", getTime(), numThreads)
 
 	// --------------------------------------------------------------------------------
 	// function to connect to compressed (gz or bz2) and uncompressed eventData csv files
@@ -313,7 +318,7 @@ func main() {
 
 	// on the first pass, we will collect information on the number of events and the number of LPs
 
-	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", printTime(), desTraceData.EventData.EventFile)
+	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", getTime(), desTraceData.EventData.EventFile)
 	processEventDataFile()
 
 	// lps is an array of the LPs; each LP entry will hold the events it received
@@ -330,7 +335,7 @@ func main() {
 
 	// on the second pass,  we will save the events
 
-	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
+	fmt.Printf("%v: Processing %v to capture events.\n", getTime(), flag.Arg(0))
 	processEvent = addEvent
 	processEventDataFile()
 
@@ -340,7 +345,7 @@ func main() {
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
-	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
+	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", getTime())
 	maxLPEventArray := 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
@@ -350,7 +355,7 @@ func main() {
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
-	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", printTime())
+	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
 
 	// on to analysis....
@@ -360,24 +365,27 @@ func main() {
 	if err != nil {panic(err)}
 
 // --------------------------------------------------------------------------------
-// PHIL: add the total LPs and total events to the json file for writing to the analsysData directory....
+// create a json formatted config file in the output directory
 
 	outFile, err := os.Create("analysisData/modelSummary.json")
-//	if err != nil {panic(err)}
-//
-//        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
-//        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
-//        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
-//        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
-//        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
-//        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
-//
+	if err != nil {panic(err)}
+
+	desTraceData.TotalLPs = numOfLPs
+	desTraceData.EventData.NumEvents = numOfEvents
+	desTraceData.DateAnalyzed = getTime()
+
+	jsonEncoder := json.NewEncoder(outFile)
+	jsonEncoder.SetIndent("", "    ")
+	err = jsonEncoder.Encode(&desTraceData)
+
+//	os.Exit(0)
+
 	err = outFile.Close()
 	if err != nil {panic(err)}
 // --------------------------------------------------------------------------------
 
 
-	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
+	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", getTime())	
 
 	// in this next step, we are going to compute event received summaries.  in this case we are going to
 	// attack the problem by slicing the lps array and assigning each slice to a separate goroutine.  to
@@ -693,7 +701,7 @@ func main() {
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
 	// at that time.  the general algorithm is outlined in the indexTemplate.md file for this project.
 
-	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", printTime())	
+	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", getTime())	
 
 	// so we are going to do two parts of the simulation cycle analysis in each pass, namely: (i) count the
 	// numbber of events available for execution, and (ii) find the lowest timestamp for the next simulation
@@ -816,6 +824,6 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	fmt.Printf("%v: Finished.\n", printTime())
+	fmt.Printf("%v: Finished.\n", getTime())
 	return
 }	
