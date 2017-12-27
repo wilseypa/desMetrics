@@ -70,10 +70,6 @@ func main() {
 	// for large event trace files, it is sometimes necessary to analyze only samples of the full event trace data.
 	// this argument permits the user to define an alternate event trace data file for analysis.
 
-//	var altEventFileName string
-//	flag.StringVar(&altEventFileName, "alternate-event-file", "",
-//		"alternate file of events to analyze (used when analyzing only a sample of the full event file)")
-
 	// this file can be large, so we provide an options to turn it off.
 	var commSwitchOff bool
 	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false,
@@ -117,7 +113,7 @@ func main() {
 	var desTraceData struct {
 		SimulatorName string `json:"simulator_name"`
 		ModelName string `json:"model_name"`
-		CaptureDate string `json:"capture_date"`
+		OriginalCaptureDate string `json:"original_capture_date"`
 		CaptureHistory [] string `json:"capture_history"`
 		HowSampled string `json:"how_sampled"`
 		EventData struct {
@@ -131,18 +127,46 @@ func main() {
 	traceDataFile, err := os.Open(flag.Arg(0))
 	defer traceDataFile.Close()
 	if err != nil { panic(err) }
-	fmt.Printf("Parsing input json file: %v\n",flag.Arg(0))
+	fmt.Printf("Processing input json file: %v\n",flag.Arg(0))
 	jsonParser := json.NewDecoder(traceDataFile)
 	err = jsonParser.Decode(&desTraceData); 
 	if err != nil { panic(err) }
-	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Capture Date: %s\n    Capture history: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
+	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Original Capture Date: %s\n    Capture history: %s\n    How sampled: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
 		desTraceData.SimulatorName, 
 		desTraceData.ModelName, 
-		desTraceData.CaptureDate, 
+		desTraceData.OriginalCaptureDate, 
 		desTraceData.CaptureHistory,
 		desTraceData.HowSampled,
 		desTraceData.EventData.EventFile,
 		desTraceData.EventData.FileFormat)
+	}
+
+	// so we need to map the csv fields from the event data file to the order we need for our internal data
+	// structures (sLP, rLP, sTS, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
+	// thus (for example), eventDataOrderTable[0] will hold the index where  the sLP field lies in
+	// desTraceData.EventData.FileFormat 
+
+	eventDataOrderTable := [4]int{ -1, -1, -1, -1 }
+	for i, entry := range desTraceData.EventData.FileFormat {
+		switch entry {
+		case "sLP":
+			eventDataOrderTable[0] = i
+		case "rLP":
+			eventDataOrderTable[1] = i
+		case "sTS":
+			eventDataOrderTable[2] = i
+		case "rTS":
+			eventDataOrderTable[3] = i
+		default:
+			fmt.Printf("Ignoring unknown element %v from event_data->format field of the model json file.\n", entry)
+		}
+	}
+
+	if debug { fmt.Printf("FileFormat: %v; eventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable) }
+
+	// sanity check; when error generated turn on debugging and look at -1 field in eventDataOrderTable to discover mssing entry
+	for _, entry := range eventDataOrderTable {
+		if entry == -1 { log.Fatal("Missing critcal field in event_data->format of model json file; run with --debug to view relevant data.\n") }
 	}
 
 	// --------------------------------------------------------------------------------
@@ -158,7 +182,7 @@ func main() {
 	// --------------------------------------------------------------------------------
 	// functions to connect to compressed (gz or bz2) and uncompressed event csv file 
 
-	openEventFile := func(fileName string) *csv.Reader {
+	openEventFile := func(fileName string) (*os.File, *csv.Reader) {
 		eventFile, err := os.Open(fileName)
 		if err != nil { panic(err) }
 		var inFile *csv.Reader
@@ -174,16 +198,42 @@ func main() {
 			inFile = csv.NewReader(eventFile)
 		}}
 		
-		return inFile
+		// tell the csv reader to skip lines beginning with a '#' character
+		inFile.Comment = '#'
+		
+		return eventFile, inFile
 	}
 
-	eventFile := openEventFile(desTraceData.EventData.EventFile)
-	readLoop: for {
-		eventRecord, err := eventFile.Read()
-		if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
-		fmt.Printf("Event Redord: %v\n",eventRecord)
+	eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
+	eventRecord, err := csvReader.Read()
+	if err != nil { panic(err) }
+	fmt.Printf("Event Record: %v\n",eventRecord)
+
+	err = eventFile.Close()
+	if err != nil { panic(err) }
+	
+	eventFile, csvReader = openEventFile(desTraceData.EventData.EventFile)
+	eventRecord, err = csvReader.Read()
+	if err == io.EOF {panic (err)}
+	if err != nil { panic(err) }
+	// remove leading/trailing quote characters (double quotes are stripped automatically by the csvReader.Read() fn
+	for i, _ := range eventRecord {
+		eventRecord[i] = strings.Trim(eventRecord[i], "'")
+		eventRecord[i] = strings.Trim(eventRecord[i], "`")
 	}
 
+	fmt.Printf("Event Record: %v\n",eventRecord)
+
+
+//	readLoop: for {
+//		eventRecord, err := csvReader.Read()
+//		if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
+//		fmt.Printf("Event Record: %v\n",eventRecord)
+//	}
+
+	err = eventFile.Close()
+	if err != nil { panic(err) }
+	
 	os.Exit(1)
 
 	// --------------------------------------------------------------------------------
