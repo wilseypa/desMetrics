@@ -110,7 +110,7 @@ model_summary = json.load(json_data)
 
 model_name = model_summary["model_name"]
 total_lps = model_summary["total_lps"]
-total_events = model_summary["total_events"]
+total_events = model_summary["event_data"]["total_events"]
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
