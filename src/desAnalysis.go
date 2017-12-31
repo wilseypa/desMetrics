@@ -1,22 +1,20 @@
 
-// PHIL: fix these comments after conversion....
-
 // this program performs the analysis for the desMetrics project at UC
 // (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
-// events processed by a discrete event simulation engine and outputs cvs/data files containing various
-// reports on the characteristics of the events from that profile data.  this project is developed from a
-// parallel simulation (PDES) perspective and so much of the jargon and analysis is related to that field.  to
-// understand the documentation, familiarity with PDES terminology is essential.  the input json file and
-// overall project perspective is available from the project website.
+// simulation model for which the event trace was captured.  the events are stored in a separate (compressed
+// or uncompressed) csv file.  the name of this file is captured in the json file.  this project is developed
+// from a parallel simulation (PDES) perspective and so much of the jargon and analysis is related to that
+// field.  to understand the documentation, familiarity with PDES terminology is essential.  the input json
+// file and overall project perspective is available from the project website.
 
-// operationally, this program parses the input json file twice, the first pass captures the general
+// operationally, this program parses the event trace data file twice, the first pass captures the general
 // characteristics of the file such as number of LPs, total number of events and so on.  the second pass
 // inputs and stores the event data into internal data structures for processing.  this approach is followed
 // to maintain the memory footprint as these files tend to be quite large.  memory and time are issues so the
 // program is organized accordingly.  in particular, whenever possible, the analysis is partitioned and
-// performed in parallel threads.  the json parse is done sequentially (while it could be probably done in
-// parallel, it's run time does not currently merit the need).  the program is setup to use all cores on the
-// host processor so plan accordingly.
+// performed in parallel threads.  the program is setup to for a number of threads equal to the processor
+// cores.  these threads have minimal communication and the program can place a heavy load on the host
+// processor, so plan accordingly.
 
 package main
 
@@ -94,7 +92,10 @@ func main() {
 		fmt.Print("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n")
 		flag.PrintDefaults()
 	}
-	if help { printUsageAndExit() }
+	if help {
+		printUsageAndExit()
+		os.Exit(0)
+	}
 
 	if flag.NArg() != 1 {
 		fmt.Printf("Invalid number of arguments (%v); only one expected.\n\n",flag.NArg())
