@@ -262,6 +262,7 @@ func main() {
 			item.sentEventRecords.lastTimeInFile = -1
 			item.sentEventRecords.total = 0
 
+
 			item.receivedEventRecords.firstSendTime = -1.0
 			item.receivedEventRecords.firstTimeInFile = -1
 			item.receivedEventRecords.lastSendTime = -1.0
@@ -282,6 +283,8 @@ func main() {
 		if lp.sentEventRecords.firstSendTime = -1 {
 			lp.sentEventRecords.fristSendTime = sTS
 			lp.sentEventRecords.firstTimeInFile = numOfEvents
+			lastFirstSendTime = sTS
+			lastFirstSendRecord = numOfEvents
 		}
 		lp.sentEventRecords.lastSendTime = sTS
 		lp.sentEventRecords.lastTimeInFile = numOfEvents
@@ -290,6 +293,8 @@ func main() {
 		if lp.receivedEventRecords.firstSendTime = -1 {
 			lp.receivedEventRecords.fristSendTime = rTS
 			lp.receivedEventRecords.firstTimeInFile = numOfEvents
+			lastFirstReceiveTime = sTS
+			lastFirstReceiveRecord = numOfEvents
 		}
 		lp.receivedEventRecords.lastSendTime = rTS
 		lp.receivedEventRecords.lastTimeInFile = numOfEvents
