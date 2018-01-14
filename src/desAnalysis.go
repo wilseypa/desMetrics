@@ -1,23 +1,24 @@
 
 // this program performs the analysis for the desMetrics project at UC
 // (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
-// events processed by a discrete event simulation engine and outputs cvs/data files containing various
-// reports on the characteristics of the events from that profile data.  this project is developed from a
-// parallel simulation (PDES) perspective and so much of the jargon and analysis is related to that field.  to
-// understand the documentation, familiarity with PDES terminology is essential.  the input json file and
-// overall project perspective is available from the project website.
+// simulation model for which the event trace was captured.  the events are stored in a separate (compressed
+// or uncompressed) csv file.  the name of this file is captured in the json file.  this project is developed
+// from a parallel simulation (PDES) perspective and so much of the jargon and analysis is related to that
+// field.  to understand the documentation, familiarity with PDES terminology is essential.  the input json
+// file and overall project perspective is available from the project website.
 
-// operationally, this program parses the input json file twice, the first pass captures the general
+// operationally, this program parses the event trace data file twice, the first pass captures the general
 // characteristics of the file such as number of LPs, total number of events and so on.  the second pass
 // inputs and stores the event data into internal data structures for processing.  this approach is followed
 // to maintain the memory footprint as these files tend to be quite large.  memory and time are issues so the
 // program is organized accordingly.  in particular, whenever possible, the analysis is partitioned and
-// performed in parallel threads.  the json parse is done sequentially (while it could be probably done in
-// parallel, it's run time does not currently merit the need).  the program is setup to use all cores on the
-// host processor so plan accordingly.
+// performed in parallel threads.  the program is setup to for a number of threads equal to the processor
+// cores.  these threads have minimal communication and the program can place a heavy load on the host
+// processor, so plan accordingly.
 
 package main
 
+import "io"
 import "os"
 import "fmt"
 import "sort"
@@ -26,6 +27,13 @@ import "strconv"
 import "time"
 import "runtime"
 import "flag"
+import "log"
+import "strings"
+import "encoding/json"
+import "compress/gzip"
+import "compress/bzip2"
+import "encoding/csv"
+
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -50,21 +58,163 @@ func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].recei
 
 func main() {
 
-	var commSwitchOff bool
-	var debug bool
-	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false, "turn off generation of the file eventsExchanged.csv")
-	flag.BoolVar(&debug, "debug", false, "turn on debugging.")
-	flag.Parse()
+	// --------------------------------------------------------------------------------
+	// process the command line
 
+	// i am removing this next argument for now; it is my belief that we should have a json profile for every
+	// sampled data set so we can trace it back to it's origins 
+
+
+	// for large event trace files, it is sometimes necessary to analyze only samples of the full event trace data.
+	// this argument permits the user to define an alternate event trace data file for analysis.
+
+	// this file can be large, so we provide an options to turn it off.
+	var commSwitchOff bool
+	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false,
+		"turn off generation of the file eventsExchanged.csv")
+
+	// turns on a bunch of debug printing
+	var debug bool
+	flag.BoolVar(&debug, "debug", false,
+		"turn on debugging.")
+	
+	// the default help out from the flag library doesn't include a way to include argument definitions; these
+	// definitions permit us to define our own output from the -help flag.
+	var help bool
+	flag.BoolVar(&help, "help", false,
+		"print out help.")
+	flag.BoolVar(&help, "h", help,
+		"print out help.")
+
+	flag.Parse()
+	
+	printUsageAndExit := func() {
+		fmt.Print("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n")
+		flag.PrintDefaults()
+	}
+	if help {
+		printUsageAndExit()
+		os.Exit(0)
+	}
+
+	if flag.NArg() != 1 {
+		fmt.Printf("Invalid number of arguments (%v); only one expected.\n\n",flag.NArg())
+		printUsageAndExit()
+	}
+
+	if debug {
+		fmt.Printf("Command Line: commSwitchOff: %v, debug: %v, Args: %v.\n",
+			commSwitchOff, debug, flag.Arg(0))
+	}
+
+	// --------------------------------------------------------------------------------
+	// process the model json file
+
+	// format of json file describing the model and location (csv file) of the event data
+	var desTraceData struct {
+		SimulatorName string `json:"simulator_name"`
+		ModelName string `json:"model_name"`
+		OriginalCaptureDate string `json:"original_capture_date"`
+		CaptureHistory [] string `json:"capture_history"`
+		TotalLPs int `json:"total_lps"`
+		EventData struct {
+			EventFile string `json:"file_name"`
+			FileFormat []string `json:"format"`
+			NumEvents int `json:"total_events"`
+		} `json:"event_data"`
+		DateAnalyzed string `json:"date_analyzed"`
+	}
+	
+	// get a handle to the input file and import/parse the json file
+//	traceDataFile, err := os.Open(os.Args[2])
+	traceDataFile, err := os.Open(flag.Arg(0))
+	defer traceDataFile.Close()
+	if err != nil { panic(err) }
+	fmt.Printf("Processing input json file: %v\n",flag.Arg(0))
+	jsonDecoder := json.NewDecoder(traceDataFile)
+	err = jsonDecoder.Decode(&desTraceData); 
+	if err != nil { panic(err) }
+	if debug { fmt.Printf("Json file parsed successfully.  Summary info:\n    Simulator Name: %s\n    Model Name: %s\n    Original Capture Date: %s\n    Capture history: %s\n    CSV File of Event Data: %s\n    Format of Event Data: %v\n", 
+		desTraceData.SimulatorName, 
+		desTraceData.ModelName, 
+		desTraceData.OriginalCaptureDate, 
+		desTraceData.CaptureHistory,
+		desTraceData.EventData.EventFile,
+		desTraceData.EventData.FileFormat)
+	}
+
+	desTraceData.TotalLPs = -1
+	desTraceData.EventData.NumEvents = -1
+	desTraceData.DateAnalyzed = ""
+
+	// so we need to map the csv fields from the event data file to the order we need for our internal data
+	// structures (sLP, sTS, rLP, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
+	// thus (for example), eventDataOrderTable[0] will hold the index where  the sLP field lies in
+	// desTraceData.EventData.FileFormat 
+
+	eventDataOrderTable := [4]int{ -1, -1, -1, -1 }
+	for i, entry := range desTraceData.EventData.FileFormat {
+		switch entry {
+		case "sLP":
+			eventDataOrderTable[0] = i
+		case "sTS":
+			eventDataOrderTable[1] = i
+		case "rLP":
+			eventDataOrderTable[2] = i
+		case "rTS":
+			eventDataOrderTable[3] = i
+		default:
+			fmt.Printf("Ignoring unknown element %v from event_data->format field of the model json file.\n", entry)
+		}
+	}
+
+	if debug { fmt.Printf("FileFormat: %v; eventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable) }
+
+	// sanity check; when error generated turn on debugging and look at -1 field in eventDataOrderTable to discover mssing entry
+	for _, entry := range eventDataOrderTable {
+		if entry == -1 { log.Fatal("Missing critcal field in event_data->format of model json file; run with --debug to view relevant data.\n") }
+	}
+
+	// --------------------------------------------------------------------------------
 	// enable the use of all CPUs on the system
 	numThreads := runtime.NumCPU()
 	runtime.GOMAXPROCS(numThreads)
 
 	// function to print time as the program reports progress to stdout
-	printTime := func () string {return time.Now().Format(time.RFC850)}
+	getTime := func () string {return time.Now().Format(time.RFC850)}
 
-	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", printTime(), numThreads)
+	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", getTime(), numThreads)
 
+	// --------------------------------------------------------------------------------
+	// function to connect to compressed (gz or bz2) and uncompressed eventData csv files
+
+	openEventFile := func(fileName string) (*os.File, *csv.Reader) {
+		eventFile, err := os.Open(fileName)
+		if err != nil { panic(err) }
+		var inFile *csv.Reader
+		if strings.HasSuffix(fileName, ".gz") || strings.HasSuffix(fileName, ".gzip") {
+			unpackRdr, err := gzip.NewReader(eventFile)
+			if err != nil { panic(err) }
+			inFile = csv.NewReader(unpackRdr)
+		} else { if strings.HasSuffix(fileName, "bz2") || strings.HasSuffix(fileName, "bzip2") {
+			unpackRdr := bzip2.NewReader(eventFile)
+			inFile = csv.NewReader(unpackRdr)
+			
+		} else {
+			inFile = csv.NewReader(eventFile)
+		}}
+		
+		// tell the csv reader to skip lines beginning with a '#' character
+		inFile.Comment = '#'
+		// force a count check on the number of entries per row with each read
+		inFile.FieldsPerRecord = len(desTraceData.EventData.FileFormat)
+		
+		return eventFile, inFile
+	}
+
+	// --------------------------------------------------------------------------------
+	// now on to the heavy lifting (the actual analysis)
+	
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
 	// input JSON file twice.  the first time we will build a map->int array for the LPs, count the total
 	// number of LPs, and the total number of events.  we will use these counts to build the principle
@@ -119,136 +269,58 @@ func main() {
 	addEvent := func(sLP string, sTS float64, rLP string, rTS float64) {
 		rLPint := lpNameMap[rLP].toInt
 		lpIndex[rLPint]++
-		if lpIndex[rLPint] > cap(lps[rLPint].events) {panic("Something wrong, we should have computed the appropriate size on the first parse.\n")}
+		if lpIndex[rLPint] > cap(lps[rLPint].events) {log.Fatal("Something wrong, we should have computed the appropriate size on the first parse.\n")}
 		lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
 		lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
 		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
 	}
 
-	printInfo := func (format string, a ...interface{}) (n int, err error) {
-		n, err = fmt.Printf(format, a)
-		return n, err
+	// process the desTraceData file; processEvent is redefined on the second pass to do the heavy lifting
+
+	processEventDataFile := func() {
+
+		eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
+
+		readLoop: for {
+
+			eventRecord, err := csvReader.Read()
+			if err != nil { if err == io.EOF {break readLoop} else { panic(err) }}
+			
+			// remove leading/trailing quote characters (double quotes are stripped automatically by the csvReader.Read() fn
+			for i, _ := range eventRecord {
+				eventRecord[i] = strings.Trim(eventRecord[i], "'")
+				eventRecord[i] = strings.Trim(eventRecord[i], "`")
+			}
+
+			// convert timestamps from strings to floats
+			sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrderTable[1]],64)
+			receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrderTable[3]],64)
+			
+			// we should require that the send time be strictly less than the receive time, but the ross
+			// (airport model) data actually has data with the send/receive times (and other sequential
+			// simulators are likely to have this as well), so we will weaken this constraint.
+			if sendTime > receiveTime {
+				log.Fatal("Event has send time greater than receive time: %v %v %v %v\n", 
+					eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
+				log.Fatal("Aborting")
+			}
+
+			if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)}
+
+			processEvent(eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
+		}
+			err = eventFile.Close()
+			if err != nil { panic(err) }
 	}
 
-	simulatorName := ""
-	modelName := ""
-	captureDate := ""
-	commandLineArgs := ""
-	// this is the parser we will use
-	parseJsonFile := func(inputFile *os.File) {
+	// --------------------------------------------------------------------------------
+	// ok, now let's process the event data and populate our internal data structures
 
-		// initialize the scanner
-		ScanInit(inputFile)
-		
-		var token int
-		var tokenText []byte
-		
-		// helper function
-		scanAssume:= func(expectedToken int) {
-			if expectedToken != token {
-				fmt.Printf("Mal formed json file at line: %v\n", fileLineNo)
-				panic("Aborting")
-			}
-			token, tokenText = Scan()
-		}
-		
-		// parse the json data file, this is hugely fragile but functional
-		token, tokenText = Scan()
-		scanAssume(L_CURLY)
-		parsingLoop: for ; token != EOF; {
-			switch token {
-			case SIMULATOR_NAME:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Simulator Name: %v\n", string(tokenText))
-				simulatorName = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case MODEL_NAME:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Model Name: %v\n", string(tokenText))
-				modelName = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case CAPTURE_DATE:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Capture date: %v\n", string(tokenText))
-				captureDate = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case COMMAND_LINE_ARGS :
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				printInfo("    Command line arguments: %v\n", string(tokenText))
-				commandLineArgs = string(tokenText)
-				token, tokenText = Scan()
-				scanAssume(COMMA)
-			case EVENTS:
-				token, tokenText = Scan()
-				scanAssume(COLON)
-				scanAssume(L_BRACKET)
-				for ; token != EOF ; {
-					var sendingLP, receivingLP string
-					var sendTime, receiveTime float64
-					var err error
 
-					scanAssume(L_BRACKET) // sets token, tokenText of next token
-					sendingLP = string(tokenText)
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
-						tokenText = append(tokenText[:0], tokenText[1:]...)
-						tokenText = tokenText[:len(tokenText)-1]
-					}
-					sendTime, err = strconv.ParseFloat(string(tokenText),64)
-					if err != nil {panic(err)}
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					receivingLP = string(tokenText)
-					token, tokenText = Scan()
-					scanAssume(COMMA)
-					if tokenText[0] == 34 { // quick and dirty removal of surrounding "" if they exist
-						tokenText = append(tokenText[:0], tokenText[1:]...)
-						tokenText = tokenText[:len(tokenText)-1]
-					}
-					receiveTime, err = strconv.ParseFloat(string(tokenText),64)
-					if err != nil {panic(err)}
-					token, tokenText = Scan()
-					scanAssume(R_BRACKET)
-					// we should require that the send time be strictly less than the
-					// receive time, but the ross (airport model) data actually has data
-					// with the send/receive times (and other sequential simulators are
-					// likely to have this as well), so we will weaken this constraint.
-					if sendTime > receiveTime {
-						fmt.Printf("Event has send time greater than receive time: %v %v %v %v\n", 
-							sendingLP, sendTime, receivingLP, receiveTime)
-						panic("Aborting")
-					}
-					if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)}
-					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
-					if token == R_BRACKET {break parsingLoop}
-					scanAssume(COMMA)
-				}
-			default:
-				// this should never happen
-				fmt.Printf("Mal formed json file at %v\n",fileLineNo)
-				panic("Aborting")
-			}
-		}
-	}
+	// on the first pass, we will collect information on the number of events and the number of LPs
 
-	// this time we will collect information on the number of events and the number of LPs
-	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", 
-		printTime(), flag.Args())
-	inputFile, err := os.Open(flag.Arg(0))
-	if err != nil { panic(err) }
-	parseJsonFile(inputFile)
-	err = inputFile.Close()
-
-	// reset this function so we don't print the model information in the second parse
-	printInfo = func (format string, a ...interface{}) (n int, err error) {return 0, nil}
+	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", getTime(), desTraceData.EventData.EventFile)
+	processEventDataFile()
 
 	// lps is an array of the LPs; each LP entry will hold the events it received
 	lps = make([]lpData, len(lpNameMap))
@@ -262,13 +334,11 @@ func main() {
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
-	// this time we will save the events
-	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
+	// on the second pass,  we will save the events
+
+	fmt.Printf("%v: Processing %v to capture events.\n", getTime(), flag.Arg(0))
 	processEvent = addEvent
-	inputFile, err = os.Open(flag.Arg(0))
-	if err != nil { panic(err) }
-	parseJsonFile(inputFile)
-	err = inputFile.Close()
+	processEventDataFile()
 
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
@@ -276,7 +346,7 @@ func main() {
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
-	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
+	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", getTime())
 	maxLPEventArray := 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
@@ -286,7 +356,7 @@ func main() {
 	}
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
-	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", printTime())
+	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
 
 	// on to analysis....
@@ -295,20 +365,28 @@ func main() {
 	err =  os.MkdirAll ("analysisData", 0777)
 	if err != nil {panic(err)}
 
+// --------------------------------------------------------------------------------
+// create a json formatted config file in the output directory
+
 	outFile, err := os.Create("analysisData/modelSummary.json")
 	if err != nil {panic(err)}
 
-        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
-        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
-        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
-        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
-        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
-        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
+	desTraceData.TotalLPs = numOfLPs
+	desTraceData.EventData.NumEvents = numOfEvents
+	desTraceData.DateAnalyzed = getTime()
+
+	jsonEncoder := json.NewEncoder(outFile)
+	jsonEncoder.SetIndent("", "    ")
+	err = jsonEncoder.Encode(&desTraceData)
+
+//	os.Exit(0)
 
 	err = outFile.Close()
 	if err != nil {panic(err)}
+// --------------------------------------------------------------------------------
 
-	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
+
+	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", getTime())	
 
 	// in this next step, we are going to compute event received summaries.  in this case we are going to
 	// attack the problem by slicing the lps array and assigning each slice to a separate goroutine.  to
@@ -624,7 +702,7 @@ func main() {
 	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
 	// at that time.  the general algorithm is outlined in the indexTemplate.md file for this project.
 
-	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", printTime())	
+	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", getTime())	
 
 	// so we are going to do two parts of the simulation cycle analysis in each pass, namely: (i) count the
 	// numbber of events available for execution, and (ii) find the lowest timestamp for the next simulation
@@ -747,6 +825,6 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
-	fmt.Printf("%v: Finished.\n", printTime())
+	fmt.Printf("%v: Finished.\n", getTime())
 	return
 }	
