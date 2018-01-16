@@ -60,6 +60,10 @@ func main() {
         flag.BoolVar(&trimUntil, "trim-until-all-lps-have-events", false,
                 "trim the first/last events until all have events")
 
+        var trimOnlyHead bool
+        flag.BoolVar(&trimOnlyHead, "trim-only-head-events", -1,
+                "trim only the head events from the file")
+
         // turns on a bunch of debug printing
         var debug bool
         flag.BoolVar(&debug, "debug", false,
