@@ -48,21 +48,33 @@ func main() {
 	// process the command line
 
 
+        var outDir string
+        flag.StringVar(&outDir, "out-dir", "sampleDir/"
+                "subdirectory where the samples will be written (default: sampleDir/)")
+
         var trimPercent float64
         flag.FloatVar(&trimPercent, "trim-by-percent", -1.0,
                 "trim the first/last events as a percentage of the total events")
 
         var trimNum int
         flag.IntVar(&trimNum, "trim-by-number-of-events", -1,
-                "trim the first/last events by number of events by number of LPs")
+                "trim the first/last (num-of-events * #LPs) events")
 
         var trimUntil bool
         flag.BoolVar(&trimUntil, "trim-until-all-lps-have-events", false,
-                "trim the first/last events until all have events")
+                "trim the first/last events until all LPs have events")
 
         var trimOnlyHead bool
         flag.BoolVar(&trimOnlyHead, "trim-only-head-events", -1,
                 "trim only the head events from the file")
+
+	var numSamples int
+	flag.IntVar(&numSamples, "num-of-samples", -1,
+		"prepare N samples (after trimming) of events at evenly distributed including head/tail")
+
+	var sampleSize int
+	flag.IntVar(&sampleSize, "sample-size", -1,
+		"number of events (sample-size * #LPs) to include in each sample")
 
         // turns on a bunch of debug printing
         var debug bool
