@@ -45,7 +45,7 @@ func main() {
 	// --------------------------------------------------------------------------------
 	// process the command line
 
-	fmt.Printf("Args: %v", os.Args)
+//	fmt.Printf("Args: %v", os.Args)
 
         var outDir string
         flag.StringVar(&outDir, "out-dir", "sampleDir/",
