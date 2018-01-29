@@ -456,10 +456,15 @@ func main() {
 			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
 //			err = sampleFile.Write(eventRecord)
 //			if err != nil { panic(err) }
-					separator := ""
-
+			separator := ""
+			for _, field := range(eventRecord) {
+				fmt.Fprintf(sampleFile, "%v%v", separator, field)
+				separator = ","
+			}
+			fmt.Fprintf(sampleFile, "\n")
 		}
-		err = newEventFile.Close()
+		//		err = newEventFile.Close()
+		err = sampleFile.Close()
 		if err != nil {panic(err)}
 	}
 	err = eventFile.Close()
