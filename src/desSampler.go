@@ -48,15 +48,15 @@ func main() {
 //	fmt.Printf("Args: %v", os.Args)
 
         var outDir string
-        flag.StringVar(&outDir, "out-dir", "sampleDir/",
+        flag.StringVar(&outDir, "out-dir", "sampleDir",
                 "subdirectory where the samples will be written (default: sampleDir/)")
 
         var trimPercent float64
-        flag.Float64Var(&trimPercent, "trim-by-percent", -1.0,
+        flag.Float64Var(&trimPercent, "trim-percent", -1.0,
                 "trim the first/last events as a percentage of the total events")
 
         var trimNum int
-        flag.IntVar(&trimNum, "trim-by-number-of-events", -1,
+        flag.IntVar(&trimNum, "trim-count", -1,
                 "trim the first/last (num-of-events * #LPs) events")
 
         var trimUntil bool
@@ -64,7 +64,7 @@ func main() {
                 "trim the first/last events until all LPs have events")
 
         var trimOnlyHead bool
-        flag.BoolVar(&trimOnlyHead, "trim-only-head-events", false,
+        flag.BoolVar(&trimOnlyHead, "trim-only-head", false,
                 "trim only the head events from the file")
 
 	var numSamples int
@@ -90,6 +90,9 @@ func main() {
 
         flag.Parse()
 
+	trimPercent = trimPercent / 100.0
+	err :=  os.MkdirAll (outDir, 0777)
+	if err != nil {panic(err)}
 
 	printUsageAndExit := func() {
 		fmt.Print("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n")
@@ -107,7 +110,7 @@ func main() {
 
 	if debug {
 		fmt.Printf("Command Line: outDir: %v, trimPercent: %v, trimNum: %v, trimUntil: %v, trimOnlyHead: %v, numSamples: %v, sampleSize: %v, flag.Arg(0): %v\n",
-			outDir, trimPercent, trimNum, trimUntil, trimOnlyHead, numSamples, sampleSize, flag.Arg(0))
+			outDir, trimPercent * 100.0, trimNum, trimUntil, trimOnlyHead, numSamples, sampleSize, flag.Arg(0))
 	}
 
 	// --------------------------------------------------------------------------------
@@ -386,8 +389,8 @@ func main() {
 
 	numEventsInSample := sampleSize * numOfLPs
 	if trimPercent != -1.0 {
-		numEventsToSkip := int(float64(numOfEvents) / trimPercent)
-		fmt.Printf("Skipping %v percent of the events at head/tail of file.\n", trimPercent)
+		numEventsToSkip := int(float64(numOfEvents) * trimPercent)
+		fmt.Printf("Skipping %v percent of the events at head/tail of file.\n", trimPercent * 100.0)
  		fmt.Printf("    Total events: %v, skipping first/last: %v.\n", numOfEvents, numEventsToSkip) 
 		if numSamples != -1 {
 			eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
@@ -400,7 +403,7 @@ func main() {
 					_, err := csvReader.Read()
 					if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
 				}
-				sampleFile, err := os.Create(fmt.Sprintf("%v/-eventSample-%v-%v.csv",
+				sampleFile, err := os.Create(fmt.Sprintf("%v/eventSample-%v-%v.csv",
 					outDir, fileLocation, fileLocation+numEventsInSample))
 				if err != nil { panic(err) }
 				stop := fileLocation + numEventsInSample
