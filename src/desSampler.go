@@ -412,6 +412,7 @@ func main() {
 	
 	// add this sampling to the capture history;
 	// can't figure out how to make work as a prepend operation....
+	desTraceData.TotalLPs = numOfLPs
 	desTraceData.CaptureHistory = append(desTraceData.CaptureHistory, invocation)
 	desTraceData.EventData.EventFile = "desMetrics.csv"
 
@@ -441,16 +442,22 @@ func main() {
 		}
 		if err != nil { panic(err) }
 		
+
 		// writing uncompressded as the bzip2 golang library doesn't yet support writing....bummer
-		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
-		sampleFile := csv.NewWriter(newEventFile)
-		defer sampleFile.Flush()
-		
+//		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
+//		if err != nil {panic(err)}
+//		sampleFile := csv.NewWriter(newEventFile)
+
+		sampleFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
+		if err != nil {panic(err)}
+
 		for ; fileLocation < sampleRanges[i].stop; fileLocation ++ {
 			eventRecord, err := csvReader.Read()
 			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
-			err = sampleFile.Write(eventRecord)
-			if err != nil { panic(err) }
+//			err = sampleFile.Write(eventRecord)
+//			if err != nil { panic(err) }
+					separator := ""
+
 		}
 		err = newEventFile.Close()
 		if err != nil {panic(err)}
