@@ -45,7 +45,7 @@ func main() {
 	// --------------------------------------------------------------------------------
 	// process the command line
 
-//	fmt.Printf("Args: %v", os.Args)
+	invocation := fmt.Sprintf("%v", os.Args)
 
         var outDir string
         flag.StringVar(&outDir, "out-dir", "sampleDir",
@@ -91,7 +91,7 @@ func main() {
         flag.Parse()
 
 	trimPercent = trimPercent / 100.0
-	err :=  os.MkdirAll (outDir, 0777)
+	err :=  os.MkdirAll(outDir, 0777)
 	if err != nil {panic(err)}
 
 	printUsageAndExit := func() {
@@ -205,7 +205,6 @@ func main() {
 		} else { if strings.HasSuffix(fileName, "bz2") || strings.HasSuffix(fileName, "bzip2") {
 			unpackRdr := bzip2.NewReader(eventFile)
 			inFile = csv.NewReader(unpackRdr)
-			
 		} else {
 			inFile = csv.NewReader(eventFile)
 		}}
@@ -387,38 +386,76 @@ func main() {
 	
 	// for now we're just going to trim by percent and get N samples.
 
+	var numEventsToSkip int
 	numEventsInSample := sampleSize * numOfLPs
 	if trimPercent != -1.0 {
-		numEventsToSkip := int(float64(numOfEvents) * trimPercent)
+		numEventsToSkip = int(float64(numOfEvents) * trimPercent)
 		fmt.Printf("Skipping %v percent of the events at head/tail of file.\n", trimPercent * 100.0)
  		fmt.Printf("    Total events: %v, skipping first/last: %v.\n", numOfEvents, numEventsToSkip) 
-		if numSamples != -1 {
-			eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
-			fileLocation := 0
-			samplingLoop: for i := 0; i < numSamples; i++ {
-				start := numEventsToSkip + ((i * numOfEvents/numSamples) -
-					int(float64(numEventsInSample/2.0)))
-				// skip to the starting point
-				for ; fileLocation < start; fileLocation++ {
-					_, err := csvReader.Read()
-					if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
-				}
-				sampleFile, err := os.Create(fmt.Sprintf("%v/eventSample-%v-%v.csv",
-					outDir, fileLocation, fileLocation+numEventsInSample))
-				if err != nil { panic(err) }
-				stop := fileLocation + numEventsInSample
-				for ; fileLocation < stop; fileLocation ++ {
-					eventRecord, err := csvReader.Read()
-					if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
-					fmt.Fprintf(sampleFile, "%v", eventRecord)
-				}
-				err = sampleFile.Close()
-				if err != nil {panic(err)}
-			}
-			err = eventFile.Close()
-			if err != nil {panic(err)}
-		}
 	}
+
+	type sampleRangeType struct {
+		start int
+		stop int
+	}
+	sampleRanges := make([]sampleRangeType, numSamples)
+
+	// should add tests....	if numSamples != -1 ....
+	// also check that the sample ranges are not overlapping....
+	for i := 0; i < numSamples; i++ {
+		sampleRanges[i].start = numEventsToSkip + ((i * numOfEvents/numSamples) - 
+				int(float64(numEventsInSample/2.0)))
+		sampleRanges[i].stop = sampleRanges[i].start + numEventsInSample
+	}
+
+	eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
+	
+	// add this sampling to the capture history;
+	// can't figure out how to make work as a prepend operation....
+	desTraceData.CaptureHistory = append(desTraceData.CaptureHistory, invocation)
+	desTraceData.EventData.EventFile = "desMetrics.csv"
+
+	// record where we are at in the original file
+	fileLocation := 0
+	samplingLoop: for i := 0; i < numSamples; i++ {
+
+		// ok, write out the json file description
+		sampleDir := fmt.Sprintf("%v/%v-%v", outDir, sampleRanges[i].start, sampleRanges[i].stop)
+		err =  os.MkdirAll(sampleDir, 0777)
+		if err != nil {panic(err)}
+		
+		outFile, err := os.Create(fmt.Sprintf("%v/modelSummary.json", sampleDir))
+		if err != nil {panic(err)}
+		
+		jsonEncoder := json.NewEncoder(outFile)
+		jsonEncoder.SetIndent("", "    ")
+		err = jsonEncoder.Encode(&desTraceData)
+		if err != nil {panic(err)}
+		err = outFile.Close()
+		if err != nil {panic(err)}
+		
+		// skip to the starting point
+		for ; fileLocation < sampleRanges[i].start; fileLocation++ {
+			_, err := csvReader.Read()
+			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
+		}
+		if err != nil { panic(err) }
+		
+		// writing uncompressded as the bzip2 golang library doesn't yet support writing....bummer
+		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
+		sampleFile := csv.NewWriter(newEventFile)
+		
+		for ; fileLocation < sampleRanges[i].stop; fileLocation ++ {
+			eventRecord, err := csvReader.Read()
+			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
+			err = sampleFile.Write(eventRecord)
+			if err != nil { panic(err) }
+		}
+		err = newEventFile.Close()
+		if err != nil {panic(err)}
+	}
+	err = eventFile.Close()
+	if err != nil {panic(err)}
 	
 	fmt.Printf("%v: Finished.\n", getTime())
 	return
