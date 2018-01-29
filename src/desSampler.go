@@ -444,6 +444,7 @@ func main() {
 		// writing uncompressded as the bzip2 golang library doesn't yet support writing....bummer
 		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
 		sampleFile := csv.NewWriter(newEventFile)
+		defer sampleFile.Flush()
 		
 		for ; fileLocation < sampleRanges[i].stop; fileLocation ++ {
 			eventRecord, err := csvReader.Read()
