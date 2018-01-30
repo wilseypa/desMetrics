@@ -415,6 +415,7 @@ func main() {
 	desTraceData.TotalLPs = numOfLPs
 	desTraceData.CaptureHistory = append(desTraceData.CaptureHistory, invocation)
 	desTraceData.EventData.EventFile = "desMetrics.csv"
+	desTraceData.EventData.NumEvents = numOfEvents
 
 	// record where we are at in the original file
 	fileLocation := 0
