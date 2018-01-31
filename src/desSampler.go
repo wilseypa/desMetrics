@@ -8,7 +8,6 @@ import "io"
 import "os"
 import "fmt"
 import "strconv"
-import "time"
 import "runtime"
 import "flag"
 import "log"
@@ -17,7 +16,6 @@ import "encoding/json"
 import "compress/gzip"
 import "compress/bzip2"
 import "encoding/csv"
-
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -47,8 +45,8 @@ func main() {
 
 	invocation := fmt.Sprintf("%v", os.Args)
 
-        var outDir string
-        flag.StringVar(&outDir, "out-dir", "sampleDir",
+        var sampleDir string
+        flag.StringVar(&sampleDir, "out-dir", "sampleDir",
                 "subdirectory where the samples will be written (default: sampleDir/)")
 
         var trimPercent float64
@@ -68,7 +66,7 @@ func main() {
                 "trim only the head events from the file")
 
 	var numSamples int
-	flag.IntVar(&numSamples, "num-of-samples", -1,
+	flag.IntVar(&numSamples, "num-samples", -1,
 		"prepare N samples (after trimming) of events at evenly distributed including head/tail")
 
 	var sampleSize int
@@ -91,7 +89,7 @@ func main() {
         flag.Parse()
 
 	trimPercent = trimPercent / 100.0
-	err :=  os.MkdirAll(outDir, 0777)
+	err :=  os.MkdirAll(sampleDir, 0777)
 	if err != nil {panic(err)}
 
 	printUsageAndExit := func() {
@@ -109,8 +107,8 @@ func main() {
 	}
 
 	if debug {
-		fmt.Printf("Command Line: outDir: %v, trimPercent: %v, trimNum: %v, trimUntil: %v, trimOnlyHead: %v, numSamples: %v, sampleSize: %v, flag.Arg(0): %v\n",
-			outDir, trimPercent * 100.0, trimNum, trimUntil, trimOnlyHead, numSamples, sampleSize, flag.Arg(0))
+		fmt.Printf("Command Line: sampleDir: %v, trimPercent: %v, trimNum: %v, trimUntil: %v, trimOnlyHead: %v, numSamples: %v, sampleSize: %v, flag.Arg(0): %v\n",
+			sampleDir, trimPercent * 100.0, trimNum, trimUntil, trimOnlyHead, numSamples, sampleSize, flag.Arg(0))
 	}
 
 	// --------------------------------------------------------------------------------
@@ -170,11 +168,11 @@ func main() {
 		case "rTS":
 			eventDataOrderTable[3] = i
 		default:
-			fmt.Printf("Ignoring unknown element %v from event_data->format field of the model json file.\n", entry)
+			log.Printf("Ignoring unknown element %v from event_data->format field of the model json file.\n", entry)
 		}
 	}
 
-	if debug { fmt.Printf("FileFormat: %v; eventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable) }
+	if debug { log.Printf("FileFormat: %v; eventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable) }
 
 	// sanity check; when error generated turn on debugging and look at -1 field in eventDataOrderTable to discover mssing entry
 	for _, entry := range eventDataOrderTable {
@@ -186,10 +184,7 @@ func main() {
 	numThreads := runtime.NumCPU()
 	runtime.GOMAXPROCS(numThreads)
 
-	// function to print time as the program reports progress to stdout
-	getTime := func () string {return time.Now().Format(time.RFC850)}
-
-	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", getTime(), numThreads)
+	log.Printf("Parallelism setup to support up to %v threads.\n", numThreads)
 
 	// --------------------------------------------------------------------------------
 	// function to connect to compressed (gz or bz2) and uncompressed eventData csv files
@@ -353,7 +348,7 @@ func main() {
 				log.Fatal("Aborting")
 			}
 			
-			if debug {fmt.Printf("Event recorded: %v, %v, %v, %v\n", eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)}
+			if debug {log.Printf("Event recorded: %v, %v, %v, %v\n", eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)}
 			
 			processEvent(eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
 		}
@@ -367,8 +362,9 @@ func main() {
 
 	// on the first pass, we will collect information on the number of events and the number of LPs
 
-	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", getTime(), desTraceData.EventData.EventFile)
+	log.Printf("Processing %v to capture event and LP counts.\n", desTraceData.EventData.EventFile)
 	profileEventDataFile()
+	log.Printf("Found %v total LPs and %v total Events.\n", numOfLPs, numOfEvents)
 
 	// lps is an array of the LPs; each LP entry will hold the events it received
 	lps = make([]lpData, len(lpNameMap))
@@ -382,7 +378,7 @@ func main() {
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
-	fmt.Printf("%v: Processing %v to find and save samples.\n", getTime(), flag.Arg(0))
+	log.Printf("Processing %v to extract and save samples in %v.\n", flag.Arg(0), sampleDir)
 	
 	// for now we're just going to trim by percent and get N samples.
 
@@ -390,22 +386,37 @@ func main() {
 	numEventsInSample := sampleSize * numOfLPs
 	if trimPercent != -1.0 {
 		numEventsToSkip = int(float64(numOfEvents) * trimPercent)
-		fmt.Printf("Skipping %v percent of the events at head/tail of file.\n", trimPercent * 100.0)
- 		fmt.Printf("    Total events: %v, skipping first/last: %v.\n", numOfEvents, numEventsToSkip) 
+		log.Printf("Skipping %v percent of the events at head/tail of file.\n", trimPercent * 100.0)
+ 		log.Printf("    Total events: %v, skipping first/last: %v.\n", numOfEvents, numEventsToSkip) 
 	}
 
 	type sampleRangeType struct {
 		start int
 		stop int
 	}
-	sampleRanges := make([]sampleRangeType, numSamples)
-
-	// should add tests....	if numSamples != -1 ....
-	// also check that the sample ranges are not overlapping....
-	for i := 0; i < numSamples; i++ {
-		sampleRanges[i].start = numEventsToSkip + ((i * numOfEvents/numSamples) - 
-				int(float64(numEventsInSample/2.0)))
-		sampleRanges[i].stop = sampleRanges[i].start + numEventsInSample
+	
+	var sampleRanges []sampleRangeType
+	if numSamples != -1 {
+		sampleRanges = make([]sampleRangeType, numSamples)
+		log.Printf("Setting the bounds to extract %v samples.\n", numSamples)
+		// find the size of events in the (trimmed) source file for each prospective sample
+		regionWidth := int((float64(numOfEvents) - (2.0 * float64(numEventsToSkip))) / float64(numSamples))
+		// let's verify that our samples don't overlap
+		if ((numEventsToSkip * 2) + (numEventsInSample * numSamples)) > numOfEvents {
+			log.Fatal("Overlapping Samples, chose fewer or smaller samples.  Num Samples: %v, Num Events: %v, Sample size: %v, Num Events to Skip: %v\n", numSamples, numOfEvents, numEventsInSample, numEventsToSkip)
+		}
+		// location to take first sample
+		sampleStart :=
+			numEventsToSkip +
+			int(float64(regionWidth) / 2.0) -
+			int(float64(numEventsInSample) / 2.0)
+		for i := 0; i < numSamples; i++ {
+			sampleRanges[i].start = sampleStart
+			sampleRanges[i].stop = sampleStart + numEventsInSample
+			sampleStart = sampleStart + regionWidth
+		}
+	} else {
+		log.Fatal("Program does not yet support other sampling styles\n")
 	}
 
 	eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
@@ -421,8 +432,11 @@ func main() {
 	fileLocation := 0
 	samplingLoop: for i := 0; i < numSamples; i++ {
 
+		log.Printf("Writing sample %v with events in range %v-%v.\n",
+			i+1, sampleRanges[i].start, sampleRanges[i].stop)
+
 		// ok, write out the json file description
-		sampleDir := fmt.Sprintf("%v/%v-%v", outDir, sampleRanges[i].start, sampleRanges[i].stop)
+		sampleDir := fmt.Sprintf("%v/%v-%v", sampleDir, sampleRanges[i].start, sampleRanges[i].stop)
 		err =  os.MkdirAll(sampleDir, 0777)
 		if err != nil {panic(err)}
 		
@@ -445,9 +459,10 @@ func main() {
 		
 
 		// writing uncompressded as the bzip2 golang library doesn't yet support writing....bummer
-//		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
-//		if err != nil {panic(err)}
-//		sampleFile := csv.NewWriter(newEventFile)
+		// for some reason the csv writer was truncating lines; resorting to manual writing
+		//		newEventFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
+		//		if err != nil {panic(err)}
+		//		sampleFile := csv.NewWriter(newEventFile)
 
 		sampleFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
 		if err != nil {panic(err)}
@@ -455,8 +470,8 @@ func main() {
 		for ; fileLocation < sampleRanges[i].stop; fileLocation ++ {
 			eventRecord, err := csvReader.Read()
 			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
-//			err = sampleFile.Write(eventRecord)
-//			if err != nil { panic(err) }
+			//			err = sampleFile.Write(eventRecord)
+			//			if err != nil { panic(err) }
 			separator := ""
 			for _, field := range(eventRecord) {
 				fmt.Fprintf(sampleFile, "%v%v", separator, field)
@@ -471,6 +486,6 @@ func main() {
 	err = eventFile.Close()
 	if err != nil {panic(err)}
 	
-	fmt.Printf("%v: Finished.\n", getTime())
+	log.Printf("Finished.\n")
 	return
 }	
