@@ -28,21 +28,29 @@ if not os.path.exists(measuresDir):
 colors = palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
 
 # define a function to display/save the pylab figures.
-def display_graph(fileName) :
+def display_plot(fileName) :
     print "Creating graphics " + fileName
     print "    ....writing pdf"
-    pylab.savefig(fileName + ".pdf", bbox_inches='tight')
+    pylab.savefig(measuresDir + fileName + ".pdf", bbox_inches='tight')
     pylab.clf()
     return
 
 ## ok this is my attempt to generate an analysis procedure that will work with either any trace as the base
 ## case; that said, because the full trace can have startup/teardown costs, we'll include a parameter that
 ## tells us how many (if any) events to skip at the head/tail of eventsAvailableBySimCycle.csv of the baseDir
-def computeMetrics(baseDir, sampleDirs, skippedEvents):
+def compute_metrics(baseDir, sampleDirs, skippedEvents):
     ## let's look at events available
     baseData = np.loadtxt(baseDir + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
     totalEvents = len(baseData)
+    # is this correct??
     percentagesOfBaseData = baseData.astype(float)/float(np.sum(baseData))
+
+    # while we do this, we're also going to plot the various events available curves normalized to an x-scale
+    # of 0-99
+    x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
+    pylab.title('Events available normalized to a range of 0-100')
+    pylab.ylabel('Percent of total events')
+    pylab.plot(x_index, sorted(percentagesOfBaseData), color=colors[0], label="baseDir")
 
     print "wasserstein against " + baseDir + "/eventsAvailableBySimCycle.csv"
     print "To Sample, Wasserstein Distance"
@@ -51,6 +59,8 @@ def computeMetrics(baseDir, sampleDirs, skippedEvents):
         print x + ", %.8f" % wasserstein_distance(
             sorted(baseData[skippedEvents:totalEvents-skippedEvents]),
             sorted(sampleData))
+
+    display_plot('eventsAvailable')
 
     ## now let's look at the summaries of event chains.
 
@@ -94,4 +104,4 @@ for x in sorted(os.listdir("sampleDir")) :
 #print dirs[0]
 #print dirs[1:len(dirs)]
 
-computeMetrics(dirs[0],dirs[1:len(dirs)],numSkippedEvents)
+compute_metrics(dirs[0],dirs[1:len(dirs)],numSkippedEvents)
