@@ -50,16 +50,22 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
     pylab.title('Events available normalized to a range of 0-100')
     pylab.ylabel('Percent of total events')
-    pylab.plot(x_index, sorted(percentagesOfBaseData), color=colors[0], label="baseDir")
+    pylab.plot(x_index, sorted(percentagesOfBaseData), color=colors[0], label=baseDir)
 
     print "wasserstein against " + baseDir + "/eventsAvailableBySimCycle.csv"
     print "To Sample, Wasserstein Distance"
+    color_index = 1
     for x in sampleDirs :
         sampleData = np.loadtxt(x + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#") 
+        percentagesOfSampleData = sampleData.astype(float)/float(np.sum(sampleData))
         print x + ", %.8f" % wasserstein_distance(
-            sorted(baseData[skippedEvents:totalEvents-skippedEvents]),
-            sorted(sampleData))
+            sorted(percentagesOfBaseData[skippedEvents:totalEvents-skippedEvents]),
+            sorted(percentagesOfSampleData))
+        x_index = np.arange(len(sampleData)).astype(float)/float(len(sampleData))*100
+        pylab.plot(x_index, sorted(percentagesOfSampleData), color=colors[color_index], label=x)
+        color_index = color_index + 1
 
+    pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
     ## now let's look at the summaries of event chains.
