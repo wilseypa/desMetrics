@@ -134,7 +134,7 @@ func main() {
 	traceDataFile, err := os.Open(flag.Arg(0))
 	defer traceDataFile.Close()
 	if err != nil { panic(err) }
-	fmt.Printf("Processing input json file: %v\n",flag.Arg(0))
+	log.Printf("Processing input json file: %v\n",flag.Arg(0))
 	jsonDecoder := json.NewDecoder(traceDataFile)
 	err = jsonDecoder.Decode(&desTraceData); 
 	if err != nil { panic(err) }
