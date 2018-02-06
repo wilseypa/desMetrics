@@ -1,5 +1,5 @@
 
-## this program is working to compute various metrics on samples extracted from large event trace
+## This program is working to compute various metrics on samples extracted from large event trace
 ## files for the desMetrics project.  
 
 import os
@@ -11,6 +11,7 @@ mpl.use('Agg')
 import palettable
 import pylab
 import argparse
+from operator import itemgetter
 
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
@@ -42,27 +43,24 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     ## let's look at events available
     baseData = np.loadtxt(baseDir + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
     totalEvents = len(baseData)
-    # is this correct??
-    percentagesOfBaseData = baseData.astype(float)/float(np.sum(baseData))
 
     # while we do this, we're also going to plot the various events available curves normalized to an x-scale
     # of 0-99
     x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
     pylab.title('Events available normalized to a range of 0-100')
     pylab.ylabel('Percent of total events')
-    pylab.plot(x_index, sorted(percentagesOfBaseData), color=colors[0], label=baseDir)
+    pylab.plot(x_index, sorted(baseData), color="black", label=baseDir)
 
     print "wasserstein against " + baseDir + "/eventsAvailableBySimCycle.csv"
     print "To Sample, Wasserstein Distance"
-    color_index = 1
+    color_index = 0
     for x in sampleDirs :
         sampleData = np.loadtxt(x + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#") 
-        percentagesOfSampleData = sampleData.astype(float)/float(np.sum(sampleData))
         print x + ", %.8f" % wasserstein_distance(
-            sorted(percentagesOfBaseData[skippedEvents:totalEvents-skippedEvents]),
-            sorted(percentagesOfSampleData))
+            sorted(baseData[skippedEvents:totalEvents-skippedEvents]),
+            sorted(sampleData))
         x_index = np.arange(len(sampleData)).astype(float)/float(len(sampleData))*100
-        pylab.plot(x_index, sorted(percentagesOfSampleData), color=colors[color_index], label=x)
+        pylab.plot(x_index, sorted(sampleData), color=colors[color_index], label=x, alpha=.5)
         color_index = color_index + 1
 
     pylab.legend(loc='best')
@@ -103,7 +101,10 @@ if args.fulltrace :
     numSkippedEvents = int(len(data)*.01)
     dirs.append("./")
 
-for x in sorted(os.listdir("sampleDir")) :
+def left_index(x):
+    return int(x.split("-")[0])
+
+for x in sorted(os.listdir("sampleDir"), key=left_index) :
     dirs.append("sampleDir/" + x)
               
 #print dirs
@@ -111,3 +112,4 @@ for x in sorted(os.listdir("sampleDir")) :
 #print dirs[1:len(dirs)]
 
 compute_metrics(dirs[0],dirs[1:len(dirs)],numSkippedEvents)
+
