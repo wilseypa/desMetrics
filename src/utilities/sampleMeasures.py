@@ -28,6 +28,9 @@ if not os.path.exists(measuresDir):
 # set colormap and make it the default
 colors = palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
 
+# change the plots to a grey background grid w/o solid x/y-axis lines
+mpl.style.use('ggplot')
+
 # define a function to display/save the pylab figures.
 def display_plot(fileName) :
     print "Creating graphics " + fileName
@@ -47,8 +50,8 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     # while we do this, we're also going to plot the various events available curves normalized to an x-scale
     # of 0-99
     x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
-    pylab.title('Events available normalized to a range of 0-100')
-    pylab.ylabel('Percent of total events')
+    pylab.xlabel('Simulation cycle (normalized to a range of 0-100)')
+    pylab.ylabel('Events Available for Execution')
     pylab.plot(x_index, sorted(baseData), color="black", label=baseDir)
 
     print "wasserstein against " + baseDir + "/eventsAvailableBySimCycle.csv"
@@ -63,7 +66,7 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
         pylab.plot(x_index, sorted(sampleData), color=colors[color_index], label=x, alpha=.5)
         color_index = color_index + 1
 
-    pylab.legend(loc='best')
+    #pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
     ## now let's look at the summaries of event chains.
