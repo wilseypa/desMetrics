@@ -129,10 +129,10 @@ def compute_metrics(sampleDirs, skippedEvents):
 
     return
 
-## ok so what we're going to do is assemble a list of directories where the traces are to be found. we will
-## assume that the desAnalysis trace files are located in a subdirectory called analysisData/ below the
-## directories named in this list.  the first element of this list will be contain the data for the base case
-## to be compared against.
+## ok so what we're going to do is assemble a list of directories (dirs) where the traces are to be found.  we
+## will assume that the desAnalysis trace files are located in a subdirectory called analysisData/ below the
+## directories named in this list.  the first element (dirs[0]) of this list will be contain the data for the
+## base case to be compared against.
 
 dirs = []
 
