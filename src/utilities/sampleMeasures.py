@@ -13,15 +13,20 @@ import pylab
 import argparse
 from operator import itemgetter
 
+
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
 argparser.add_argument('--fulltrace', 
                        action="store_true",
                        help='Compare samples against full trace.')
+argparser.add_argument('--outDir', default='./measuresOutDir/', help='Directory to write output files (default: ./measuresOutDir/)')
+argparser.add_argument('--sampleDir', default='./sampleDir/', help='Directory where sample directories are located (default: ./sampleDir/')
+argparser.add_argument('--fullTraceDir', default='./', help='Directory where full trace analysis files reside (default: ./')
+
 args = argparser.parse_args()
 
 # create a directory to write output graphs
-measuresDir = 'measuresOutDir/'
+measuresDir = args.outDir
 if not os.path.exists(measuresDir):
     os.makedirs(measuresDir)
 
@@ -33,8 +38,7 @@ mpl.style.use('ggplot')
 
 # define a function to display/save the pylab figures.
 def display_plot(fileName) :
-    print "Creating graphics " + fileName
-    print "    ....writing pdf"
+    print "Creating pdf graphic of: " + fileName
     pylab.savefig(measuresDir + fileName + ".pdf", bbox_inches='tight')
     pylab.clf()
     return
@@ -69,6 +73,34 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     #pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
+    ## ok, now let's look at the percent of events executed by each LP
+    baseData = np.genfromtxt(baseDir + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3))
+    sampleData = []
+    for x in sampleDirs :
+        sampleData.append(np.genfromtxt(x + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3)))
+
+    # populate a dictionary with the names in all of the samples and initialize the entries to zero
+    lpNames = {}
+    for name in np.unique(np.append(baseData[:,0],[x[:,0] for x in sampleData])) :
+        lpNames[name] = 0
+
+    # compute the percentatage of all events executed by each LP
+    eventTotal = sum(baseData[:,1].astype(float))
+    baseData = sorted(baseData, key=lambda entry: entry[1])
+    for i in baseData :
+        lpNames[i[0]] = i[1].astype(float)/eventTotal
+    pylab.xlabel('LPs (sorted by by events executed in base data)')
+    pylab.ylabel('Percent of Events Executed')
+#    print len(lpNames)
+#    print len(baseData)
+#    print lpNames[:,1]
+#    x_index = np.arange(len(lpNames))
+#    pylab.plot(x_index, lpNames[:,1], color='black')
+                          
+    # plot data from samples
+#    display_plot('eventsByLP')
+                        
+
     ## now let's look at the summaries of event chains.
 
     # since we don't want to have the size of the measured data to skew the wasserstein distance results, 
@@ -102,17 +134,17 @@ if args.fulltrace :
     totalEvents = len(data)
     # how many events in 1%
     numSkippedEvents = int(len(data)*.01)
-    dirs.append("./")
+    dirs.append(args.fullTraceDir)
 
 def left_index(x):
     return int(x.split("-")[0])
 
-for x in sorted(os.listdir("sampleDir"), key=left_index) :
-    dirs.append("sampleDir/" + x)
+for x in sorted(os.listdir(args.sampleDir), key=left_index) :
+    dirs.append(args.sampleDir + x)
               
-#print dirs
-#print dirs[0]
-#print dirs[1:len(dirs)]
+print dirs
+print dirs[0]
+print dirs[1:len(dirs)]
 
 compute_metrics(dirs[0],dirs[1:len(dirs)],numSkippedEvents)
 
