@@ -46,9 +46,10 @@ def display_plot(fileName) :
 ## ok this is my attempt to generate an analysis procedure that will work with either any trace as the base
 ## case; that said, because the full trace can have startup/teardown costs, we'll include a parameter that
 ## tells us how many (if any) events to skip at the head/tail of eventsAvailableBySimCycle.csv of the baseDir
-def compute_metrics(baseDir, sampleDirs, skippedEvents):
+def compute_metrics(sampleDirs, skippedEvents):
+
     ## let's look at events available
-    baseData = np.loadtxt(baseDir + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
+    baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
     totalEvents = len(baseData)
 
     # while we do this, we're also going to plot the various events available curves normalized to an x-scale
@@ -56,41 +57,43 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
     pylab.xlabel('Simulation cycle (normalized to a range of 0-100)')
     pylab.ylabel('Events Available for Execution')
-    pylab.plot(x_index, sorted(baseData), color="black", label=baseDir)
+    pylab.plot(x_index, sorted(baseData), color="black", label=sampleDirs[0])
 
-    print "wasserstein against " + baseDir + "/eventsAvailableBySimCycle.csv"
+    print "wasserstein against " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
     print "To Sample, Wasserstein Distance"
-    color_index = 0
-    for x in sampleDirs :
+    colorIndex = 0
+    for x in sampleDirs[1:len(sampleDirs)] :
         sampleData = np.loadtxt(x + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#") 
         print x + ", %.8f" % wasserstein_distance(
             sorted(baseData[skippedEvents:totalEvents-skippedEvents]),
             sorted(sampleData))
         x_index = np.arange(len(sampleData)).astype(float)/float(len(sampleData))*100
-        pylab.plot(x_index, sorted(sampleData), color=colors[color_index], label=x, alpha=.5)
-        color_index = color_index + 1
+        pylab.plot(x_index, sorted(sampleData), color=colors[colorIndex], label=x, alpha=0.5)
+        colorIndex = colorIndex + 1
 
     #pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
+## PHIL: need to fix; what if the base sample doesn't have all the LP names??
+
     ## ok, now let's look at the percent of events executed by each LP
-    baseData = np.genfromtxt(baseDir + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3))
-    sampleData = []
-    for x in sampleDirs :
-        sampleData.append(np.genfromtxt(x + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3)))
+#    baseData = np.genfromtxt(baseDir + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3))
+#    sampleData = []
+#    for x in sampleDirs :
+#        sampleData.append(np.genfromtxt(x + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3)))
 
     # populate a dictionary with the names in all of the samples and initialize the entries to zero
-    lpNames = {}
-    for name in np.unique(np.append(baseData[:,0],[x[:,0] for x in sampleData])) :
-        lpNames[name] = 0
+#    lpNames = {}
+#    for name in np.unique(np.append(baseData[:,0],[x[:,0] for x in sampleData])) :
+#        lpNames[name] = 0
 
     # compute the percentatage of all events executed by each LP
-    eventTotal = sum(baseData[:,1].astype(float))
-    baseData = sorted(baseData, key=lambda entry: entry[1])
-    for i in baseData :
-        lpNames[i[0]] = i[1].astype(float)/eventTotal
-    pylab.xlabel('LPs (sorted by by events executed in base data)')
-    pylab.ylabel('Percent of Events Executed')
+#    eventTotal = sum(baseData[:,1].astype(float))
+#    baseData = sorted(baseData, key=lambda entry: entry[1])
+#    for i in baseData :
+#        lpNames[i[0]] = i[1].astype(float)/eventTotal
+#    pylab.xlabel('LPs (sorted by by events executed in base data)')
+#    pylab.ylabel('Percent of Events Executed')
 #    print len(lpNames)
 #    print len(baseData)
 #    print lpNames[:,1]
@@ -109,12 +112,12 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
     # chain computation, we will create a vector that includes measures from local, linked, and global
     # chains as one vector to be analyzed....
     
-    print "wasserstein against " + baseDir + "/analysisData/eventChainsSummary.csv"
-    baseData = np.loadtxt(baseDir + "/analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", comments="#")
+    print "wasserstein against " + sampleDirs[0] + "/analysisData/eventChainsSummary.csv"
+    baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", comments="#")
     percentagesOfBaseData = baseData.astype(float)/float(np.sum(baseData))
     
     print "To Sample, Wasserstein Distance"
-    for x in sampleDirs :
+    for x in sampleDirs[1:len(sampleDirs)] :
         sampleData = np.loadtxt(x + "/analysisData/eventChainsSummary.csv", dtype=np.intc,
                                 delimiter = ",", comments="#")
         percentagesOfSampleData = sampleData.astype(float)/float(np.sum(sampleData))
@@ -126,25 +129,37 @@ def compute_metrics(baseDir, sampleDirs, skippedEvents):
 
     return
 
+## ok so what we're going to do is assemble a list of directories where the traces are to be found. we will
+## assume that the desAnalysis trace files are located in a subdirectory called analysisData/ below the
+## directories named in this list.  the first element of this list will be contain the data for the base case
+## to be compared against.
+
 dirs = []
 
+# since we see startup/teardown effects in most of the full traces we've examined to date, we will setup the
+# system to automatically trim out the first/last 1% of (only) the eventsAvailableBySimCycle analysis.  if
+# we're not using a full trace, nothing will be trimmed.
 numSkippedEvents = 0
+
 if args.fulltrace :
-    data = np.loadtxt("analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
+    data = np.loadtxt(args.fullTraceDir + "analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
     totalEvents = len(data)
     # how many events in 1%
     numSkippedEvents = int(len(data)*.01)
     dirs.append(args.fullTraceDir)
 
+# setup a function to enable correct sorting of the sample directory names (basically we assume a standard
+# naming of these subdirectories of the form produced by desSampler.go; basically:
+#    <index of first event from source>-<index of last event from source> 
 def left_index(x):
     return int(x.split("-")[0])
 
 for x in sorted(os.listdir(args.sampleDir), key=left_index) :
     dirs.append(args.sampleDir + x)
               
-print dirs
-print dirs[0]
-print dirs[1:len(dirs)]
+#print dirs
+#print dirs[0]
+#print dirs[1:len(dirs)]
 
-compute_metrics(dirs[0],dirs[1:len(dirs)],numSkippedEvents)
+compute_metrics(dirs,numSkippedEvents)
 
