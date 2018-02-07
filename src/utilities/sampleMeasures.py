@@ -5,6 +5,7 @@
 import os
 import numpy as np
 from scipy.stats import wasserstein_distance
+from scipy.spatial.distance import directed_hausdorff
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
 mpl.use('Agg')
@@ -48,41 +49,58 @@ def compute_metrics(sampleDirs, skippedEvents):
     for i in range(len(sampleDirs)) :
         baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
                                    dtype=np.intc, delimiter = ",", comments="#"))
+
+    print len(baseData[0])
+    if skippedEvents > 0 : baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
+    print len(baseData[0])
     
     # now plot the data points normalized to an x-axis range of 0-100
-    # after i figure out how to prepend the colors array with a black rgb
+    
+    # we need to record the shortest sample so we can compute the metrics on equal sized arrays when necessary
+    minLength = len(baseData[0])
+
     colorIndex = 0
+    # we will set the alpha value to 1.0 for the base sample and 0.5 for all other samples 
     alphaValue = 1.0
+
     for index in range(len(baseData)) :
         x_index = np.arange(len(baseData[index])).astype(float)/float(len(baseData[index]))*100
         pylab.plot(x_index, sorted(baseData[index]),
                    color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
         colorIndex = (colorIndex + 1) % len(colors)
         alphaValue=0.5
+        if len(baseData[index]) < minLength : minLength = len(baseData[index])
 
-    pylab.legend(loc='best')
+    #pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
-    baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
-    totalEvents = len(baseData)
+    # now let's compute the various distance metrics of interest
+    # most of these require that the compared vectors have the same length; so we will actually take minLength
+    # (computed in above loop) samples (equally distributed) from each vector
 
-    # while we do this, we're also going to plot the various events available curves normalized to an x-scale
-    # of 0-99
-    x_index = np.arange(totalEvents).astype(float)/float(totalEvents)*100
-    pylab.xlabel('Simulation cycle (normalized to a range of 0-100)')
-    pylab.ylabel('Events Available for Execution')
-    pylab.plot(x_index, sorted(baseData), color="black", label=sampleDirs[0])
+    print "To Sample, Wasserstein, Directed Hausdorff"    
+    metricFile.write("Base sample: " + sampleDirs[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance\n")
 
-    print "To Sample, Wasserstein Distance"
-    colorIndex = 0
-    for x in sampleDirs[1:len(sampleDirs)] :
-        sampleData = np.loadtxt(x + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#") 
-        print x + ", %.8f" % wasserstein_distance(
-            sorted(baseData[skippedEvents:totalEvents-skippedEvents]),
-            sorted(sampleData))
-        x_index = np.arange(len(sampleData)).astype(float)/float(len(sampleData))*100
-        pylab.plot(x_index, sorted(sampleData), color=colors[colorIndex], label=x, alpha=0.5)
-        colorIndex = (colorIndex + 1) % len(colors)
+    # let's extract equal lengthsamples from the samples :-)
+    sampleExtract = []
+    for x in range(len(sampleDirs)) :
+        extract = []
+        sampleLen = len(baseData[x]) - 1
+        for i in range(minLength) :
+            extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
+        sampleExtract.append(extract)
+
+    x_index = np.arange(len(sampleExtract[0]))
+    baseSorted = sorted(sampleExtract[0])
+    baseSortedTuple = np.vstack((x_index,sorted(sampleExtract[0]))).T
+    for x in range(len(sampleDirs)-1) :
+        print len(sampleExtract[x+1])
+        metricFile.write(sampleDirs[x+1])
+        metricFile.write(", %.8f" % wasserstein_distance(baseSorted,sorted(sampleExtract[x+1])))
+        metricFile.write(", %.8f" % directed_hausdorff(baseSortedTuple,
+                                                       np.vstack((x_index,sorted(sampleExtract[x+1]))).T)[0])
+        metricFile.write("\n")
 
     #pylab.legend(loc='best')
     #display_plot('eventsAvailable')
@@ -182,10 +200,12 @@ for x in sorted(os.listdir(args.sampleDir), key=left_index) :
 # set colormap and make it the default; prepend the color map with black for plotting the base case
 # we should actually tie this to the len(dirs), but that'll have to wait until later.   
 colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
-print colors
 
 # change the plots to a grey background grid w/o solid x/y-axis lines
 mpl.style.use('ggplot')
 
+metricFile = open(measuresDir + "/metricFile.csv","w")
+
 compute_metrics(dirs,numSkippedEvents)
 
+metricFile.close()
