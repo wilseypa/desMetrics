@@ -5,6 +5,7 @@
 import os
 import numpy as np
 from scipy.stats import wasserstein_distance
+from scipy.stats import ks_2samp
 from scipy.spatial.distance import directed_hausdorff
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
@@ -50,9 +51,7 @@ def compute_metrics(sampleDirs, skippedEvents):
         baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
                                    dtype=np.intc, delimiter = ",", comments="#"))
 
-    print len(baseData[0])
     if skippedEvents > 0 : baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
-    print len(baseData[0])
     
     # now plot the data points normalized to an x-axis range of 0-100
     
@@ -78,9 +77,8 @@ def compute_metrics(sampleDirs, skippedEvents):
     # most of these require that the compared vectors have the same length; so we will actually take minLength
     # (computed in above loop) samples (equally distributed) from each vector
 
-    print "To Sample, Wasserstein, Directed Hausdorff"    
     metricFile.write("Base sample: " + sampleDirs[0] + "\n")
-    metricFile.write("Comparison Sample, Wasserstein Distance\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov\n")
 
     # let's extract equal lengthsamples from the samples :-)
     sampleExtract = []
@@ -95,11 +93,11 @@ def compute_metrics(sampleDirs, skippedEvents):
     baseSorted = sorted(sampleExtract[0])
     baseSortedTuple = np.vstack((x_index,sorted(sampleExtract[0]))).T
     for x in range(len(sampleDirs)-1) :
-        print len(sampleExtract[x+1])
         metricFile.write(sampleDirs[x+1])
         metricFile.write(", %.8f" % wasserstein_distance(baseSorted,sorted(sampleExtract[x+1])))
         metricFile.write(", %.8f" % directed_hausdorff(baseSortedTuple,
                                                        np.vstack((x_index,sorted(sampleExtract[x+1]))).T)[0])
+        metricFile.write(", %.8f" % ks_2samp(baseSorted,sorted(sampleExtract[x+1]))[0])
         metricFile.write("\n")
 
     #pylab.legend(loc='best')
