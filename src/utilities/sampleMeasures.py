@@ -13,7 +13,6 @@ import pylab
 import argparse
 from operator import itemgetter
 
-
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
 argparser.add_argument('--fulltrace', 
@@ -25,16 +24,9 @@ argparser.add_argument('--fullTraceDir', default='./', help='Directory where ful
 
 args = argparser.parse_args()
 
-# create a directory to write output graphs
-measuresDir = args.outDir
-if not os.path.exists(measuresDir):
-    os.makedirs(measuresDir)
-
-# set colormap and make it the default
-colors = palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
-
-# change the plots to a grey background grid w/o solid x/y-axis lines
-mpl.style.use('ggplot')
+####----------------------------------------------------------------------------------------------------
+#### define a set of functions to do things
+####----------------------------------------------------------------------------------------------------
 
 # define a function to display/save the pylab figures.
 def display_plot(fileName) :
@@ -49,6 +41,28 @@ def display_plot(fileName) :
 def compute_metrics(sampleDirs, skippedEvents):
 
     ## let's look at events available
+    print "working with " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
+
+    # first we read all of the files 
+    baseData = []
+    for i in range(len(sampleDirs)) :
+        baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
+                                   dtype=np.intc, delimiter = ",", comments="#"))
+    
+    # now plot the data points normalized to an x-axis range of 0-100
+    # after i figure out how to prepend the colors array with a black rgb
+    colorIndex = 0
+    alphaValue = 1.0
+    for index in range(len(baseData)) :
+        x_index = np.arange(len(baseData[index])).astype(float)/float(len(baseData[index]))*100
+        pylab.plot(x_index, sorted(baseData[index]),
+                   color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
+        colorIndex = (colorIndex + 1) % len(colors)
+        alphaValue=0.5
+
+    pylab.legend(loc='best')
+    display_plot('eventsAvailable')
+
     baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
     totalEvents = len(baseData)
 
@@ -59,7 +73,6 @@ def compute_metrics(sampleDirs, skippedEvents):
     pylab.ylabel('Events Available for Execution')
     pylab.plot(x_index, sorted(baseData), color="black", label=sampleDirs[0])
 
-    print "wasserstein against " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
     print "To Sample, Wasserstein Distance"
     colorIndex = 0
     for x in sampleDirs[1:len(sampleDirs)] :
@@ -69,10 +82,10 @@ def compute_metrics(sampleDirs, skippedEvents):
             sorted(sampleData))
         x_index = np.arange(len(sampleData)).astype(float)/float(len(sampleData))*100
         pylab.plot(x_index, sorted(sampleData), color=colors[colorIndex], label=x, alpha=0.5)
-        colorIndex = colorIndex + 1
+        colorIndex = (colorIndex + 1) % len(colors)
 
     #pylab.legend(loc='best')
-    display_plot('eventsAvailable')
+    #display_plot('eventsAvailable')
 
 ## PHIL: need to fix; what if the base sample doesn't have all the LP names??
 
@@ -129,6 +142,15 @@ def compute_metrics(sampleDirs, skippedEvents):
 
     return
 
+####----------------------------------------------------------------------------------------------------
+#### let us begin
+####----------------------------------------------------------------------------------------------------
+
+# create a directory to write output graphs
+measuresDir = args.outDir
+if not os.path.exists(measuresDir):
+    os.makedirs(measuresDir)
+
 ## ok so what we're going to do is assemble a list of directories (dirs) where the traces are to be found.  we
 ## will assume that the desAnalysis trace files are located in a subdirectory called analysisData/ below the
 ## directories named in this list.  the first element (dirs[0]) of this list will be contain the data for the
@@ -157,9 +179,13 @@ def left_index(x):
 for x in sorted(os.listdir(args.sampleDir), key=left_index) :
     dirs.append(args.sampleDir + x)
               
-#print dirs
-#print dirs[0]
-#print dirs[1:len(dirs)]
+# set colormap and make it the default; prepend the color map with black for plotting the base case
+# we should actually tie this to the len(dirs), but that'll have to wait until later.   
+colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+print colors
+
+# change the plots to a grey background grid w/o solid x/y-axis lines
+mpl.style.use('ggplot')
 
 compute_metrics(dirs,numSkippedEvents)
 
