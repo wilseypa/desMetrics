@@ -42,7 +42,7 @@ def display_plot(fileName) :
 ## tells us how many (if any) events to skip at the head/tail of eventsAvailableBySimCycle.csv of the baseDir
 def compute_metrics(sampleDirs, skippedEvents):
 
-    ## let's look at events available
+    #### let's look at events available
     print "working with " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
 
     # first we read all of the files 
@@ -53,7 +53,7 @@ def compute_metrics(sampleDirs, skippedEvents):
 
     if skippedEvents > 0 : baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
     
-    # now plot the data points normalized to an x-axis range of 0-100
+    ## now plot the data points normalized to an x-axis range of 0-100
     
     # we need to record the shortest sample so we can compute the metrics on equal sized arrays when necessary
     minLength = len(baseData[0])
@@ -62,6 +62,9 @@ def compute_metrics(sampleDirs, skippedEvents):
     # we will set the alpha value to 1.0 for the base sample and 0.5 for all other samples 
     alphaValue = 1.0
 
+    pylab.title('Events Available')
+    pylab.xlabel('Simulation Cycles (normalized 0-100)')
+    pylab.ylabel('Num Events')
     for index in range(len(baseData)) :
         x_index = np.arange(len(baseData[index])).astype(float)/float(len(baseData[index]))*100
         pylab.plot(x_index, sorted(baseData[index]),
@@ -73,14 +76,15 @@ def compute_metrics(sampleDirs, skippedEvents):
     #pylab.legend(loc='best')
     display_plot('eventsAvailable')
 
-    # now let's compute the various distance metrics of interest
+    ## now let's compute the various distance metrics of interest
     # most of these require that the compared vectors have the same length; so we will actually take minLength
     # (computed in above loop) samples (equally distributed) from each vector
 
+    metricFile.write("Events Available\n")
     metricFile.write("Base sample: " + sampleDirs[0] + "\n")
     metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov\n")
 
-    # let's extract equal lengthsamples from the samples :-)
+    # let's extract equal length samples from the samples :-)
     sampleExtract = []
     for x in range(len(sampleDirs)) :
         extract = []
@@ -100,47 +104,127 @@ def compute_metrics(sampleDirs, skippedEvents):
         metricFile.write(", %.8f" % ks_2samp(baseSorted,sorted(sampleExtract[x+1]))[0])
         metricFile.write("\n")
 
+    #### now let's look at the how many events are executed by the LPs
+
+    ## to keep our numbers in a reasonable range, we're actually going to plot a count of the rate of events
+    ## executed by the LPs relative to the one executing the most; so basically we're going to count how many
+    ## LPs execute X% of the max executed by one of the LPs.  an odd computation, but if we try to show the
+    ## percentage of events executed, the numbers get really small.
+    ## getting 
+    ## numbers too small
+    ## that execute 
+
+    print "working with " + sampleDirs[0] + "/analysisData/eventsExecutedByLP.csv"
+
+    plotData = []
+    min = 100
+    max = 0
+    for i in range(len(sampleDirs)) :
+        percentOfMaxEvents = np.zeros(100, dtype=np.intc)
+        # saving this next line in case i ever want to read a csv file with mixed strings/ints in the columns
+        #sampleData = np.genfromtxt(sampleDirs[i] + "/analysisData/eventsExecutedByLP.csv",
+        #                              dtype='str', delimiter = ",", comments="#", usecols=(0,3))
+        sampleData = np.loadtxt(sampleDirs[i] + "/analysisData/eventsExecutedByLP.csv",
+                                      dtype=np.intc, delimiter = ",", comments="#", usecols=(3))
+        maxNumEvents = np.max(sampleData)
+        for j in range(len(sampleData)) :
+            percentOfMaxEvents[int(sampleData[j].astype(float)/maxNumEvents*100.0)-1] += 1
+
+        if min > np.min(np.nonzero(percentOfMaxEvents)) : min = np.min(np.nonzero(percentOfMaxEvents))
+        if max < np.max(np.nonzero(percentOfMaxEvents)) : max = np.max(np.nonzero(percentOfMaxEvents))
+        plotData.append(percentOfMaxEvents)
+
+    colorIndex = 0
+    alphaValue= 1.0
+    pylab.title('Num LPs executing x% of Max events executed by one LP')
+    pylab.xlabel('Percent of Events')
+    pylab.ylabel('Number of LPs')
+    x_index = np.arange(min,max+1)
+    for i in plotData :
+        pylab.plot(x_index, i[min:max+1], 
+                  color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
+        colorIndex = (colorIndex + 1) % len(colors)
+        alphaValue=0.5
+
     #pylab.legend(loc='best')
-    #display_plot('eventsAvailable')
+    display_plot('percentEventsOfMaxbyLP')
 
-## PHIL: need to fix; what if the base sample doesn't have all the LP names??
+    # do we want to compute distance metrics??  not yet, but i assume we will rewrite that component so it
+    # becomes a simple procedure call with a matrix argument
+    
 
-    ## ok, now let's look at the percent of events executed by each LP
-#    baseData = np.genfromtxt(baseDir + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3))
-#    sampleData = []
-#    for x in sampleDirs :
-#        sampleData.append(np.genfromtxt(x + "/analysisData/eventsExecutedByLP.csv", dtype='str', delimiter = ",", comments="#", usecols=(0,3)))
-
-    # populate a dictionary with the names in all of the samples and initialize the entries to zero
-#    lpNames = {}
-#    for name in np.unique(np.append(baseData[:,0],[x[:,0] for x in sampleData])) :
-#        lpNames[name] = 0
-
-    # compute the percentatage of all events executed by each LP
-#    eventTotal = sum(baseData[:,1].astype(float))
-#    baseData = sorted(baseData, key=lambda entry: entry[1])
-#    for i in baseData :
-#        lpNames[i[0]] = i[1].astype(float)/eventTotal
-#    pylab.xlabel('LPs (sorted by by events executed in base data)')
-#    pylab.ylabel('Percent of Events Executed')
-#    print len(lpNames)
-#    print len(baseData)
-#    print lpNames[:,1]
-#    x_index = np.arange(len(lpNames))
-#    pylab.plot(x_index, lpNames[:,1], color='black')
-                          
-    # plot data from samples
-#    display_plot('eventsByLP')
-                        
-
-    ## now let's look at the summaries of event chains.
+    #### now let's look at the summaries of event chains.
 
     # since we don't want to have the size of the measured data to skew the wasserstein distance results, 
     # we'll work from percentages of the populations in question.  furthermore, we don't really want to
     # see the differences by event change length; our real interest is in the impact on the overall event
     # chain computation, we will create a vector that includes measures from local, linked, and global
     # chains as one vector to be analyzed....
+ 
+    print "working with " + sampleDirs[0] + "/analysisData/eventChainsSummary.csv"
+
+    ## import the data and setup the local, linked, and global chain data in one long vector
+    baseData = []
+    x_index = np.arange(15)
+    colorIndex = 0
+    alphaValue = 1.0
+    pylab.title('Event Chains')
+    pylab.xlabel('Local (0-4) Linked(5-9), Global(10-15)')
+    pylab.ylabel('Percent of Chain Class (Local, Lined, or Global)')
+    for i in range(len(sampleDirs)) :
+        sample = np.loadtxt(sampleDirs[i] + "/analysisData/eventChainsSummary.csv",
+                                   dtype=np.intc, delimiter = ",", comments="#")
+        # compute percent of each event chain class
+        percentSample = []
+        for j in [1,2,3] :
+            percentSample.append(sample[:,j].astype(float)/float(np.sum(sample[:,j])))
+            #            sample[:,j] = sample[:,j].astype(float)/float(np.sum(sample[:,j])))
+        baseData.append(np.concatenate(percentSample).ravel())
+
+        pylab.plot(x_index, np.concatenate(percentSample).ravel(),
+                   color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
+        colorIndex = (colorIndex + 1) % len(colors)
+        alphaValue=0.5
     
+    #pylab.legend(loc='best')
+    display_plot('eventChains')
+
+    ## now let's compute the various distance metrics of interest
+    # most of these require that the compared vectors have the same length; so we will actually take minLength
+    # (computed in above loop) samples (equally distributed) from each vector
+
+    metricFile.write("Event Chains\n")
+    metricFile.write("Base sample: " + sampleDirs[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov\n")
+
+    # everything is already equal so this is easy
+
+    for x in range(len(sampleDirs)-1) :
+        metricFile.write(sampleDirs[x+1])
+        metricFile.write(", %.8f" % wasserstein_distance(baseData[0], baseData[x]))
+        metricFile.write(", %.8f" % directed_hausdorff(np.vstack((x_index,baseData[0])).T,
+                                                       np.vstack((x_index,baseData[x])).T)[0])
+        metricFile.write(", %.8f" % ks_2samp(baseData[0], baseData[x])[0])
+        metricFile.write("\n")
+
+
+    # let's extract equal length samples from the samples :-)
+    sampleExtract = []
+    for x in range(len(sampleDirs)) :
+        extract = []
+        sampleLen = len(baseData[x]) - 1
+        for i in range(minLength) :
+            extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
+        sampleExtract.append(extract)
+
+    x_index = np.arange(len(sampleExtract[0]))
+    baseSorted = sorted(sampleExtract[0])
+    baseSortedTuple = np.vstack((x_index,sorted(sampleExtract[0]))).T
+
+
+## the rest of this can be safely removed after verification.  right now the numbers don't match up....
+
+
     print "wasserstein against " + sampleDirs[0] + "/analysisData/eventChainsSummary.csv"
     baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", comments="#")
     percentagesOfBaseData = baseData.astype(float)/float(np.sum(baseData))
@@ -154,6 +238,7 @@ def compute_metrics(sampleDirs, skippedEvents):
             np.append(np.append(np.array(percentagesOfBaseData[:,1]),np.array(percentagesOfBaseData[:,2])),np.array(percentagesOfBaseData[:,3])),
             np.append(np.append(np.array(percentagesOfSampleData[:,1]),np.array(percentagesOfSampleData[:,2])),np.array(percentagesOfSampleData[:,3])))
             
+
     ## now let's look at modularity....
 
     return
