@@ -261,7 +261,7 @@ def compute_metrics(sampleDirs, skippedEvents):
         colorIndex = (colorIndex + 1) % len(colors)
         alphaValue=0.25
                       
-    pylab.legend(loc='best')
+    #pylab.legend(loc='best')
     display_plot('modularity')
 
     return
