@@ -13,7 +13,9 @@ mpl.use('Agg')
 import palettable
 import pylab
 import argparse
-from operator import itemgetter
+import collections
+import networkx as nx
+import community # install from python-louvain
 
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
@@ -36,6 +38,17 @@ def display_plot(fileName) :
     pylab.savefig(measuresDir + fileName + ".pdf", bbox_inches='tight')
     pylab.clf()
     return
+
+def build_comm_graph(fileName):
+	data = np.loadtxt(fileName, dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
+	nodes = [x[0] for x in data]
+	edges = [x[1] for x in data]
+	weights = [int(x[2]) for x in data]
+	graph = nx.Graph()
+	for i in np.arange(len(data)):
+		graph.add_node(int(nodes[i]))
+		graph.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
+	return graph
 
 ## ok this is my attempt to generate an analysis procedure that will work with either any trace as the base
 ## case; that said, because the full trace can have startup/teardown costs, we'll include a parameter that
@@ -173,10 +186,10 @@ def compute_metrics(sampleDirs, skippedEvents):
     pylab.ylabel('Percent of Chain Class (Local, Lined, or Global)')
     for i in range(len(sampleDirs)) :
         sample = np.loadtxt(sampleDirs[i] + "/analysisData/eventChainsSummary.csv",
-                                   dtype=np.intc, delimiter = ",", comments="#")
+                                   dtype=np.intc, delimiter = ",", comments="#", usecols=(1,2,3))
         # compute percent of each event chain class
         percentSample = []
-        for j in [1,2,3] :
+        for j in range(len(sample[0])) :
             percentSample.append(sample[:,j].astype(float)/float(np.sum(sample[:,j])))
             #            sample[:,j] = sample[:,j].astype(float)/float(np.sum(sample[:,j])))
         baseData.append(np.concatenate(percentSample).ravel())
@@ -221,25 +234,35 @@ def compute_metrics(sampleDirs, skippedEvents):
     baseSorted = sorted(sampleExtract[0])
     baseSortedTuple = np.vstack((x_index,sorted(sampleExtract[0]))).T
 
+    #### now let's look at modularity....
 
-## the rest of this can be safely removed after verification.  right now the numbers don't match up....
+    print "working with " + sampleDirs[0] + "/analysisData/eventsExchanged-remote.csv"
 
+    sampleModularityValues = []
 
-    print "wasserstein against " + sampleDirs[0] + "/analysisData/eventChainsSummary.csv"
-    baseData = np.loadtxt(sampleDirs[0] + "/analysisData/eventChainsSummary.csv", dtype=np.intc, delimiter = ",", comments="#")
-    percentagesOfBaseData = baseData.astype(float)/float(np.sum(baseData))
-    
-    print "To Sample, Wasserstein Distance"
-    for x in sampleDirs[1:len(sampleDirs)] :
-        sampleData = np.loadtxt(x + "/analysisData/eventChainsSummary.csv", dtype=np.intc,
-                                delimiter = ",", comments="#")
-        percentagesOfSampleData = sampleData.astype(float)/float(np.sum(sampleData))
-        print x + ", %.8f" % wasserstein_distance(
-            np.append(np.append(np.array(percentagesOfBaseData[:,1]),np.array(percentagesOfBaseData[:,2])),np.array(percentagesOfBaseData[:,3])),
-            np.append(np.append(np.array(percentagesOfSampleData[:,1]),np.array(percentagesOfSampleData[:,2])),np.array(percentagesOfSampleData[:,3])))
-            
+    # compute modularity and store
+    for x in sampleDirs :
+        sampleModularityValues.append(community.best_partition(build_comm_graph(x + "/analysisData/eventsExchanged-remote.csv")).values())
 
-    ## now let's look at modularity....
+    pylab.title('Communities of LP Event Communications')
+    pylab.xlabel('Modularity Class')
+    pylab.ylabel('Number of LPs')
+    colorIndex = 0
+    alphaValue = 1.0
+    index = 0
+    # count modularity membership and create scatter plot
+    for x in sampleModularityValues :
+        modularity = collections.Counter()
+        for i in np.arange(len(x)) :
+            modularity[x[i]] += 1
+        pylab.scatter(modularity.keys(), sorted(modularity.values(), reverse=True), marker='o', 
+                      color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
+        index += 1
+        colorIndex = (colorIndex + 1) % len(colors)
+        alphaValue=0.25
+                      
+    pylab.legend(loc='best')
+    display_plot('modularity')
 
     return
 
