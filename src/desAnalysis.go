@@ -579,6 +579,7 @@ func main() {
 	// each goroutine will compute event counts for one LP, send the results back over the channel and
 	// continue. 
 	c := make(chan lpEventSummary, numThreads * 4)
+	if len(lps) < numThreads * 2 {numThreads = numThreads/2}
 	for i := 0; i < numThreads; i++ {
 		low := i * goroutineSliceSize
 		high := low + goroutineSliceSize
