@@ -780,9 +780,12 @@ func main() {
 	var nextCycle simCycleAnalysisResults
 	nextCycle.timeStamp = math.MaxFloat64
 	for _, lp := range lps {
-		if lp.events[0].receiveTime < nextCycle.timeStamp {
-			nextCycle.timeStamp = lp.events[0].receiveTime
-			nextCycle.definingLP = lp.lpId
+		// if lp has no events, do nothing
+		if len(lp.events) > 0 {
+			if lp.events[0].receiveTime < nextCycle.timeStamp {
+				nextCycle.timeStamp = lp.events[0].receiveTime
+				nextCycle.definingLP = lp.lpId
+			}
 		}
 		lpIndex[lp.lpId] = 0 // reset these pointers
 	}
