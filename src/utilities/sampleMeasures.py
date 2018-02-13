@@ -261,7 +261,7 @@ def compute_metrics(sampleDirs, skippedEvents):
         colorIndex = (colorIndex + 1) % len(colors)
         alphaValue=0.25
                       
-    #pylab.legend(loc='best')
+    pylab.legend(loc='best')
     display_plot('modularity')
 
     return
@@ -271,7 +271,7 @@ def compute_metrics(sampleDirs, skippedEvents):
 ####----------------------------------------------------------------------------------------------------
 
 # create a directory to write output graphs
-measuresDir = args.outDir
+measuresDir = args.outDir + "/"
 if not os.path.exists(measuresDir):
     os.makedirs(measuresDir)
 
@@ -301,7 +301,7 @@ def left_index(x):
     return int(x.split("-")[0])
 
 for x in sorted(os.listdir(args.sampleDir), key=left_index) :
-    dirs.append(args.sampleDir + x)
+    dirs.append(args.sampleDir + "/" + x)
               
 # set colormap and make it the default; prepend the color map with black for plotting the base case
 # we should actually tie this to the len(dirs), but that'll have to wait until later.   
