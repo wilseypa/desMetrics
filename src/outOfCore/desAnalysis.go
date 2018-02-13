@@ -22,7 +22,8 @@ import "os"
 import "fmt"
 import "sort"
 //import "math"
-import "bufio"
+//import "bufio"
+import "os/exec"
 import "strconv"
 import "time"
 import "runtime"
@@ -121,25 +122,6 @@ func main() {
 		lp.receivedEvents++
 	}
 	
-	// fork a file by writing all the events in order to sort by recieve time. 
-	writeEvent := func(x int, eventBatch [1000000]string, sLP string, sTS float64, rLP string, rTS float64) int {
-		if x < 1000000 {
-			eventBatch[x] = "\\sLP, \\sTS, \\rLP, \\rTS"
-			x++
-		} else {
-			outFile, err := os.Open("streamedData/eventInfo.csv")
-			if err != nil {panic(err)}	
-			w := bufio.NewWriter(outFile)
-			for _, line := range eventBatch {
-    			fmt.Fprintln(w, line)
-  			}
-  			w.Flush()
-			err = outFile.Close()
-			if err != nil {panic(err)}
-			x = 0
-		}
-		return x
-	}
 
 	printInfo := func (format string, a ...interface{}) (n int, err error) {
 		n, err = fmt.Printf(format, a)
@@ -151,11 +133,8 @@ func main() {
 	captureDate := ""
 	commandLineArgs := ""
 	// this is the parser we will use
-	parseJsonFile := func(inputFile *os.File, flag int) {
-		x := 0
-		y := 0
-		var eventBatch [1000000]string
-		// initialize the scanner
+	parseJsonFile := func(inputFile *os.File, outFile *os.File, flag int) {
+		remote := 0
 		ScanInit(inputFile)
 		
 		var token int
@@ -251,8 +230,8 @@ func main() {
 					// write the events out to a fie
 					//fmt.Fprintf(outFile,"%v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)
 					if flag == 0 {
-						y = writeEvent(x, eventBatch, sendingLP, sendTime, receivingLP, receiveTime)
-						x = y
+						if sendingLP == receivingLP {remote = 0} else {remote = 1}
+						fmt.Fprintf(outFile,"%v, %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime, remote)
 					}
 					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
 					if token == R_BRACKET {break parsingLoop}
@@ -267,17 +246,15 @@ func main() {
 	}
 
 
-	outputFile, err1 := os.Create("streamedData/eventInfo.csv")
+	outputFile, err1 := os.Create("streamedData/eventInfo-unsorted.csv")
 	if err1 != nil {panic(err)}	
-	err = outputFile.Close()
-	if err != nil {panic(err)}
 
 	// this time we will collect information on the number of events and the number of LPs
 	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", 
 		printTime(), flag.Args())
 	inputFile, err := os.Open(flag.Arg(0))
 	if err != nil { panic(err) }
-	parseJsonFile(inputFile, 0)
+	parseJsonFile(inputFile, outputFile, 0)
 	err = inputFile.Close()
 
 	//exec.Command("sort","k 4","streamedData/eventInfo.csv").Output()
@@ -297,13 +274,17 @@ func main() {
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
+exec.Command("/bin/sh", "dataStreamHelper.sh", "1").Output()
+
+
 	// this time we will save the events
 	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
 	//processEvent = addEvent
 	inputFile, err = os.Open(flag.Arg(0))
 	if err != nil { panic(err) }
-	parseJsonFile(inputFile, 1)
+	parseJsonFile(inputFile, outputFile, 1)
 	err = inputFile.Close()
+	err1 = outputFile.Close()
 
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
