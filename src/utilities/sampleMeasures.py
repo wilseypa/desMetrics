@@ -10,7 +10,7 @@ from scipy.spatial.distance import directed_hausdorff
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
 mpl.use('Agg')
-import palettable
+from palettable.colorbrewer.qualitative import Set1_9
 import pylab
 import argparse
 import collections
@@ -305,7 +305,9 @@ for x in sorted(os.listdir(args.sampleDir), key=left_index) :
               
 # set colormap and make it the default; prepend the color map with black for plotting the base case
 # we should actually tie this to the len(dirs), but that'll have to wait until later.   
-colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Set1_8.mpl_colors
+colors = [(0.0, 0.0, 0.0)] + Set1_9.mpl_colors
 
 # change the plots to a grey background grid w/o solid x/y-axis lines
 mpl.style.use('ggplot')
