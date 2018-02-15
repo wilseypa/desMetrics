@@ -24,7 +24,7 @@ argparser.add_argument('--fulltrace',
                        help='Compare samples against full trace.')
 argparser.add_argument('--outDir', default='./measuresOutDir', help='Directory to write output files (default: ./measuresOutDir)')
 argparser.add_argument('--sampleDir', default='./sampleDir', help='Directory where sample directories are located (default: ./sampleDir')
-argparser.add_argument('--fullTraceDir', default='.', help='Directory where full trace analysis files reside (default: .')
+argparser.add_argument('--fullTraceDir', default='./', help='Directory where full trace analysis files reside (default: ./')
 
 args = argparser.parse_args()
 
