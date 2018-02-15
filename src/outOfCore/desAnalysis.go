@@ -21,8 +21,11 @@ package main
 import "os"
 import "fmt"
 import "io/ioutil"
+import "encoding/csv"
+import "sort"
 //import "math"
 import "log"
+import "io"
 import "bufio"
 import "os/exec"
 import "strconv"
@@ -45,22 +48,18 @@ func printFile(in string){
     if err := scanner.Err(); err != nil {
         log.Fatal(err)
     }
- }
-    
-// setup a data structure for events.  internally we're going to store LP names with their integer map value.
-// since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
-// store the other "companion" LP internally.
-type eventData struct {
-	companionLP int
-	sendTime float64
-	receiveTime float64
-}
+ }   
 
 // setup a data structure for LPs; each LP has a unique id and a list of events it generates.
 type lpData struct {
 	lpId int
-	events []eventData
 }
+
+// functions to support sorting of the events by their receive time
+type byReceiveTime []eventData
+func (a byReceiveTime) Len() int           {return len(a)}
+func (a byReceiveTime) Swap(i, j int)      {a[i], a[j] = a[j], a[i]}
+func (a byReceiveTime) Less(i, j int) bool {return a[i].receiveTime < a[j].receiveTime}
 
 func main() {
 
@@ -133,7 +132,6 @@ func main() {
 		lp = defineLP(rLP)
 		lp.receivedEvents++
 	}
-	
 
 	printInfo := func (format string, a ...interface{}) (n int, err error) {
 		n, err = fmt.Printf(format, a)
@@ -243,7 +241,7 @@ func main() {
 					//fmt.Fprintf(outFile,"%v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime)
 					if flag == 0 {
 						if sendingLP == receivingLP {remote = 0} else {remote = 1}
-						fmt.Fprintf(outFile,"%v, %v, %v, %v, %v\n", sendingLP, sendTime, receivingLP, receiveTime, remote)
+						fmt.Fprintf(outFile,"%v %v %v %v %v\n", sendingLP, sendTime, receivingLP, receiveTime, remote)
 					}
 					processEvent(sendingLP, sendTime, receivingLP, receiveTime)
 					if token == R_BRACKET {break parsingLoop}
@@ -281,19 +279,15 @@ func main() {
 	for _, i := range lpNameMap {
 		lpIndex[i.toInt] = -1
 		lps[i.toInt].lpId = i.toInt
-		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 	}
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
 	exec.Command("/bin/sh", "dataStreamHelper.sh", "1").Output()
-	//string max
-	max, err := ioutil.ReadFile("streamedData/temp") // just pass the file name
+	maxLpEvents, err := ioutil.ReadFile("streamedData/temp")
     if err != nil {fmt.Print(err)}
-
-	fmt.Printf("\nkjshdfjsdhfksjdfh: %v\n", string(max))
 	printFile("streamedData/printLog")
-
+	fmt.Printf("%v", maxLpEvents)
 
 	// this time we will save the events
 	fmt.Printf("%v: Processing %v to capture events.\n", printTime(), flag.Arg(0))
@@ -307,91 +301,116 @@ func main() {
 	// build the reverse map: integers -> LP Names
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
-
-	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
-	// should probably be aware of.  also, record the max num of events received by an LP
-//	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", printTime())
-//	maxLPEventArray := 0
-//	for i := range lps {
-//		if len(lps[i].events) == 0 {
-//			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
-//		}
-//		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
-//	}
-}
 	
 	
 	// on to analysis....
 
 	// create the directory to store the resulting data files (if it is not already there)
-//	err =  os.MkdirAll ("analysisData", 0777)
-//	if err != nil {panic(err)}
+	err =  os.MkdirAll ("analysisData", 0777)
+	if err != nil {panic(err)}
 
-//	outFile, err := os.Create("analysisData/modelSummary.json")
-//	if err != nil {panic(err)}
+	outFile, err := os.Create("analysisData/modelSummary.json")
+	if err != nil {panic(err)}
 
-//        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
-//        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
-//        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
-//        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
-//        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
-//        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
+        fmt.Fprintf(outFile,"{\n  \"simulator_name\" : %v,\n", simulatorName)
+        fmt.Fprintf(outFile,"  \"model_name\" : %v,\n", modelName)
+        fmt.Fprintf(outFile,"  \"capture_date\" : %v,\n", captureDate)
+        fmt.Fprintf(outFile,"  \"command_line_args\" : %v,\n", commandLineArgs)
+        fmt.Fprintf(outFile,"  \"total_lps\" : %v,\n",numOfLPs)
+        fmt.Fprintf(outFile,"  \"total_events\" : %v\n}",numOfEvents)
 
-//	err = outFile.Close()
-//	if err != nil {panic(err)}
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
-//	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
-//	return
-//}
+	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", printTime())	
 
 
-//	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
-//	// result in coverage of the percent of events received (basically how many LPs send X% of the
-//	// received messages).
-//	numOfLPsToCover := func(total int, data []int, percent int) int {
-//		// add .99 because int() truncates and we actually want rounding
-//		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
-//		// ok, we had a corner case where this test is needed
-//		if (numRequired > total) {numRequired = total}
-//		lpCount := 0
-//		eventCount := 0
-//		for i := range data {
-//			lpCount++
-//			eventCount = eventCount + data[i]
-//			if eventCount >= numRequired {
-//				return lpCount
-//			}
-//		}
-//		fmt.Printf("ERROR: something's amiss in this computation: %v, %v, %v, %v, %v\n", total, percent, numRequired, eventCount, len(data))
-//		panic("aborting.")
-//	}
+	// this helper function will compute the number of LPs (sorted by most sending to least sending) that
+	// result in coverage of the percent of events received (basically how many LPs send X% of the
+	// received messages).
+	numOfLPsToCover := func(total int, data []int, percent int) int {
+		// add .99 because int() truncates and we actually want rounding
+		numRequired := int(((float32(total) * float32(percent)) / float32(100)) + .99)
+		// ok, we had a corner case where this test is needed
+		if (numRequired > total) {numRequired = total}
+		lpCount := 0
+		eventCount := 0
+		for i := range data {
+			lpCount++
+			eventCount = eventCount + data[i]
+			if eventCount >= numRequired {
+				return lpCount
+			}
+		}
+		fmt.Printf("ERROR: something's amiss in this computation: %v, %v, %v, %v, %v\n", total, percent, numRequired, eventCount, len(data))
+		panic("aborting.")
+	}
+	
+	// data type to capture each LP's event summary data
+	type lpEventSummary struct {
+		lpId string
+		local string
+		remote string
+		total int
+		cover [5]int
+		localChain []int
+		linkedChain []int
+		globalChain []int
+	}
 
-//	// compute the local/remote events and cover statistics
-//	computeLPEventsProcessed := func(lp lpData) lpEventSummary {
+//		exec.Command("/bin/sh", "dataStreamHelper.sh", "2").Output()
 //		var es lpEventSummary
-//		lpEventSendCount := make([]int,numOfLPs)
-//		es.lpId = lp.lpId
-//		es.local = 0
-//		es.remote = 0
-//		for _, event := range lp.events {
-//			if lp.lpId != event.companionLP {
-//				es.remote++
-//				// we don't want to count self generated events in the sender set.
-//				lpEventSendCount[event.companionLP]++
-//			} else {
-//				es.local++
+//		var remote, local int
+
+//		csvFile, _ := os.Open("lpInfo-comma.csv")
+//    	reader := csv.NewReader(bufio.NewReader(csvFile))
+//		for {
+//				line, error := reader.Read()
+//				if error == io.EOF {
+//				    break
+//				} else if error != nil {
+//				    log.Fatal(error)
+//				}
+////		    es = append(es, lpEventSummary{
+////		        lpId: line[0],
+////		        local: line[3],
+////		        remote: line[4],
+////		        },
+////		    )
+//	
+//			es := lpEventSummary{
+//				lpId: line[0],
+//		        local: line[3],
+//		        remote: line[4],
 //			}
+//			fmt.Printf("local: %v\n", es.local)
 //		}
-//		sort.Sort(sort.Reverse(sort.IntSlice(lpEventSendCount)))
-//		es.total = es.remote + es.local
-//		// since we're tracking message transmissions, use only the remote event total
-//		es.cover[0] = numOfLPsToCover(es.remote, lpEventSendCount, 75)  //  75% cutoff
-//		es.cover[1] = numOfLPsToCover(es.remote, lpEventSendCount, 80)  //  80% cutoff
-//		es.cover[2] = numOfLPsToCover(es.remote, lpEventSendCount, 90)  //  90% cutoff
-//		es.cover[3] = numOfLPsToCover(es.remote, lpEventSendCount, 95)  //  95% cutoff
-//		es.cover[4] = numOfLPsToCover(es.remote, lpEventSendCount, 100) // 100% cutoff
-//		return es
-//	}
+
+	// compute the local/remote events and cover statistics
+	computeLPEventsProcessed := func(lp lpData) lpEventSummary {
+		var es lpEventSummary
+		lpEventSendCount := make([]int,numOfLPs)
+		es.lpId = lp.lpId
+		exec.Command("/bin/sh", "dataStreamHelper.sh", "2").Output()
+		for _, event := range lp.events {
+			if lp.lpId != event.companionLP {
+				es.remote++
+				// we don't want to count self generated events in the sender set.
+				lpEventSendCount[event.companionLP]++
+			} else {
+				es.local++
+			}
+		}
+		sort.Sort(sort.Reverse(sort.IntSlice(lpEventSendCount)))
+		es.total = es.remote + es.local
+		// since we're tracking message transmissions, use only the remote event total
+		es.cover[0] = numOfLPsToCover(es.remote, lpEventSendCount, 75)  //  75% cutoff
+		es.cover[1] = numOfLPsToCover(es.remote, lpEventSendCount, 80)  //  80% cutoff
+		es.cover[2] = numOfLPsToCover(es.remote, lpEventSendCount, 90)  //  90% cutoff
+		es.cover[3] = numOfLPsToCover(es.remote, lpEventSendCount, 95)  //  95% cutoff
+		es.cover[4] = numOfLPsToCover(es.remote, lpEventSendCount, 100) // 100% cutoff
+		return es
+	}
 
 //// event chains are collections of events for execution at the LP that could potentially be executed
 //	// together.  thus when examining an event with receive timestamp t, the chain is formed by all future
@@ -416,7 +435,7 @@ func main() {
 //	}
 
 //	// PAW: consider changing these to being strictly less than the receiveTime
-//	computeEventChains := func(lp lpData) ([]int, []int, []int) {
+//	computeEventChains := func() ([]int, []int, []int) {
 
 //		local := make([]int,chainLength)
 //		linked := make([]int,chainLength)
@@ -461,7 +480,226 @@ func main() {
 //		return local, linked, global
 //	}
 
-//outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.csv")
+//	// PAW: change the comment headers of chains/covers to for loops so the numbers will automatically grow
+//	// with the variable setting.... 
+//	localChainFile, err := os.Create("analysisData/localEventChainsByLP.csv")
+//	if err != nil {panic(err)}
+//	fmt.Fprintf(localChainFile,"# local event chains by LP\n")
+//	fmt.Fprintf(localChainFile,"# LP, local chains of length: 1, 2, 3, 4, ... , >= n\n")
+
+//	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.csv")
+//	if err != nil {panic(err)}
+//	fmt.Fprintf(linkedChainFile,"# linked event chains by LP\n")
+//	fmt.Fprintf(linkedChainFile,"# LP, linked chains of length: 1, 2, 3, 4, ... , >= n\n")
+
+//	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.csv")
+//	if err != nil {panic(err)}
+//	fmt.Fprintf(globalChainFile,"# global event chains by LP\n")
+//	fmt.Fprintf(globalChainFile,"# LP, global chains of length: 1, 2, 3, 4, ... , >= n\n")
+
+//	// location to write summaries of local and remote events received
+//	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.csv")
+//	if err != nil {panic(err)}
+//	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
+//	fmt.Fprintf(eventSummaries, "# LP, local, remote, total\n")
+
+	// location to write percentage of LPs to cover percentage of events received
+	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv")
+	if err != nil {panic(err)}
+	fmt.Fprintf(numToCover,"# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
+	fmt.Fprintf(numToCover,"# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
+
+	// this will be invoked as a gogroutine with LPs equally (nearly) partitioned among them
+	analyzeReceivedEvents := func (c chan<- lpEventSummary) {
+		for _, lp := range(lps) {
+			eventsProcessed := computeLPEventsProcessed(lp)
+			//eventsProcessed.localChain, eventsProcessed.linkedChain, eventsProcessed.globalChain = computeEventChains (lp)
+			c <- eventsProcessed
+		}
+	}
+
+	// defining how many LPs do we assign to each thread
+	goroutineSliceSize := int((float32(len(lps))/float32(numThreads)) + .5)
+
+	// each goroutine will compute event counts for one LP, send the results back over the channel and
+	// continue. 
+	c := make(chan lpEventSummary, numThreads * 4)
+	for i := 0; i < numThreads; i++ {
+		low := i * goroutineSliceSize
+		high := low + goroutineSliceSize
+		if i == numThreads - 1 {high = len(lps)}
+		go analyzeReceivedEvents(lps[low:high], c)
+	}
+}
+//	localEventChainSummary := make([]int,chainLength)
+//	linkedEventChainSummary := make([]int,chainLength)
+//	globalEventChainSummary := make([]int,chainLength)
+
+//	// process all of the data in the channel and output the results
+//	for _ = range lps {
+//		eventsProcessed := <- c
+//		// capture event chain summaries
+//		for i := 0; i < chainLength; i++ {
+//			localEventChainSummary[i] = localEventChainSummary[i] + eventsProcessed.localChain[i]
+//			linkedEventChainSummary[i] = linkedEventChainSummary[i] + eventsProcessed.linkedChain[i]
+//			globalEventChainSummary[i] = globalEventChainSummary[i] + eventsProcessed.globalChain[i]
+//		}
+//		fmt.Fprintf(eventSummaries,"%v, %v, %v, %v\n", 
+//			mapIntToLPName[eventsProcessed.lpId], eventsProcessed.local, eventsProcessed.remote, eventsProcessed.local + eventsProcessed.remote)
+//		// PAW: turn this into a for loop so the variable will actually control
+//		fmt.Fprintf(numToCover,"%v, %v", mapIntToLPName[eventsProcessed.lpId], eventsProcessed.remote)
+//		for _, i := range eventsProcessed.cover {fmt.Fprintf(numToCover,", %v", i)}
+//		fmt.Fprintf(numToCover,"\n")
+//		fmt.Fprintf(localChainFile,"%v",mapIntToLPName[eventsProcessed.lpId])
+//		fmt.Fprintf(linkedChainFile,"%v",mapIntToLPName[eventsProcessed.lpId])
+//		fmt.Fprintf(globalChainFile,"%v",mapIntToLPName[eventsProcessed.lpId])
+//		for i := range eventsProcessed.localChain {
+//			fmt.Fprintf(localChainFile,", %v", eventsProcessed.localChain[i])
+//			fmt.Fprintf(linkedChainFile,", %v", eventsProcessed.linkedChain[i])
+//			fmt.Fprintf(globalChainFile,", %v", eventsProcessed.globalChain[i])
+//		}
+//        fmt.Fprintf(localChainFile,"\n")
+//        fmt.Fprintf(linkedChainFile,"\n")
+//        fmt.Fprintf(globalChainFile,"\n")
+//	}
+//	close(c)
+
+//	err = eventSummaries.Close()
+//	if err != nil {panic(err)}
+//	err = numToCover.Close()
+//	if err != nil {panic(err)}
+//	err = localChainFile.Close()
+//	if err != nil {panic(err)}
+//	err = linkedChainFile.Close()
+//	if err != nil {panic(err)}
+//	err = globalChainFile.Close()
+//	if err != nil {panic(err)}
+
+//	// number of LPs with n event chains of length X number of LPs with average event chains of length X
+//	
+//	// not sure this will be useful or not, but let's save totals of the local and global event chains.
+//	// specifically we will sum the local/global event chains for all of the LPs in the system
+
+//	outFile, err = os.Create("analysisData/eventChainsSummary.csv")
+//	if err != nil {panic(err)}
+//	fmt.Fprintf(outFile,"# number of event chains of length X\n")
+//	fmt.Fprintf(outFile,"# chain length, num of local chains, num of linked chains, num of global chains\n")
+//	for i := 0; i < chainLength; i++ {
+//		fmt.Fprintf(outFile,"%v, %v, %v, %v\n", i+1,
+//			localEventChainSummary[i],linkedEventChainSummary[i],globalEventChainSummary[i])
+//	}
+//	err = outFile.Close()
+//	if err != nil {panic(err)}
+
+//	//  now we will compute and print a summary matrix of the number of events exchanged between two LPs; while we
+//	// do this, we will also capture the minimum, maximum, and average delta between the send and receive time (for
+//	// lookahead analysis).  this matrix can be quite large and can actually be too large to create.  in order to
+//	// save space, we will print only the non-zero entries.  in the cases where it is too large to print, the
+//	// command line argument "--no-comm-matrix" can be used to suppress it's creation.
+
+//	if commSwitchOff == false {
+//		outFile, err = os.Create("analysisData/eventsExchanged-remote.csv")
+//		if err != nil {panic(err)}
+
+//		outFile2, err := os.Create("analysisData/eventsExchanged-local.csv")
+//		if err != nil {panic(err)}
+
+//		fmt.Fprintf(outFile,"# event exchanged matrix data (remote)\n")
+//		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
+
+//		fmt.Fprintf(outFile2,"# event exchanged matrix data (local)\n")
+//		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
+//		
+//		lpEventSendCount := make([]int,numOfLPs)
+//		aveSendTimeDelta := make([]float64,numOfLPs)
+//		minTimeDelta := make([]float64,numOfLPs)
+//		maxTimeDelta := make([]float64,numOfLPs)
+//		for j, lp := range(lps) {
+//			for i := range lpEventSendCount {
+//				lpEventSendCount[i] = 0
+//				aveSendTimeDelta[i] = 0
+//				minTimeDelta[i] = math.MaxFloat64
+//				maxTimeDelta[i] = 0
+//			}
+//			for _, event := range lp.events {
+//				lpEventSendCount[event.companionLP]++
+//				delta := event.receiveTime - event.sendTime
+//				aveSendTimeDelta[event.companionLP] = aveSendTimeDelta[event.companionLP] + delta
+//				if minTimeDelta[event.companionLP] > delta {minTimeDelta[event.companionLP] = delta}
+//				if maxTimeDelta[event.companionLP] < delta {maxTimeDelta[event.companionLP] = delta}
+//			}
+//			for i := range lpEventSendCount {
+//				if lpEventSendCount[i] != 0 {
+//					if i != j {
+//						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+//					} else {
+//						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+//					}
+//				}
+//			}
+//		}
+//		err = outFile.Close()
+//		if err != nil {panic(err)}
+//	}
+
+//	// events available for execution: here we will assume all events execute in unit time and evaluate the
+//	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
+//	// receive time of events in all of the LPs and count the number of LPs that could potentially be executed
+//	// at that time.  the general algorithm is outlined in the indexTemplate.md file for this project.
+
+//	fmt.Printf("%v: Analysis (parallel) of event parallelism available by simulation cycle (potential parallelism).\n", printTime())	
+
+//	// so we are going to do two parts of the simulation cycle analysis in each pass, namely: (i) count the
+//	// numbber of events available for execution, and (ii) find the lowest timestamp for the next simulation
+//	// cycle.  we are also going to run this analysis in parallel (and the two steps simultaneously) by
+//	// partitioning the LPs among the threads. 
+
+//	// using this data structure to hold cycle by cycle analysis results.  
+//	type simCycleAnalysisResults struct {
+//		definingLP int
+//		timeStamp float64
+//		numAvailable int
+//		eventsExhausted bool
+//	}
+
+//	// this function is setup to simultaneously (i) find the number of events that are available for execution
+//	// at a fixed schedule time and (ii) find the next (minimum) time for the next simulation cycle (by
+//	// assuming that all available events would be executed).
+//	analyzeSimCycle := func(lps []lpData, scheduleTime float64, definingLP int) simCycleAnalysisResults {
+//		var results simCycleAnalysisResults
+//		results.timeStamp = math.MaxFloat64
+//		results.eventsExhausted = true
+//		for _, lp := range lps {
+//			if lpIndex[lp.lpId] < len(lp.events) {
+//				// accumulate events available at this simulation time
+//				if (lp.events[lpIndex[lp.lpId]].sendTime < scheduleTime || definingLP == lp.lpId) {
+//					results.numAvailable++
+//					lpIndex[lp.lpId]++
+//				}
+//				// search for the time for the next simulation cycle
+//				if lpIndex[lp.lpId] < len(lp.events) { // since we potentially incremented the lpIndex ptr
+//					if results.timeStamp > lp.events[lpIndex[lp.lpId]].receiveTime {
+//						results.timeStamp = lp.events[lpIndex[lp.lpId]].receiveTime
+//						results.definingLP = lp.lpId
+//					}
+//				}
+//				results.eventsExhausted = false
+//			}
+//		}
+//		return results
+//	}
+//	
+//	// this function serves as the parallel thread function to communicate back and forth with the main thread.
+//	analyzeSimulationCycle := func(lps []lpData, c1 <-chan simCycleAnalysisResults, c2 chan<- simCycleAnalysisResults) {
+//		for ; ; {
+//			nextCycle :=<- c1
+//			if nextCycle.eventsExhausted == true {close(c2); return} // done
+//			results := analyzeSimCycle(lps, nextCycle.timeStamp, nextCycle.definingLP)
+//			c2 <- results
+//		}
+//	}
+//	
+//	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.csv")
 //	if err != nil {panic(err)}
 //	fmt.Fprintf(outFile,"# events available by simulation cycle\n")
 //	fmt.Fprintf(outFile,"# num of events ready for execution\n")
@@ -520,6 +758,9 @@ func main() {
 //		simCycle++
 //	}
 
+//	err = outFile.Close()
+//	if err != nil {panic(err)}
+
 //	// write out summary of events available
 //	outFile, err = os.Create("analysisData/timesXeventsAvailable.csv")
 //	if err != nil {panic(err)}
@@ -531,3 +772,4 @@ func main() {
 
 //	fmt.Printf("%v: Finished.\n", printTime())
 //	return
+//}	
