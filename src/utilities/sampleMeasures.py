@@ -10,7 +10,7 @@ from scipy.spatial.distance import directed_hausdorff
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
 mpl.use('Agg')
-import palettable
+from palettable.colorbrewer.qualitative import Set1_9
 import pylab
 import argparse
 import collections
@@ -22,8 +22,8 @@ argparser = argparse.ArgumentParser(description='Generate various measures on ho
 argparser.add_argument('--fulltrace', 
                        action="store_true",
                        help='Compare samples against full trace.')
-argparser.add_argument('--outDir', default='./measuresOutDir/', help='Directory to write output files (default: ./measuresOutDir/)')
-argparser.add_argument('--sampleDir', default='./sampleDir/', help='Directory where sample directories are located (default: ./sampleDir/')
+argparser.add_argument('--outDir', default='./measuresOutDir', help='Directory to write output files (default: ./measuresOutDir)')
+argparser.add_argument('--sampleDir', default='./sampleDir', help='Directory where sample directories are located (default: ./sampleDir')
 argparser.add_argument('--fullTraceDir', default='./', help='Directory where full trace analysis files reside (default: ./')
 
 args = argparser.parse_args()
@@ -130,8 +130,11 @@ def compute_metrics(sampleDirs, skippedEvents):
     print "working with " + sampleDirs[0] + "/analysisData/eventsExecutedByLP.csv"
 
     plotData = []
+    rawData =[]
+    numLPs = 0
     min = 100
     max = 0
+    totalEvents = 0
     for i in range(len(sampleDirs)) :
         percentOfMaxEvents = np.zeros(100, dtype=np.intc)
         # saving this next line in case i ever want to read a csv file with mixed strings/ints in the columns
@@ -140,12 +143,53 @@ def compute_metrics(sampleDirs, skippedEvents):
         sampleData = np.loadtxt(sampleDirs[i] + "/analysisData/eventsExecutedByLP.csv",
                                       dtype=np.intc, delimiter = ",", comments="#", usecols=(3))
         maxNumEvents = np.max(sampleData)
+        totalEvents =+ np.sum(sampleData)
+        eventsByLP = np.zeros(len(sampleData), dtype=np.float)
         for j in range(len(sampleData)) :
             percentOfMaxEvents[int(sampleData[j].astype(float)/maxNumEvents*100.0)-1] += 1
+            eventsByLP[j] = sampleData[j].astype(float)/float(totalEvents)
 
+        if numLPs < len(sampleData) : numLPs = len(sampleData)
         if min > np.min(np.nonzero(percentOfMaxEvents)) : min = np.min(np.nonzero(percentOfMaxEvents))
         if max < np.max(np.nonzero(percentOfMaxEvents)) : max = np.max(np.nonzero(percentOfMaxEvents))
         plotData.append(percentOfMaxEvents)
+        rawData.append(eventsByLP)
+
+    # pad out the rawData vectors
+    for i in range((len(rawData))) :
+        if len(rawData[i]) < numLPs :
+            rawData[i] = np.concatenate([rawData[i], np.zeros(numLPs-len(rawData[i]), dtype=np.float)])
+
+    colorIndex = 0
+    alphaValue= 1.0
+    pylab.xlabel('Events Executed by each LP (sorted)')
+    pylab.ylabel('Percent of Total Events')
+    pylab.yscale('log')
+    for i in rawData :
+        x_index = np.arange(len(i))
+        pylab.plot(x_index, sorted(i),
+                  color=colors[colorIndex], label=sampleDirs[index], alpha=alphaValue)
+        colorIndex = (colorIndex + 1) % len(colors)
+        alphaValue=0.5
+
+    #pylab.legend(loc='best')
+    display_plot('eventsExecutedByLP')
+
+    metricFile.write("% Events By LP\n")
+    metricFile.write("Base sample: " + sampleDirs[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov\n")
+
+    x_index = np.arange(len(rawData[0]))
+    baseSorted = sorted(rawData[0])
+    baseSortedTuple = np.vstack((x_index,baseSorted)).T
+    for x in range(len(sampleDirs)-1) :
+        metricFile.write(sampleDirs[x+1])
+        metricFile.write(", %.8f" % wasserstein_distance(baseSorted,sorted(rawData[x+1])))
+        #metricFile.write("N/A")
+        
+        metricFile.write(", %.8f" % directed_hausdorff(baseSortedTuple,np.vstack((x_index,sorted(rawData[x+1]))).T)[0])
+        metricFile.write(", %.8f" % ks_2samp(baseSorted,np.sort(rawData[x+1]))[0])
+        metricFile.write("\n")
 
     colorIndex = 0
     alphaValue= 1.0
@@ -261,8 +305,28 @@ def compute_metrics(sampleDirs, skippedEvents):
         colorIndex = (colorIndex + 1) % len(colors)
         alphaValue=0.25
                       
-    #pylab.legend(loc='best')
+    pylab.legend(loc='best')
     display_plot('modularity')
+
+    metricFile.write("% Modularity\n")
+    metricFile.write("Base sample: " + sampleDirs[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov\n")
+
+    index = 0
+    for x in sampleModularityValues :
+        modularity = collections.Counter()
+        for i in np.arange(len(x)) :
+            modularity[x[i]] += 1
+        if index == 0 :
+            baseModularity = sorted(modularity.values())
+        else :
+            metricFile.write("Sample %d" % index)
+            metricFile.write(", %.8f" % wasserstein_distance(baseModularity,sorted(modularity.values())))
+            metricFile.write(", N/A")
+            metricFile.write(", %.8f" % ks_2samp(baseModularity,sorted(modularity.values()))[0])
+            metricFile.write("\n")
+            
+        index += 1
 
     return
 
@@ -271,7 +335,7 @@ def compute_metrics(sampleDirs, skippedEvents):
 ####----------------------------------------------------------------------------------------------------
 
 # create a directory to write output graphs
-measuresDir = args.outDir
+measuresDir = args.outDir + "/"
 if not os.path.exists(measuresDir):
     os.makedirs(measuresDir)
 
@@ -301,11 +365,13 @@ def left_index(x):
     return int(x.split("-")[0])
 
 for x in sorted(os.listdir(args.sampleDir), key=left_index) :
-    dirs.append(args.sampleDir + x)
+    dirs.append(args.sampleDir + "/" + x)
               
 # set colormap and make it the default; prepend the color map with black for plotting the base case
 # we should actually tie this to the len(dirs), but that'll have to wait until later.   
-colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Set1_8.mpl_colors
+colors = [(0.0, 0.0, 0.0)] + Set1_9.mpl_colors
 
 # change the plots to a grey background grid w/o solid x/y-axis lines
 mpl.style.use('ggplot')
