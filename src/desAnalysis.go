@@ -178,7 +178,9 @@ func main() {
 	// --------------------------------------------------------------------------------
 	// enable the use of all CPUs on the system
 	numThreads := runtime.NumCPU()
-	runtime.GOMAXPROCS(numThreads)
+//	runtime.GOMAXPROCS(numThreads)
+	// temp solution for kvack....for some reason it doesn't fork to 32
+	runtime.GOMAXPROCS(16)
 
 	// function to print time as the program reports progress to stdout
 	getTime := func () string {return time.Now().Format(time.RFC850)}
