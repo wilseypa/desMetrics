@@ -3,6 +3,7 @@
 ## files for the desMetrics project.  
 
 import os
+import sys
 import numpy as np
 from scipy.stats import wasserstein_distance
 from scipy.stats import ks_2samp
@@ -39,6 +40,7 @@ def display_plot(fileName) :
     pylab.clf()
     return
 
+# copied from desGraphics
 def build_comm_graph(fileName):
 	data = np.loadtxt(fileName, dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
 	nodes = [x[0] for x in data]
@@ -50,6 +52,89 @@ def build_comm_graph(fileName):
 		graph.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
 	return graph
 
+# plot the data with line graphs; compute and write the distance measures using the first sample (be it from
+# the full trace or itself is a sample) to all other samples. paramters:
+#
+#    sampleNames: list of string names to use for the samples in the graphs
+
+#    plotNames: prefix string for the output plot file names
+#
+#    xIndexRange: to make the plotting work with the variable length vectors contained in sampleData, an
+#                 invocation might need to map the data to the same range of values (e.g., we will want all of
+#                 the events available data to be to a common range).  thus, xIndexRange will tell us the
+#                 range of values to plot the points through (0..xIndexRange).  if xIndexRange is 0, the
+#                 sampleData vectors are plotted as simple integer enumeration starting at 0.
+#
+#    sampleData: this is the raw sample data from each sample; these vectors may be of different lengths and
+#                only distance metrics that can function in such conditions will be applied to the sampleData
+#                vectors 
+#
+#    sampleDataAligned: a list of the sample datas with the length of each row sized to the same length.  this
+#                       is necessary for distance metrics that require the same length in the input vectors for
+# comparision 
+def plot_data_and_compute_distance_metrics(sampleNames, plotNames, xIndexRange, sampleData, sampleDataAligned):
+
+    # scipy.stats.kstest also computes Kolmogorov-Smirnov test for goodness of fit.
+
+    print sampleNames
+    print sampleData
+    print sampleDataAligned
+    return
+
+
+## compare some of the desAnalysis results from the samples to see how well they match each other
+def compare_samples(sampleNames, sampleDirs) :
+
+    global plotTitle
+    global xAxisLabel
+    global yAxisLabel
+
+    #### let's look at events available
+    print "working with " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
+
+    # first we read all of the files 
+    baseData = []
+    minLength = sys.maxint
+    for i in range(len(sampleDirs)) :
+        baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
+                                   dtype=np.intc, delimiter = ",", comments="#"))
+        if len(baseData[i]) < minLength : minLength = len(baseData[i])
+
+
+    # if the full trace is being considered, we're going to trim out system the first and last 1% of the event
+    # data for the eventsAvailableBySimCycle data.  this is due to our earlier observation [published in our
+    # PADS16 paper] that there is a notable startup/teardown characteristic in the events available data.  to
+    # obtain a meaningful comparison here, we want to remove that bias
+    if args.fulltrace:
+        skippedEvents = int(float(len(baseData[0]))*.01)
+        baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
+
+    # sort (in place) the eventsAvailable measures for plotting
+    for i in range(len(baseData)) :
+        baseData[i].sort()
+
+    # let's extract equal length samples from the samples :-)
+    sampleExtracts = []
+    for x in range(len(baseData)) :
+        extract = []
+        sampleLen = len(baseData[x]) - 1
+        for i in range(minLength) :
+            extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
+        sampleExtracts.append(extract)
+
+    # setup lables for plotting
+    plotTitle = 'Events Available'
+    xAxisLabel = 'Simulation Cycles (plotted 100)'
+    yAxisLabel = 'Num Events'
+
+    # we're ready to plot and compute the distance metrics
+    plot_data_and_compute_distance_metrics(sampleNames, 'eventsAvailable', 100, baseData, sampleExtracts)
+    
+
+    return
+
+
+
 ## ok this is my attempt to generate an analysis procedure that will work with either any trace as the base
 ## case; that said, because the full trace can have startup/teardown costs, we'll include a parameter that
 ## tells us how many (if any) events to skip at the head/tail of eventsAvailableBySimCycle.csv of the baseDir
@@ -58,14 +143,15 @@ def compute_metrics(sampleDirs, skippedEvents):
     #### let's look at events available
     print "working with " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
 
-    # first we read all of the files 
+    # first we read all of the files
     baseData = []
     for i in range(len(sampleDirs)) :
         baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
                                    dtype=np.intc, delimiter = ",", comments="#"))
 
     if skippedEvents > 0 : baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
-    
+
+
     ## now plot the data points normalized to an x-axis range of 0-100
     
     # we need to record the shortest sample so we can compute the metrics on equal sized arrays when necessary
@@ -344,7 +430,56 @@ if not os.path.exists(measuresDir):
 ## directories named in this list.  the first element (dirs[0]) of this list will be contain the data for the
 ## base case to be compared against.
 
-dirs = []
+sampleDirs = []
+
+## let's also give names to the samples; we will use labels "Full Trace" and "Sample x" for x=1,...,n in the
+## sorted event ranges of each sample
+sampleNames = []
+
+# ok, set sampleDirs and sampleNames
+if args.fulltrace :
+    sampleNames.append("Full Trace")
+    sampleDirs.append(args.fullTraceDir)
+    
+# setup a function to enable correct sorting of the sample directory names (basically we assume a standard
+# naming of these subdirectories of the form produced by desSampler.go; basically:
+#    <index of first event from source>-<index of last event from source> 
+def left_index(x):
+    return int(x.split("-")[0])
+
+sampleIndex = 1
+for x in sorted(os.listdir(args.sampleDir), key=left_index) :
+    sampleNames.append("Sample " + str(sampleIndex))
+    sampleIndex += 1
+    sampleDirs.append(args.sampleDir + "/" + x)
+
+# change the plots to a grey background grid w/o solid x/y-axis lines
+mpl.style.use('ggplot')
+
+# set colormap and make it the default; prepend the color map with black for plotting the base case
+# we should actually tie this to the len(dirs), but that'll have to wait until later.   
+# colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
+# colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Set1_8.mpl_colors
+colors = [(0.0, 0.0, 0.0)] + Set1_9.mpl_colors
+
+# setup some global variables that will be used within the comparison/plotting subroutines....
+plotTitle = ''
+xAxisLabel = ''
+yAxisLabel = ''
+
+# file to write distance measures
+metricFile = open(measuresDir + "/metricFile.csv","w")
+
+compare_samples(sampleNames,sampleDirs)
+
+#compute_metrics(sampleDirs,numSkippedEvents)
+
+metricFile.close()
+
+sys.exit()
+
+## save this for later....
+
 
 # since we see startup/teardown effects in most of the full traces we've examined to date, we will setup the
 # system to automatically trim out the first/last 1% of (only) the eventsAvailableBySimCycle analysis.  if
@@ -356,28 +491,5 @@ if args.fulltrace :
     totalEvents = len(data)
     # how many events in 1%
     numSkippedEvents = int(len(data)*.01)
-    dirs.append(args.fullTraceDir)
+    sampleDirs.append(args.fullTraceDir)
 
-# setup a function to enable correct sorting of the sample directory names (basically we assume a standard
-# naming of these subdirectories of the form produced by desSampler.go; basically:
-#    <index of first event from source>-<index of last event from source> 
-def left_index(x):
-    return int(x.split("-")[0])
-
-for x in sorted(os.listdir(args.sampleDir), key=left_index) :
-    dirs.append(args.sampleDir + "/" + x)
-              
-# set colormap and make it the default; prepend the color map with black for plotting the base case
-# we should actually tie this to the len(dirs), but that'll have to wait until later.   
-#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Dark2_7.mpl_colors
-#colors = [(0.0, 0.0, 0.0)] + palettable.colorbrewer.qualitative.Set1_8.mpl_colors
-colors = [(0.0, 0.0, 0.0)] + Set1_9.mpl_colors
-
-# change the plots to a grey background grid w/o solid x/y-axis lines
-mpl.style.use('ggplot')
-
-metricFile = open(measuresDir + "/metricFile.csv","w")
-
-compute_metrics(dirs,numSkippedEvents)
-
-metricFile.close()
