@@ -133,23 +133,30 @@ def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRang
 
     #### now we perform our distance metric comparisons....
 
+    def compute_distances(data) :
+
+        metricFile.write("Sample distance measures for desAnalysis result: " + analysisName + "\n")
+        metricFile.write("Base sample: " + sampleNames[0] + "\n")
+        metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
+
+        x_index = np.arange(len(data[0]))
+        baseDataTuple = np.vstack((x_index,data[0])).T
+        for i in range(len(sampleDirs)-1) :
+            metricFile.write(sampleDirs[i+1])
+            metricFile.write(", %.8f" % wasserstein_distance(data[0],data[i+1]))
+            metricFile.write(", %.8f" % directed_hausdorff(baseDataTuple,
+                                                           np.vstack((np.arange(len(data[i+1])),data[i+1])).T)[0])
+            # sample sizes can be different
+            metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
+            metricFile.write("\n")
+
+        return
+    
     print 'Computing distance measures for ' + analysisName
-
-    metricFile.write("Sample distance measures for desAnalysis result: " + analysisName + "\n")
-    metricFile.write("Base sample: " + sampleNames[0] + "\n")
-    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
-
-    x_index = np.arange(len(sampleData[0]))
-    baseDataTuple = np.vstack((x_index,sampleData[0])).T
-    for i in range(len(sampleDirs)-1) :
-        metricFile.write(sampleDirs[i+1])
-        metricFile.write(", %.8f" % wasserstein_distance(sampleData[0],sampleData[i+1]))
-        metricFile.write(", %.8f" %
-                         directed_hausdorff(baseDataTuple,
-                                            np.vstack((np.arange(len(sampleData[i+1])),sampleData[i+1])).T)[0])
-        # sample sizes can be different
-        metricFile.write(", %.8f, %.8f" % ks_2samp(sampleData[0],sampleData[i+1]))
-        metricFile.write("\n")
+    compute_distances(sampleData)
+    if len(sampleDataAligned) > 0 :
+        print 'Computing distance measures data with nulls for ' + analysisName
+        compute_distances(sampleData)
 
     return
 
