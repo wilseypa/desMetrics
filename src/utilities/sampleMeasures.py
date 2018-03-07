@@ -17,6 +17,7 @@ import argparse
 import collections
 import networkx as nx
 import community # install from python-louvain
+import itertools
 
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
@@ -52,33 +53,104 @@ def build_comm_graph(fileName):
 		graph.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
 	return graph
 
-# plot the data with line graphs; compute and write the distance measures using the first sample (be it from
-# the full trace or itself is a sample) to all other samples. paramters:
+# plot the data with line graphs; compute and write the distance measures using the first sample (be
+# it from the full trace or itself is a sample) to all other samples. paramters:
 #
 #    sampleNames: list of string names to use for the samples in the graphs
-
-#    plotNames: prefix string for the output plot file names
+#
+#    analysisName: name of the analysis results being compared
 #
 #    xIndexRange: to make the plotting work with the variable length vectors contained in sampleData, an
 #                 invocation might need to map the data to the same range of values (e.g., we will want all of
 #                 the events available data to be to a common range).  thus, xIndexRange will tell us the
 #                 range of values to plot the points through (0..xIndexRange).  if xIndexRange is 0, the
-#                 sampleData vectors are plotted as simple integer enumeration starting at 0.
-#
+#                 sampleData vectors are plotted as simple integer enumeration starting at 0. 
 #    sampleData: this is the raw sample data from each sample; these vectors may be of different lengths and
 #                only distance metrics that can function in such conditions will be applied to the sampleData
-#                vectors 
+#                vectors  
 #
 #    sampleDataAligned: a list of the sample datas with the length of each row sized to the same length.  this
-#                       is necessary for distance metrics that require the same length in the input vectors for
-# comparision 
-def plot_data_and_compute_distance_metrics(sampleNames, plotNames, xIndexRange, sampleData, sampleDataAligned):
+#                       is necessary for distance metrics that require the same length in the input vectors
+#                       for comparision 
 
-    # scipy.stats.kstest also computes Kolmogorov-Smirnov test for goodness of fit.
+def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRange, sampleData, sampleDataAligned):
 
-    print sampleNames
-    print sampleData
-    print sampleDataAligned
+    # basically we're going to generate several types of plots that might be useful for any given comparison.
+    # in particular we will do line and scatter plots with a normal  log scale y-axis; in all cases we will
+    # use display the first sample with an alpha value defined by the variable alphaInitial and all subsequent 
+    # samples with an alpha value defined by the variable alphaSubsequent
+
+    alphaInitial = 1.0
+    alphaSubsequent = 0.25
+
+    #### line plots....
+
+    # generate four plots alternating yAxis to linear/log scales and plot type to line/scatter; if xRange is
+    # non-zero, the points in the vectors of sampleData will be plotted as an integer enumerate to the x-axis,
+    # otherwise, they will be uniformly plotted to the x-axis range 0..xRange.
+    def plot_data(data, suffix, xRange) :
+
+        for yAxisType, plotType in itertools.product(('linear', 'log'), ('line', 'scatter')) :
+            pylab.title(plotTitle)
+            pylab.xlabel(xAxisLabel)
+            pylab.ylabel(yAxisLabel)
+            pylab.yscale(yAxisType)
+
+            colorIndex = 0
+            alphaValue = alphaInitial
+
+            for i in range(len(data)) :
+                if xRange == 0 : xIndex = np.arange(len(data[i]))
+                else : xIndex = np.arange(len(data[i])).astype(float)/float(len(data[i]))*xRange
+                if plotType == 'line' :
+                    pylab.plot(xIndex, data[i],
+                               color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
+                else :
+                    pylab.scatter(xIndex, data[i], marker = 'o',
+                               color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
+                colorIndex = (colorIndex + 1) % len(colors)
+                alphaValue = alphaSubsequent
+
+            pylab.legend(loc='best')
+            display_plot(analysisName + suffix + '_' + yAxisType + '_' + plotType)
+
+        return
+
+    #### ok, let's call the plotting function
+
+    # create plots with the x-axis ranges as an integer enumeration from each sample
+    plot_data(sampleData, "_raw", 0)
+
+    # create plots with the x-axis ranges bounded to the range (0..xIndexRange).   at the current time, this 
+    # version is really used for the eventsAvailable graphic.  the comparisons of other analysis data will
+    # most likely be more interested in the aligned data plotting that is performed next.
+    if xIndexRange != 0 :
+        plot_data(sampleData, "_raw_xRange_" + str(xIndexRange), xIndexRange)
+
+    # plot the data with the data aligned with nulls that would be provided in the missing data
+    if len(sampleDataAligned) > 0 :
+        plot_data(sampleDataAligned, "_aligned", 0)
+
+    #### now we perform our distance metric comparisons....
+
+    print 'Computing distance measures for ' + analysisName
+
+    metricFile.write("Sample distance measures for desAnalysis result: " + analysisName + "\n")
+    metricFile.write("Base sample: " + sampleNames[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
+
+    x_index = np.arange(len(sampleData[0]))
+    baseDataTuple = np.vstack((x_index,sampleData[0])).T
+    for i in range(len(sampleDirs)-1) :
+        metricFile.write(sampleDirs[i+1])
+        metricFile.write(", %.8f" % wasserstein_distance(sampleData[0],sampleData[i+1]))
+        metricFile.write(", %.8f" %
+                         directed_hausdorff(baseDataTuple,
+                                            np.vstack((np.arange(len(sampleData[i+1])),sampleData[i+1])).T)[0])
+        # sample sizes can be different
+        metricFile.write(", %.8f, %.8f" % ks_2samp(sampleData[0],sampleData[i+1]))
+        metricFile.write("\n")
+
     return
 
 
@@ -366,7 +438,7 @@ def compute_metrics(sampleDirs, skippedEvents):
 
     #### now let's look at modularity....
 
-    print "working with " + sampleDirs[0] + "/analysisData/eventsExchanged-remote.csv"
+    print "Working with " + sampleDirs[0] + "/analysisData/eventsExchanged-remote.csv"
 
     sampleModularityValues = []
 
