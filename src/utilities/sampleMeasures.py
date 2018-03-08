@@ -120,7 +120,7 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
     
     x_index = np.arange(len(data[0]))
     baseDataTuple = np.vstack((x_index,data[0])).T
-    for i in range(len(sampleDirs)-1) :
+    for i in range(len(sampleNames)-1) :
         metricFile.write(sampleDirs[i+1])
         metricFile.write(", %.8f" % wasserstein_distance(data[0],data[i+1]))
         metricFile.write(", %.8f" % directed_hausdorff(baseDataTuple,
@@ -165,7 +165,7 @@ def compare_samples(sampleNames, sampleDirs) :
 
     # setup lables for plotting
     plotTitle = 'Events Available'
-    xAxisLabel = 'Simulation Cycles (plotted 100)'
+    xAxisLabel = 'Simulation Cycles (range 0..100)'
     yAxisLabel = 'Num Events'
 
     # we're ready to plot and compute the distance metrics
@@ -181,68 +181,15 @@ def compare_samples(sampleNames, sampleDirs) :
             extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
         sampleExtracts.append(extract)
 
-    plot_data(sampleNames, baseData, 0, 'eventsAvailable_extracted')
+    plotTitle = 'Events Available (minLength extracted values)'
+    xAxisLabel = 'Simulation Cycles'
+    plot_data(sampleNames, sampleExtracts, 0, 'eventsAvailable_extracted')
     compute_distances(sampleNames, sampleExtracts,
                       'eventsAvailable (uniformly extracted ' + str(minLength) + 'values)')
 
     return
 
-# plot the data with line graphs; compute and write the distance measures using the first sample (be
-# it from the full trace or itself is a sample) to all other samples. paramters:
-#
-#    sampleNames: list of string names to use for the samples in the graphs
-#
-#    analysisName: name of the analysis results being compared
-#
-#    xIndexRange: to make the plotting work with the variable length vectors contained in sampleData, an
-#                 invocation might need to map the data to the same range of values (e.g., we will want all of
-#                 the events available data to be to a common range).  thus, xIndexRange will tell us the
-#                 range of values to plot the points through (0..xIndexRange).  if xIndexRange is 0, the
-#                 sampleData vectors are plotted as simple integer enumeration starting at 0. 
-#    sampleData: this is the raw sample data from each sample; these vectors may be of different lengths and
-#                only distance metrics that can function in such conditions will be applied to the sampleData
-#                vectors  
-#
-#    sampleDataAligned: a list of the sample datas with the length of each row sized to the same length.  this
-#                       is necessary for distance metrics that require the same length in the input vectors
-#                       for comparision 
-
-def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRange, sampleData, sampleDataAligned):
-
-    # basically we're going to generate several types of plots that might be useful for any given comparison.
-    # in particular we will do line and scatter plots with a normal  log scale y-axis; in all cases we will
-    # use display the first sample with an alpha value defined by the variable alphaInitial and all subsequent 
-    # samples with an alpha value defined by the variable alphaSubsequent
-
-
-
-    #### ok, let's call the plotting function
-
-    # create plots with the x-axis ranges as an integer enumeration from each sample
-    plot_data(sampleData, "_raw", 0)
-
-    # create plots with the x-axis ranges bounded to the range (0..xIndexRange).   at the current time, this 
-    # version is really used for the eventsAvailable graphic.  the comparisons of other analysis data will
-    # most likely be more interested in the aligned data plotting that is performed next.
-    if xIndexRange != 0 :
-        plot_data(sampleData, "_raw_xRange_" + str(xIndexRange), xIndexRange)
-
-    # plot the data with the data aligned with nulls that would be provided in the missing data
-    if len(sampleDataAligned) > 0 :
-        plot_data(sampleDataAligned, "_aligned", 0)
-    
-    print 'Computing distance measures for ' + analysisName
-    compute_distances(sampleData)
-    if len(sampleDataAligned) > 0 :
-        print 'Computing distance measures data with nulls for ' + analysisName
-        compute_distances(sampleData)
-
-    return
-
-
-    return
-
-
+#######--------------------------------------------------------------------------------
 
 ## ok this is my attempt to generate an analysis procedure that will work with either any trace as the base
 ## case; that said, because the full trace can have startup/teardown costs, we'll include a parameter that
@@ -524,6 +471,10 @@ def compute_metrics(sampleDirs, skippedEvents):
         index += 1
 
     return
+
+#######--------------------------------------------------------------------------------
+
+
 
 ####----------------------------------------------------------------------------------------------------
 #### let us begin
