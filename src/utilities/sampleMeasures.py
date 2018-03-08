@@ -43,15 +43,149 @@ def display_plot(fileName) :
 
 # copied from desGraphics
 def build_comm_graph(fileName):
-	data = np.loadtxt(fileName, dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
-	nodes = [x[0] for x in data]
-	edges = [x[1] for x in data]
-	weights = [int(x[2]) for x in data]
-	graph = nx.Graph()
-	for i in np.arange(len(data)):
-		graph.add_node(int(nodes[i]))
-		graph.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
-	return graph
+    data = np.loadtxt(fileName, dtype=np.intc, delimiter = ",", skiprows=2, usecols=(0,1,2))
+    nodes = [x[0] for x in data]
+    edges = [x[1] for x in data]
+    weights = [int(x[2]) for x in data]
+    graph = nx.Graph()
+    for i in np.arange(len(data)):
+	graph.add_node(int(nodes[i]))
+	graph.add_edge(int(nodes[i]),int(edges[i]), weight=int(weights[i]))	
+    return graph
+
+#### function to generate overlay plots analysis data from the various samples
+
+# generate four plots alternating yAxis to linear/log scales and plot type to line/scatter
+#
+#  sampleNames: string names of samples for printing/legend labels
+#
+#  data: nxm matrix: n samples, m data values for each sample
+#
+#  xRange: x-axis bounding range for plotting the m data values (if non-zero, data will be plotted in the
+#          bounding range 0..xRange; if zero, the data values will be plotted as an integer enumeration to the
+#          x-axis
+#
+# nameOfAnalysis: string to use to name files and denote the type of desAnalysis result these plots are for
+#
+def plot_data(sampleNames, data, xRange, nameOfAnalysis) :
+
+    global plotTitle
+    global xAxisLabel
+    global yAxisLabel
+    global colors
+        
+    for yAxisType, plotType in itertools.product(('linear', 'log'), ('line', 'scatter')) :
+
+        pylab.title(plotTitle)
+        pylab.xlabel(xAxisLabel)
+        pylab.ylabel(yAxisLabel)
+        pylab.yscale(yAxisType)
+        
+        alphaInitial = 1.0
+        alphaSubsequent = 0.25
+
+        colorIndex = 0
+        alphaValue = alphaInitial
+
+        for i in range(len(data)) :
+            if xRange == 0 : xIndex = np.arange(len(data[i]))
+            else : xIndex = np.arange(len(data[i])).astype(float)/float(len(data[i]))*xRange
+            if plotType == 'line' :
+                pylab.plot(xIndex, data[i],
+                           color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
+            else :
+                pylab.scatter(xIndex, data[i], marker = 'o',
+                              color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
+            colorIndex = (colorIndex + 1) % len(colors)
+            alphaValue = alphaSubsequent
+
+        pylab.legend(loc='best')
+        display_plot(nameOfAnalysis + '_' + yAxisType + '_' + plotType)
+        
+    return
+
+#### function to compute the distance metrics from the various samples
+
+#  sampleNames: string names of samples for printing/legend labels
+#
+#  data: nxm matrix: n samples, m data values for each sample
+#
+# nameOfAnalysis: string to use to name files and denote the type of desAnalysis result these plots are for
+#
+def compute_distances(sampleNames, data, nameOfAnalysis) :
+
+    metricFile.write("Sample distance measures for desAnalysis result: " + nameOfAnalysis + "\n")
+    metricFile.write("Base sample: " + sampleNames[0] + "\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
+    
+    x_index = np.arange(len(data[0]))
+    baseDataTuple = np.vstack((x_index,data[0])).T
+    for i in range(len(sampleDirs)-1) :
+        metricFile.write(sampleDirs[i+1])
+        metricFile.write(", %.8f" % wasserstein_distance(data[0],data[i+1]))
+        metricFile.write(", %.8f" % directed_hausdorff(baseDataTuple,
+                                                       np.vstack((np.arange(len(data[i+1])),data[i+1])).T)[0])
+        # sample sizes can be different
+        metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
+        metricFile.write("\n")
+        
+    return
+
+## compare some of the desAnalysis results from the samples to see how well they match each other
+def compare_samples(sampleNames, sampleDirs) :
+
+    global plotTitle
+    global xAxisLabel
+    global yAxisLabel
+
+    #### let's look at events available
+    print "Examining samples results of: analysisData/eventsAvailableBySimCycle.csv"
+
+    # first we read all of the files; as we do so, we'll also record the sample with the minimum number of
+    # points to use for computing distances
+    baseData = []
+    minLength = sys.maxint
+    for i in range(len(sampleDirs)) :
+        baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
+                                   dtype=np.intc, delimiter = ",", comments="#"))
+        if len(baseData[i]) < minLength : minLength = len(baseData[i])
+
+
+    # if the full trace is being considered, we're going to trim out system the first and last 1% of the event
+    # data for the eventsAvailableBySimCycle data.  this is due to our earlier observation [published in our
+    # PADS16 paper] that there is a notable startup/teardown characteristic in the events available data.  to
+    # obtain a meaningful comparison here, we want to remove that bias
+    if args.fulltrace:
+        skippedEvents = int(float(len(baseData[0]))*.01)
+        baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
+
+    # sort (in place) the eventsAvailable measures for plotting
+    for i in range(len(baseData)) :
+        baseData[i].sort()
+
+    # setup lables for plotting
+    plotTitle = 'Events Available'
+    xAxisLabel = 'Simulation Cycles (plotted 100)'
+    yAxisLabel = 'Num Events'
+
+    # we're ready to plot and compute the distance metrics
+    plot_data(sampleNames, baseData, 100, 'eventsAvailable')
+    compute_distances(sampleNames, baseData, 'eventsAvailable (raw counts)')
+
+    # let's extract equal length samples from the samples :-)
+    sampleExtracts = []
+    for x in range(len(baseData)) :
+        extract = []
+        sampleLen = len(baseData[x]) - 1
+        for i in range(minLength) :
+            extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
+        sampleExtracts.append(extract)
+
+    plot_data(sampleNames, baseData, 0, 'eventsAvailable_extracted')
+    compute_distances(sampleNames, sampleExtracts,
+                      'eventsAvailable (uniformly extracted ' + str(minLength) + 'values)')
+
+    return
 
 # plot the data with line graphs; compute and write the distance measures using the first sample (be
 # it from the full trace or itself is a sample) to all other samples. paramters:
@@ -80,41 +214,7 @@ def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRang
     # use display the first sample with an alpha value defined by the variable alphaInitial and all subsequent 
     # samples with an alpha value defined by the variable alphaSubsequent
 
-    alphaInitial = 1.0
-    alphaSubsequent = 0.25
 
-    #### line plots....
-
-    # generate four plots alternating yAxis to linear/log scales and plot type to line/scatter; if xRange is
-    # non-zero, the points in the vectors of sampleData will be plotted as an integer enumerate to the x-axis,
-    # otherwise, they will be uniformly plotted to the x-axis range 0..xRange.
-    def plot_data(data, suffix, xRange) :
-
-        for yAxisType, plotType in itertools.product(('linear', 'log'), ('line', 'scatter')) :
-            pylab.title(plotTitle)
-            pylab.xlabel(xAxisLabel)
-            pylab.ylabel(yAxisLabel)
-            pylab.yscale(yAxisType)
-
-            colorIndex = 0
-            alphaValue = alphaInitial
-
-            for i in range(len(data)) :
-                if xRange == 0 : xIndex = np.arange(len(data[i]))
-                else : xIndex = np.arange(len(data[i])).astype(float)/float(len(data[i]))*xRange
-                if plotType == 'line' :
-                    pylab.plot(xIndex, data[i],
-                               color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
-                else :
-                    pylab.scatter(xIndex, data[i], marker = 'o',
-                               color=colors[colorIndex], label=sampleNames[i], alpha=alphaValue)
-                colorIndex = (colorIndex + 1) % len(colors)
-                alphaValue = alphaSubsequent
-
-            pylab.legend(loc='best')
-            display_plot(analysisName + suffix + '_' + yAxisType + '_' + plotType)
-
-        return
 
     #### ok, let's call the plotting function
 
@@ -130,27 +230,6 @@ def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRang
     # plot the data with the data aligned with nulls that would be provided in the missing data
     if len(sampleDataAligned) > 0 :
         plot_data(sampleDataAligned, "_aligned", 0)
-
-    #### now we perform our distance metric comparisons....
-
-    def compute_distances(data) :
-
-        metricFile.write("Sample distance measures for desAnalysis result: " + analysisName + "\n")
-        metricFile.write("Base sample: " + sampleNames[0] + "\n")
-        metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
-
-        x_index = np.arange(len(data[0]))
-        baseDataTuple = np.vstack((x_index,data[0])).T
-        for i in range(len(sampleDirs)-1) :
-            metricFile.write(sampleDirs[i+1])
-            metricFile.write(", %.8f" % wasserstein_distance(data[0],data[i+1]))
-            metricFile.write(", %.8f" % directed_hausdorff(baseDataTuple,
-                                                           np.vstack((np.arange(len(data[i+1])),data[i+1])).T)[0])
-            # sample sizes can be different
-            metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
-            metricFile.write("\n")
-
-        return
     
     print 'Computing distance measures for ' + analysisName
     compute_distances(sampleData)
@@ -160,55 +239,6 @@ def plot_data_and_compute_distance_metrics(sampleNames, analysisName, xIndexRang
 
     return
 
-
-## compare some of the desAnalysis results from the samples to see how well they match each other
-def compare_samples(sampleNames, sampleDirs) :
-
-    global plotTitle
-    global xAxisLabel
-    global yAxisLabel
-
-    #### let's look at events available
-    print "working with " + sampleDirs[0] + "/analysisData/eventsAvailableBySimCycle.csv"
-
-    # first we read all of the files 
-    baseData = []
-    minLength = sys.maxint
-    for i in range(len(sampleDirs)) :
-        baseData.append(np.loadtxt(sampleDirs[i] + "/analysisData/eventsAvailableBySimCycle.csv",
-                                   dtype=np.intc, delimiter = ",", comments="#"))
-        if len(baseData[i]) < minLength : minLength = len(baseData[i])
-
-
-    # if the full trace is being considered, we're going to trim out system the first and last 1% of the event
-    # data for the eventsAvailableBySimCycle data.  this is due to our earlier observation [published in our
-    # PADS16 paper] that there is a notable startup/teardown characteristic in the events available data.  to
-    # obtain a meaningful comparison here, we want to remove that bias
-    if args.fulltrace:
-        skippedEvents = int(float(len(baseData[0]))*.01)
-        baseData[0] = baseData[0][skippedEvents:len(baseData[0])-skippedEvents]
-
-    # sort (in place) the eventsAvailable measures for plotting
-    for i in range(len(baseData)) :
-        baseData[i].sort()
-
-    # let's extract equal length samples from the samples :-)
-    sampleExtracts = []
-    for x in range(len(baseData)) :
-        extract = []
-        sampleLen = len(baseData[x]) - 1
-        for i in range(minLength) :
-            extract.append(baseData[x][int(float(sampleLen)/float(minLength) * float(i))])
-        sampleExtracts.append(extract)
-
-    # setup lables for plotting
-    plotTitle = 'Events Available'
-    xAxisLabel = 'Simulation Cycles (plotted 100)'
-    yAxisLabel = 'Num Events'
-
-    # we're ready to plot and compute the distance metrics
-    plot_data_and_compute_distance_metrics(sampleNames, 'eventsAvailable', 100, baseData, sampleExtracts)
-    
 
     return
 
