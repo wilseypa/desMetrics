@@ -115,7 +115,7 @@ def plot_data(sampleNames, data, xRange, nameOfAnalysis) :
 def compute_distances(sampleNames, data, nameOfAnalysis) :
 
     metricFile.write("Sample distance measures for desAnalysis result: " + nameOfAnalysis + "\n")
-    metricFile.write("Base sample: " + sampleNames[0] + "\n")
+    metricFile.write("Base sample: " + sampleNames[0] + "\n\n")
     metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
     
     x_index = np.arange(len(data[0]))
@@ -128,7 +128,9 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
         # sample sizes can be different
         metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
         metricFile.write("\n")
-        
+
+    metricFile.write("\n")
+    
     return
 
 ## compare some of the desAnalysis results from the samples to see how well they match each other
@@ -138,7 +140,9 @@ def compare_samples(sampleNames, sampleDirs) :
     global xAxisLabel
     global yAxisLabel
 
+    ####--------------------------------------------------------------------------------
     #### let's look at events available
+
     print "Examining samples results of: analysisData/eventsAvailableBySimCycle.csv"
 
     # first we read all of the files; as we do so, we'll also record the sample with the minimum number of
@@ -186,6 +190,93 @@ def compare_samples(sampleNames, sampleDirs) :
     plot_data(sampleNames, sampleExtracts, 0, 'eventsAvailable_extracted')
     compute_distances(sampleNames, sampleExtracts,
                       'eventsAvailable (uniformly extracted ' + str(minLength) + 'values)')
+
+    ####--------------------------------------------------------------------------------
+    #### let's look at events executed by the LPs
+
+    print "Examining samples results of: analysisData/eventsExecutedByLP.csv"
+
+    # first we read all of the files
+    baseData = []
+    numLPs = 0
+    totalEvents = 0
+
+    # read in the total events executed by each LP (sampleData); compute the total events executed for all
+    # LPs (totalEvents); find the max number of events any LP executes (maxNumEvents); and then store the
+    # percent of the total events that each LP processes (eventsByLP).
+    for i in range(len(sampleDirs)) :
+        percentOfMaxEvents = np.zeros(100, dtype=np.intc)
+        sampleData = np.loadtxt(sampleDirs[i] + "/analysisData/eventsExecutedByLP.csv",
+                                      dtype=np.intc, delimiter = ",", comments="#", usecols=(3))
+        maxNumEvents = np.max(sampleData)
+        totalEvents =+ np.sum(sampleData)
+        eventsByLP = sampleData.astype(float)/float(totalEvents)
+        baseData.append(eventsByLP)
+        
+        if numLPs < len(sampleData) : numLPs = len(sampleData)
+
+    # in case a sample doesn't have events for all LPs seen in any sample, pad out the percent executed counts
+    # with zeros and then sort
+    for i in range(len(baseData)) :
+        if len(baseData[i]) < numLPs :
+            baseData[i] = np.concatenate([baseData[i], np.zeros(numLPs-len(baseData[i]), dtype=np.float)])
+        baseData[i].sort()
+
+    plotTitle = ''
+    xAxisLabel = 'Events Executed by each LP (sorted)'
+    yAxisLabel = 'Percent of Total Events'
+
+    plot_data(sampleNames, baseData, 0, 'eventsExecutedByLP')
+    compute_distances(sampleNames, baseData, 'eventsExecutedByLP')
+
+    ####--------------------------------------------------------------------------------
+    #### let's look at events chains
+
+    print "Examining samples results of: analysisData/eventChainsSummary.csv"
+
+    # first we read all of the files
+    baseData = []
+
+    for i in range(len(sampleDirs)) :
+        sample = np.loadtxt(sampleDirs[i] + "/analysisData/eventChainsSummary.csv",
+                                   dtype=np.intc, delimiter = ",", comments="#", usecols=(1,2,3))
+        # compute percent of each event chain class
+        percentSample = []
+        for j in range(len(sample[0])) :
+            percentSample.append(sample[:,j].astype(float)/float(np.sum(sample[:,j])))
+        baseData.append(np.concatenate(percentSample).ravel())
+
+    plotTitle = 'Event Chains'
+    xAxisLabel = 'Local (0-4) Linked(5-9), Global(10-15)'
+    yAxisLabel = 'Percent of Chain Class (Local, Lined, or Global)'
+
+    plot_data(sampleNames, baseData, 0, 'eventChains')
+    compute_distances(sampleNames, baseData, 'eventChains')
+
+    ####--------------------------------------------------------------------------------
+    #### let's look at modularity
+
+    print "Examining samples results of modularity (analysisData/eventsExchanged-remote.csv)"
+
+    baseData = []
+    sampleModularityValues = []
+
+    # compute modularity and store
+    for x in sampleDirs :
+        sampleModularityValues.append(community.best_partition(build_comm_graph(x + "/analysisData/eventsExchanged-remote.csv")).values())
+
+    for x in sampleModularityValues :
+        modularity = collections.Counter()
+        for i in np.arange(len(x)) :
+            modularity[x[i]] += 1
+        baseData.append(sorted(modularity.values(), reverse = True))
+
+    plotTitle = 'Communities of LP Event Communications'
+    xAxisLabel = 'Modularity Class'
+    yAxisLabel = 'Number of LPs'
+
+    plot_data(sampleNames, baseData, 0, 'modularity')
+    compute_distances(sampleNames, baseData, 'modularity')
 
     return
 
@@ -530,26 +621,14 @@ yAxisLabel = ''
 # file to write distance measures
 metricFile = open(measuresDir + "/metricFile.csv","w")
 
+# PHIL: move this up and expand it's definition to split the ranges into comma separated fields.
+
+for i in (range(len(sampleNames))) :
+    metricFile.write("sample name, sample details (full trace or lower-upper bounds)\n")
+    metricFile.write(sampleNames[i] + ": " + sampleDirs[i] + "\n")
+
 compare_samples(sampleNames,sampleDirs)
 
 #compute_metrics(sampleDirs,numSkippedEvents)
 
 metricFile.close()
-
-sys.exit()
-
-## save this for later....
-
-
-# since we see startup/teardown effects in most of the full traces we've examined to date, we will setup the
-# system to automatically trim out the first/last 1% of (only) the eventsAvailableBySimCycle analysis.  if
-# we're not using a full trace, nothing will be trimmed.
-numSkippedEvents = 0
-
-if args.fulltrace :
-    data = np.loadtxt(args.fullTraceDir + "analysisData/eventsAvailableBySimCycle.csv", dtype=np.intc, delimiter = ",", comments="#")
-    totalEvents = len(data)
-    # how many events in 1%
-    numSkippedEvents = int(len(data)*.01)
-    sampleDirs.append(args.fullTraceDir)
-
