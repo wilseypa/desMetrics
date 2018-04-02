@@ -19,6 +19,13 @@ import networkx as nx
 import community # install from python-louvain
 import itertools
 
+# force matplotlib to generate truetype fonts
+#mpl.rcParams['pdf.fonttype'] = 42
+#mpl.rcParams['ps.fonttype'] = 42
+
+# force matplotlib to produce type 1 fonts
+mpl.rcParams['text.usetex'] = True
+
 # process the arguments on the command line
 argparser = argparse.ArgumentParser(description='Generate various measures on how well the desAnalysis output results of desSamples files.')
 argparser.add_argument('--fulltrace', 
