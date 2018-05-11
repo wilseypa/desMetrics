@@ -7,6 +7,7 @@ import sys
 import numpy as np
 from scipy.stats import wasserstein_distance
 from scipy.stats import ks_2samp
+from scipy.stats import pearsonr
 from scipy.spatial.distance import directed_hausdorff
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
@@ -123,7 +124,7 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
 
     metricFile.write("Sample distance measures for desAnalysis result: " + nameOfAnalysis + "\n")
     metricFile.write("Base sample: " + sampleNames[0] + "\n\n")
-    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value)\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value), Pearson Correlation (value), Person Correlation (p-value)\n")
     
     x_index = np.arange(len(data[0]))
     baseDataTuple = np.vstack((x_index,data[0])).T
@@ -134,6 +135,8 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
                                                        np.vstack((np.arange(len(data[i+1])),data[i+1])).T)[0])
         # sample sizes can be different
         metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
+        if len(data[0]) == len(data[i+1]) : metricFile.write(", %.8f, %.8f" % pearsonr(data[0],data[i+1]))
+        else : metricFile.write(", n/a, n/a")
         metricFile.write("\n")
 
     metricFile.write("\n")
