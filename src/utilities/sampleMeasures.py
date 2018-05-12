@@ -6,9 +6,11 @@ import os
 import sys
 import numpy as np
 from scipy.stats import wasserstein_distance
-from scipy.stats import ks_2samp
+from scipy.stats import ks_2sampg
 from scipy.stats import pearsonr
 from scipy.spatial.distance import directed_hausdorff
+from scipy.spatial.distance import seuclidean
+from sklearn.metrics import mean_squared_error
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
 mpl.use('Agg')
@@ -32,9 +34,9 @@ argparser = argparse.ArgumentParser(description='Generate various measures on ho
 argparser.add_argument('--fulltrace', 
                        action="store_true",
                        help='Compare samples against full trace.')
-argparser.add_argument('--outDir', default='./measuresOutDir', help='Directory to write output files (default: ./measuresOutDir)')
-argparser.add_argument('--sampleDir', default='./sampleDir', help='Directory where sample directories are located (default: ./sampleDir')
 argparser.add_argument('--fullTraceDir', default='./', help='Directory where full trace analysis files reside (default: ./')
+argparser.add_argument('--sampleDir', default='./sampleDir', help='Directory where sample directories are located (default: ./sampleDir')
+argparser.add_argument('--outDir', default='./measuresOutDir', help='Directory to write output files (default: ./measuresOutDir)')
 
 args = argparser.parse_args()
 
@@ -124,7 +126,7 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
 
     metricFile.write("Sample distance measures for desAnalysis result: " + nameOfAnalysis + "\n")
     metricFile.write("Base sample: " + sampleNames[0] + "\n\n")
-    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value), Pearson Correlation (value), Person Correlation (p-value)\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value), Pearson Correlation (value), Person Correlation (p-value), Euclidean Distance, Root Mean Squared\n")
     
     x_index = np.arange(len(data[0]))
     baseDataTuple = np.vstack((x_index,data[0])).T
@@ -137,6 +139,11 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
         metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
         if len(data[0]) == len(data[i+1]) : metricFile.write(", %.8f, %.8f" % pearsonr(data[0],data[i+1]))
         else : metricFile.write(", n/a, n/a")
+
+        metricFile.write(", %.8f, %.8f" % seuclidean(data[0],data[i+1]))
+        # we might alwo want the normalized RMS
+        metricFile.write(", %.8f, %.8f" % sqrt(mean_squared_error(data[0],data[i+1])))
+
         metricFile.write("\n")
 
     metricFile.write("\n")
