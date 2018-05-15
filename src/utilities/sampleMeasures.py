@@ -6,10 +6,11 @@ import os
 import sys
 import numpy as np
 from scipy.stats import wasserstein_distance
-from scipy.stats import ks_2sampg
+from scipy.stats import ks_2samp
+from scipy.stats import anderson_ksamp
 from scipy.stats import pearsonr
 from scipy.spatial.distance import directed_hausdorff
-from scipy.spatial.distance import seuclidean
+from scipy.spatial.distance import euclidean
 from sklearn.metrics import mean_squared_error
 import matplotlib as mpl
 # Force matplotlib to not use any Xwindows backend
@@ -21,6 +22,7 @@ import collections
 import networkx as nx
 import community # install from python-louvain
 import itertools
+from math import sqrt
 
 # force matplotlib to generate truetype fonts
 #mpl.rcParams['pdf.fonttype'] = 42
@@ -126,7 +128,7 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
 
     metricFile.write("Sample distance measures for desAnalysis result: " + nameOfAnalysis + "\n")
     metricFile.write("Base sample: " + sampleNames[0] + "\n\n")
-    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value), Pearson Correlation (value), Person Correlation (p-value), Euclidean Distance, Root Mean Squared\n")
+    metricFile.write("Comparison Sample, Wasserstein Distance, Directed Hausdorff, Kolmogorov-Smirnov (value), Kolmogorov-Smirnov (p-value), Pearson Correlation (value), Person Correlation (p-value), Euclidean Distance, Root Mean Squared Deviation (RMSD), NRMSD (as percent of base average), Anderson-Darling, Anderson-Darling (p-value)\n")
     
     x_index = np.arange(len(data[0]))
     baseDataTuple = np.vstack((x_index,data[0])).T
@@ -137,13 +139,20 @@ def compute_distances(sampleNames, data, nameOfAnalysis) :
                                                        np.vstack((np.arange(len(data[i+1])),data[i+1])).T)[0])
         # sample sizes can be different
         metricFile.write(", %.8f, %.8f" % ks_2samp(data[0],data[i+1]))
-        if len(data[0]) == len(data[i+1]) : metricFile.write(", %.8f, %.8f" % pearsonr(data[0],data[i+1]))
-        else : metricFile.write(", n/a, n/a")
-
-        metricFile.write(", %.8f, %.8f" % seuclidean(data[0],data[i+1]))
-        # we might alwo want the normalized RMS
-        metricFile.write(", %.8f, %.8f" % sqrt(mean_squared_error(data[0],data[i+1])))
-
+        if len(data[0]) == len(data[i+1]) :
+            metricFile.write(", %.8f, %.8f" % pearsonr(data[0],data[i+1]))
+            metricFile.write(", %.8f " % euclidean(data[0],data[i+1]))
+            metricFile.write(", %.8f" % sqrt(mean_squared_error(data[0],data[i+1])))
+            # let's alo normalized RMS as a percent of the average
+            metricFile.write(", %.8f" % (sqrt(mean_squared_error(data[0],data[i+1]))/np.mean(data[0])))
+            metricFile.write(", %.8f" % anderson_ksamp([map(float,data[0]),map(float,data[i+1])])[0])
+            metricFile.write(", %.8f" % anderson_ksamp([map(float,data[0]),map(float,data[i+1])])[2])
+        else :
+            metricFile.write(", n/a, n/a") # pearsonr
+            metricFile.write(", n/a")      # euclidean
+            metricFile.write(", n/a") # RMS
+            metricFile.write(", n/a, n/a") # anderson-darling
+        
         metricFile.write("\n")
 
     metricFile.write("\n")
