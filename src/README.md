@@ -6,7 +6,7 @@ These .csv files are then generally processed by the desGraphics.py python progr
 bunch of plots.
 
 Compile:
-  go build -o desAnalysis lex.yy.go desAnalysis.go
+  go build -o desAnalysis desAnalysis.go
 
 Run:
   ./desAnalysis <file.json>
@@ -20,7 +20,7 @@ desAnalysis processable files (modelSummary.json and desMetrics.csv).  desSample
 that you will have to read about in the source file.
 
 Compile:
-  go build -o desSampler lex.yy.go desSampler.go
+  go build -o desSampler desSampler.go
 
 Run:
   ./desSampler [options] <file.json>
