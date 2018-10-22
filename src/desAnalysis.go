@@ -241,7 +241,7 @@ func main() {
 	// record a unique int value for each LP and store the total number of sent and received events by that LP.
 	type lpMap struct {
 		toInt int
-		sentEvents int
+		sentEvents int					// CHECK THIS VALUE TO BE GREATER THAN 0
 		receivedEvents int
 	}
 
@@ -342,7 +342,7 @@ func main() {
 		lpIndex[i.toInt] = -1
 		lps[i.toInt].lpId = i.toInt
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
-		// lps[i.toInt].sent = make([]eventSentData, i.sentEvents)
+		lps[i.toInt].sentEvents = make([]eventSentData, i.sentEvents)			// construct sentEvents array in lp data struct
 	}
 
 	// on the second pass,  we will save the events
