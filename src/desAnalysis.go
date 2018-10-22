@@ -355,6 +355,18 @@ func main() {
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
+	// Now we'll check to see if all LPs sent an event (can be a problem if LP sent one event in first 1 %
+	// and did not receive anything afterwards) will record max num of events sent as well for funsies
+	// we check this before received events, bc desAnalysis will crash if each LP doesn't send one
+	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
+	maxLPSentArray := 0
+	for i := range lps {
+		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
+			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
+		}
+		if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
+	}
+
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
 	fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
@@ -365,18 +377,6 @@ func main() {
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
-
-	// Now we'll check to see if all LPs sent an event (can be a problem if LP sent one event in first 1 %
-	// and did not receive anything afterwards) will record max num of events sent as well for funsies
-	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
-	maxLPSentArray := 0
-	for i := range lps {
-		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
-			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
-		}
-		if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
-	}
-
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
