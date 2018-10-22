@@ -44,10 +44,18 @@ type eventData struct {
 	receiveTime float64
 }
 
+// setup a data structure for sent events, stored with their integer map value. 
+type eventSentData struct {
+	companionLP int
+	sendTime float64
+	receiveTime float64
+}
+
 // setup a data structure for LPs; each LP has a unique id and a list of events it generates.
 type lpData struct {
 	lpId int
 	events []eventData
+	sentEvents []eventSentData
 }
 
 // functions to support sorting of the events by their receive time
@@ -329,11 +337,12 @@ func main() {
 
 	// periodically we will need to walk through the LP arrays independently; we will use this array to do so
 	lpIndex = make([]int, len(lps))
-	// allocate entries in each LP to hold the number events it received
+	// allocate entries in each LP to hold the number events it received AND SENT
 	for _, i := range lpNameMap {
 		lpIndex[i.toInt] = -1
 		lps[i.toInt].lpId = i.toInt
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
+		// lps[i.toInt].sent = make([]eventSentData, i.sentEvents)
 	}
 
 	// on the second pass,  we will save the events
@@ -348,14 +357,26 @@ func main() {
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
-	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", getTime())
+	fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
 	maxLPEventArray := 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
-			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
+			fmt.Printf("WARNING: LP %v received zero messages.\n", mapIntToLPName[i])
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
+
+	// Now we'll check to see if all LPs sent an event (can be a problem if LP sent one event in first 1 %
+	// and did not receive anything afterwards) will record max num of events sent as well for funsies
+	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
+	maxLPSentArray := 0
+	for i := range lps {
+		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
+			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
+		}
+		if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
+	}
+
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
