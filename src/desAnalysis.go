@@ -369,7 +369,7 @@ func main() {
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
-	fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
+	// fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
 	maxLPEventArray := 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
