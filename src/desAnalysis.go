@@ -55,7 +55,7 @@ type eventSentData struct {
 type lpData struct {
 	lpId int
 	events []eventData
-	sentEvents []eventSentData
+	sentEvents int
 }
 
 // functions to support sorting of the events by their receive time
@@ -342,8 +342,7 @@ func main() {
 		lpIndex[i.toInt] = -1
 		lps[i.toInt].lpId = i.toInt
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
-		lps[i.toInt].sentEvents = make([]eventSentData, i.sentEvents)			// construct sentEvents array in lp data struct
-		print(lps[i.toInt].sentEvents)
+		lps[i.toInt].sentEvents = i.sentEvents//make([]eventSentData, i.sentEvents)			// construct sentEvents array in lp data struct
 	}
 
 	// on the second pass,  we will save the events
@@ -357,15 +356,17 @@ func main() {
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
 	// Now we'll check to see if all LPs sent an event (can be a problem if LP sent one event in first 1 %
-	// and did not receive anything afterwards) will record max num of events sent as well for funsies
+	// and did not receive anything afterwards) will record max num of events
 	// we check this before received events, bc desAnalysis will crash if each LP doesn't send one
 	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
 	maxLPSentArray := 0
 	for i := range lps {
-		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
+		if lps[i].sentEvents == 0 {
+//		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
 			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
 		}
-		if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
+		if maxLPSentArray < lps[i].sentEvents {maxLPSentArray = lps[i].sentEvents}
+		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
 	}
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
