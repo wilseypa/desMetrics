@@ -343,6 +343,7 @@ func main() {
 		lps[i.toInt].lpId = i.toInt
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
 		lps[i.toInt].sentEvents = make([]eventSentData, i.sentEvents)			// construct sentEvents array in lp data struct
+		print(lps[i.toInt].sentEvents)
 	}
 
 	// on the second pass,  we will save the events
