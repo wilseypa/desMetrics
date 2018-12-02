@@ -360,26 +360,31 @@ func main() {
 	// we check this before received events, bc desAnalysis will crash if each LP doesn't send one
 	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
 	maxLPSentArray := 0
+	var zeroSentLPs = 0
 	for i := range lps {
 		if lps[i].sentEvents == 0 {
-//		if len(lps[i].sentEvents) == 0 {	// CHANGE TO BE SENT INSTEAD OF RECEIVE
-			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
+// 			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
+			zeroSentLPs++
 		}
 		if maxLPSentArray < lps[i].sentEvents {maxLPSentArray = lps[i].sentEvents}
 		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
 	}
+	fmt.Printf("%v LP's sent ZERO messages.\n", zeroSentLPs)
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
 	// fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
 	maxLPEventArray := 0
+	var zeroReceivedLPs = 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
-			fmt.Printf("WARNING: LP %v received zero messages.\n", mapIntToLPName[i])
+// 			fmt.Printf("WARNING: LP %v received zero messages.\n", mapIntToLPName[i])
+			zeroReceivedLPs++
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
-
+	fmt.Printf("%v LP's received ZERO messages.\n", zeroReceivedLPs)
+	
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
