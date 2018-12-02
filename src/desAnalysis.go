@@ -359,7 +359,7 @@ func main() {
 		if maxLPSentArray < lps[i].sentEvents {maxLPSentArray = lps[i].sentEvents}
 		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
 	}
-	fmt.Printf("%v: %v sent ZERO messages.\n", getTime(), zeroSentLPS)
+	fmt.Printf("%v sent ZERO messages.\n", zeroSentLPS)
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
@@ -373,7 +373,7 @@ func main() {
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
-	fmt.Printf("%v: %v received ZERO messages.\n", getTime(), , zeroReceivedLPS)
+	fmt.Printf("%v received ZERO messages.\n", zeroReceivedLPS)
 
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
