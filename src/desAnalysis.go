@@ -775,7 +775,7 @@ func main() {
 			}
 		}
 		for _, event := range lp.events {
-			stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveReceivedTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
+			stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
 		}
 
 		for i := range lpEventReceivedCount {
