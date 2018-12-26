@@ -1,4 +1,3 @@
-
 // this program performs the analysis for the desMetrics project at UC
 // (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
 // simulation model for which the event trace was captured.  the events are stored in a separate (compressed
@@ -370,6 +369,7 @@ func main() {
 		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
 	}
 	fmt.Printf("%v LP's sent ZERO messages.\n", zeroSentLPs)
+
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
@@ -861,4 +861,4 @@ func main() {
 
 	fmt.Printf("%v: Finished.\n", getTime())
 	return
-}	
+} 
