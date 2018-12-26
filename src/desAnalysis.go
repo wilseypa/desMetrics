@@ -766,7 +766,7 @@ func main() {
 		for _, event := range lp.events {
 			lpEventReceivedCount[j]++
 			delta := event.receiveTime - event.sendTime
-			aveSendTimeDelta[j] += delta
+			aveTimeDelta[j] += delta
 			if minTimeDelta[j] > delta {
 				minTimeDelta[j] = delta
 			}
@@ -775,12 +775,12 @@ func main() {
 			}
 		}
 		for _, event := range lp.events {
-			stDevDelta[j] += math.POw(((event.receiveTime - event.sendTime) - (aveReceivedTimeDelta[j]/lpEventReceivedCount[j])), 2)
+			stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveReceivedTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
 		}
 
 		for i := range lpEventReceivedCount {
 			if lpEventReceivedCount[i] != 0 {
-				fmt.Fprintf(outfile, "%v,%v,v,%v,v,%v,\n", j, lpEventsReceived[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(numEventsProcessed[j]), stanDeviation[j])
+				fmt.Fprintf(outFile, "%v,%v,v,%v,v,%v,\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(numEventsProcessed[j]), stanDeviation[j])
 			}
 		}
 		err = outFile.Close()
