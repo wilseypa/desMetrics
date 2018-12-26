@@ -719,14 +719,14 @@ func main() {
 				if maxTimeDelta[event.companionLP] < delta {maxTimeDelta[event.companionLP] = delta}
 			}
 			for _, event := range lp.events {
-				stDevDelta[event.companionLP] += math.Pow(((event.receiveTime - event.sendTime) - (aveSendTimeDelta[event.companionLP]/float(lpEventSendCount[event.companionLP]))), 2)
+				stDevDelta[event.companionLP] += math.Pow(((event.receiveTime - event.sendTime) - (aveSendTimeDelta[event.companionLP]/float64(lpEventSendCount[event.companionLP]))), 2)
 			}
 			for i := range lpEventSendCount {
 				if lpEventSendCount[i] != 0 {
 					if i != j {
-						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),Math.sqrt(stDevDelta[i]/float(lpEventSendCount[i])))
+						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
 					} else {
-						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),Math.sqrt(stDevDelta[i]/float(lpEventSendCount[i])))
+						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
 					}
 				}
 			}
@@ -775,7 +775,7 @@ func main() {
 			}
 		}
 		for _, event := range lp.events {
-			stDevDelta[j] += math.POw(((event.receiveTime - event.sendTime) - (aveReceiveTimeDelta[j]/lpEventReceivedCount[j])), 2)
+			stDevDelta[j] += math.POw(((event.receiveTime - event.sendTime) - (aveReceivedTimeDelta[j]/lpEventReceivedCount[j])), 2)
 		}
 
 		for i := range lpEventReceivedCount {
