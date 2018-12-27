@@ -750,7 +750,7 @@ func main() {
 	maxTimeDelta := make([]float64, numOfLPs)
 	aveTimeDelta := make([]float64, numOfLPs)
 	stanDeviation := make([]float64, numOfLPs)
-	currLP := -1			// This shows where the process is at for analysis. 
+	//currLP := -1			// This shows where the process is at for analysis. 
 	for j, lp:= range(lps) {
 		// j is the received LP
 
@@ -780,11 +780,12 @@ func main() {
 
 		for i := range lpEventReceivedCount {
 			if lpEventReceivedCount[i] != 0 {
-				fmt.Fprintf(outFile, "%v,%v,v,%v,v,%v,\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(numEventsProcessed[j]), stanDeviation[j])
+				fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v,\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(numEventsProcessed[j]), stanDeviation[j])
 			}
 		}
 		err = outFile.Close()
 		if err != nil {panic(err)}
+		fmt.Println(err)
 	}
 
 
