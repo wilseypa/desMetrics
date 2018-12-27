@@ -741,8 +741,8 @@ func main() {
 	outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
 	if err != nil {panic(err)}
 
-	fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)")
-	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation")
+	fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
+	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
 
 	lpEventReceivedCount := make([]int, numOfLPs)
 	numEventsProcessed := make([]int, numOfLPs)
@@ -779,15 +779,16 @@ func main() {
 		}
 
 		for i := range lpEventReceivedCount {
+	//		fmt.Println("Here")
 			if lpEventReceivedCount[i] != 0 {
-				fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v,\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(numEventsProcessed[j]), stanDeviation[j])
+				fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
 			}
 		}
-		err = outFile.Close()
-		if err != nil {panic(err)}
-		fmt.Println(err)
+		//err = outFile.Close()
+		//if err != nil {panic(err)}
+		//fmt.Println(err)
 	}
-
+fmt.Println("here")
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
