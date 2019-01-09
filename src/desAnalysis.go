@@ -1,4 +1,3 @@
-
 // this program performs the analysis for the desMetrics project at UC
 // (http://github.com/wilseypa/desMetrics).  this program inputs a json file containing profile data of the
 // simulation model for which the event trace was captured.  the events are stored in a separate (compressed
@@ -44,10 +43,18 @@ type eventData struct {
 	receiveTime float64
 }
 
+// setup a data structure for sent events, stored with their integer map value. 
+type eventSentData struct {
+	companionLP int
+	sendTime float64
+	receiveTime float64
+}
+
 // setup a data structure for LPs; each LP has a unique id and a list of events it generates.
 type lpData struct {
 	lpId int
 	events []eventData
+	sentEvents int
 }
 
 // functions to support sorting of the events by their receive time
@@ -233,7 +240,7 @@ func main() {
 	// record a unique int value for each LP and store the total number of sent and received events by that LP.
 	type lpMap struct {
 		toInt int
-		sentEvents int
+		sentEvents int					// CHECK THIS VALUE TO BE GREATER THAN 0
 		receivedEvents int
 	}
 
@@ -329,11 +336,12 @@ func main() {
 
 	// periodically we will need to walk through the LP arrays independently; we will use this array to do so
 	lpIndex = make([]int, len(lps))
-	// allocate entries in each LP to hold the number events it received
+	// allocate entries in each LP to hold the number events it received AND SENT
 	for _, i := range lpNameMap {
 		lpIndex[i.toInt] = -1
 		lps[i.toInt].lpId = i.toInt
 		lps[i.toInt].events = make([]eventData, i.receivedEvents)
+		lps[i.toInt].sentEvents = i.sentEvents//make([]eventSentData, i.sentEvents)			// construct sentEvents array in lp data struct
 	}
 
 	// on the second pass,  we will save the events
@@ -346,17 +354,37 @@ func main() {
 	mapIntToLPName := make([]string, numOfLPs)
 	for key, value := range lpNameMap {mapIntToLPName[value.toInt] = key}
 
+	// Now we'll check to see if all LPs sent an event (can be a problem if LP sent one event in first 1 %
+	// and did not receive anything afterwards) will record max num of events
+	// we check this before received events, bc desAnalysis will crash if each LP doesn't send one
+	fmt.Printf("%v: Verifying that all LPs sent at least one event. \n", getTime())
+	maxLPSentArray := 0
+	var zeroSentLPs = 0
+	for i := range lps {
+		if lps[i].sentEvents == 0 {
+// 			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
+			zeroSentLPs++
+		}
+		if maxLPSentArray < lps[i].sentEvents {maxLPSentArray = lps[i].sentEvents}
+		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
+	}
+	fmt.Printf("%v LP's sent ZERO messages.\n", zeroSentLPs)
+
+
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
 	// should probably be aware of.  also, record the max num of events received by an LP
-	fmt.Printf("%v: Verifying that all LPs recieved at least one event.\n", getTime())
+	// fmt.Printf("%v: Verifying that all LPs received at least one event.\n", getTime())
 	maxLPEventArray := 0
+	var zeroReceivedLPs = 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
-			fmt.Printf("WARNING: LP %v recived zero messages.\n", mapIntToLPName[i])
+// 			fmt.Printf("WARNING: LP %v received zero messages.\n", mapIntToLPName[i])
+			zeroReceivedLPs++
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
-
+	fmt.Printf("%v LP's received ZERO messages.\n", zeroReceivedLPs)
+	
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
 	for i := range lps {sort.Sort(byReceiveTime(lps[i].events))}
@@ -655,6 +683,8 @@ func main() {
 	// save space, we will print only the non-zero entries.  in the cases where it is too large to print, the
 	// command line argument "--no-comm-matrix" can be used to suppress it's creation.
 
+	// 12/26/18: Extending this to include a standard deviation column. 
+
 	if commSwitchOff == false {
 		outFile, err = os.Create("analysisData/eventsExchanged-remote.csv")
 		if err != nil {panic(err)}
@@ -663,21 +693,23 @@ func main() {
 		if err != nil {panic(err)}
 
 		fmt.Fprintf(outFile,"# event exchanged matrix data (remote)\n")
-		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
+		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, st. dev. timestamp\n")
 
 		fmt.Fprintf(outFile2,"# event exchanged matrix data (local)\n")
-		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta\n")
+		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, st. dev. timestamp\n")
 		
 		lpEventSendCount := make([]int,numOfLPs)
 		aveSendTimeDelta := make([]float64,numOfLPs)
 		minTimeDelta := make([]float64,numOfLPs)
 		maxTimeDelta := make([]float64,numOfLPs)
+		stDevDelta := make([]float64, numOfLPs)
 		for j, lp := range(lps) {
 			for i := range lpEventSendCount {
 				lpEventSendCount[i] = 0
 				aveSendTimeDelta[i] = 0
 				minTimeDelta[i] = math.MaxFloat64
 				maxTimeDelta[i] = 0
+				stDevDelta[i] = 0
 			}
 			for _, event := range lp.events {
 				lpEventSendCount[event.companionLP]++
@@ -686,12 +718,15 @@ func main() {
 				if minTimeDelta[event.companionLP] > delta {minTimeDelta[event.companionLP] = delta}
 				if maxTimeDelta[event.companionLP] < delta {maxTimeDelta[event.companionLP] = delta}
 			}
+			for _, event := range lp.events {
+				stDevDelta[event.companionLP] += math.Pow(((event.receiveTime - event.sendTime) - (aveSendTimeDelta[event.companionLP]/float64(lpEventSendCount[event.companionLP]))), 2)
+			}
 			for i := range lpEventSendCount {
 				if lpEventSendCount[i] != 0 {
 					if i != j {
-						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
 					} else {
-						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]))
+						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
 					}
 				}
 			}
@@ -699,6 +734,61 @@ func main() {
 		err = outFile.Close()
 		if err != nil {panic(err)}
 	}
+
+	// now we will create a total events processed file which will keep track of receiving LP, num events processed, min
+	// timestamp delta, max timestamp delta, average timestamp delta, standard deviation (of the mean). 
+
+	outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
+	if err != nil {panic(err)}
+
+	fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
+	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
+
+	lpEventReceivedCount := make([]int, numOfLPs)
+	numEventsProcessed := make([]int, numOfLPs)
+	minTimeDelta := make([]float64, numOfLPs)
+	maxTimeDelta := make([]float64, numOfLPs)
+	aveTimeDelta := make([]float64, numOfLPs)
+	stanDeviation := make([]float64, numOfLPs)
+	//currLP := -1			// This shows where the process is at for analysis. 
+	for j, lp:= range(lps) {
+		// j is the received LP
+
+		// set all values to zero
+		for i := range lpEventReceivedCount {
+			lpEventReceivedCount[i] = 0
+			numEventsProcessed[i] = 0
+			minTimeDelta[i] = math.MaxFloat64
+			maxTimeDelta[i] = 0
+			aveTimeDelta[i] = 0
+			stanDeviation[i] = 0
+		}
+		for _, event := range lp.events {
+			lpEventReceivedCount[j]++
+			delta := event.receiveTime - event.sendTime
+			aveTimeDelta[j] += delta
+			if minTimeDelta[j] > delta {
+				minTimeDelta[j] = delta
+			}
+			if maxTimeDelta[j] < delta {
+				maxTimeDelta[j] = delta
+			}
+		}
+		for _, event := range lp.events {
+			stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
+		}
+
+		for i := range lpEventReceivedCount {
+	//		fmt.Println("Here")
+			if lpEventReceivedCount[i] != 0 {
+				fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
+			}
+		}
+		//err = outFile.Close()
+		//if err != nil {panic(err)}
+		//fmt.Println(err)
+	}
+fmt.Println("here")
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
@@ -833,4 +923,4 @@ func main() {
 
 	fmt.Printf("%v: Finished.\n", getTime())
 	return
-}	
+} 
