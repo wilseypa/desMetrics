@@ -403,17 +403,26 @@ func main() {
 		regionWidth := int((float64(numOfEvents) - (2.0 * float64(numEventsToSkip))) / float64(numSamples))
 		// let's verify that our samples don't overlap
 		if ((numEventsToSkip * 2) + (numEventsInSample * numSamples)) > numOfEvents {
-			log.Fatal("Overlapping Samples, chose fewer or smaller samples.  Num Samples: %v, Num Events: %v, Sample size: %v, Num Events to Skip: %v\n", numSamples, numOfEvents, numEventsInSample, numEventsToSkip)
+			log.Fatal("Overlapping Samples, choose fewer or smaller samples.  Num Samples: %v, Num Events: %v, Sample size: %v, Num Events to Skip: %v\n", numSamples, numOfEvents, numEventsInSample, numEventsToSkip)
 		}
+
 		// location to take first sample
 		sampleStart :=
 			numEventsToSkip +
 			int(float64(regionWidth) / 2.0) -
 			int(float64(numEventsInSample) / 2.0)
+		
+		var sampleEnd int
+		if (trimOnlyHead) { sampleEnd := regionWidth }
+		else { 
+			sampleEnd := regionWidth - numEventsToSkip)
+		}
+
 		for i := 0; i < numSamples; i++ {
 			sampleRanges[i].start = sampleStart
-			sampleRanges[i].stop = sampleStart + numEventsInSample
+			sampleRanges[i].stop = sampleEnd
 			sampleStart = sampleStart + regionWidth
+			sampleEnd = sampleEnd + regionWidth
 		}
 	} else {
 		log.Fatal("Program does not yet support other sampling styles\n")
