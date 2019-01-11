@@ -400,11 +400,12 @@ func main() {
 		sampleRanges = make([]sampleRangeType, numSamples)
 		log.Printf("Setting the bounds to extract %v samples.\n", numSamples)
 		// find the size of events in the (trimmed) source file for each prospective sample
+		regionWidth := int((float64(numOfEvents) - (2.0 * float64(numEventsToSkip))) / float64(numSamples))
 		if (trimOnlyHead) {
 			regionWidth := int((float64(numOfEvents) - float64(numEventsToSkip)) / float64(numSamples))
-		} else {
-			regionWidth := int((float64(numOfEvents) - (2.0 * float64(numEventsToSkip))) / float64(numSamples))
+			_ = regionWidth
 		}
+		_ = regionWidth
 		// let's verify that our samples don't overlap
 		if ((numEventsToSkip * 2) + (numEventsInSample * numSamples)) > numOfEvents {
 			log.Fatal("Overlapping Samples, choose fewer or smaller samples.  Num Samples: %v, Num Events: %v, Sample size: %v, Num Events to Skip: %v\n", numSamples, numOfEvents, numEventsInSample, numEventsToSkip)
