@@ -1,10 +1,10 @@
 {
-    "simulator_name" : "ROSS Revision: c7f94e97238902b37ae01e30224de4ed4909435b (github version, forked on on June 21, 2014)",
-    "model_name" : "pcs",
-    "original_capture_date" : "Thu Apr  9 14:40:17 2015",
-    "capture_hitory" : ["./pcs  --synch=1  --end=5000"],
+    "simulator_name" : "<place simulator name here>",
+    "model_name" : "<place model name here>",
+    "original_capture_date" : "<Thu Apr  9 14:40:17 2015>",
+    "capture_hitory" : ["<place command to capture data here>"],
     "event_data" : {
 	"file_name": "desMetrics.csv.bz2",
-	"format": ["sLP","sTS","rLP","rTS"]
+	"format": ["sLP","sTS","rLP","rTS", "eSize"]
     }
 }

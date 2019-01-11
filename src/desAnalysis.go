@@ -222,6 +222,20 @@ func main() {
 	}
 
 	// --------------------------------------------------------------------------------
+	// function to compute running mean/variance for a stream of data values, 4 arguments
+	//    currentAve: the ongoing mean
+	//    varianceSum: the accumulated value for the variance (ultimately the actual variance = varianceSum / (numValues-1)
+	//    newValue: the new value to add to the mean/variance computation
+	//    numValues: the total number of values seen in the stream (including the new value)
+
+	updateRunningMeanVariance := func(currentMean float64, varianceSum float64, newValue float64, numValues int) (float64, float64) {
+		increment := newValue - currentMean
+		currentMean = currentMean + (increment / float64(numValues))
+		varianceSum = varianceSum + (increment * (newValue - currentMean))
+		return currentMean, varianceSum
+	}
+
+	// --------------------------------------------------------------------------------
 	// now on to the heavy lifting (the actual analysis)
 	
 	// memory is a big issue.  in order to minimize the size of our data structures, we will process the
@@ -683,50 +697,52 @@ func main() {
 	// save space, we will print only the non-zero entries.  in the cases where it is too large to print, the
 	// command line argument "--no-comm-matrix" can be used to suppress it's creation.
 
-	// 12/26/18: Extending this to include a standard deviation column. 
-
 	if commSwitchOff == false {
 		outFile, err = os.Create("analysisData/eventsExchanged-remote.csv")
 		if err != nil {panic(err)}
-
+		
 		outFile2, err := os.Create("analysisData/eventsExchanged-local.csv")
 		if err != nil {panic(err)}
-
+		
 		fmt.Fprintf(outFile,"# event exchanged matrix data (remote)\n")
-		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, st. dev. timestamp\n")
-
+		fmt.Fprintf(outFile,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta\n")
+		
 		fmt.Fprintf(outFile2,"# event exchanged matrix data (local)\n")
-		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, st. dev. timestamp\n")
+		fmt.Fprintf(outFile2,"# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta\n")
 		
 		lpEventSendCount := make([]int,numOfLPs)
-		aveSendTimeDelta := make([]float64,numOfLPs)
 		minTimeDelta := make([]float64,numOfLPs)
 		maxTimeDelta := make([]float64,numOfLPs)
-		stDevDelta := make([]float64, numOfLPs)
+		aveSendTimeDelta := make([]float64,numOfLPs)
+		varianceOfTimeDelta := make([]float64, numOfLPs)
 		for j, lp := range(lps) {
 			for i := range lpEventSendCount {
 				lpEventSendCount[i] = 0
 				aveSendTimeDelta[i] = 0
 				minTimeDelta[i] = math.MaxFloat64
 				maxTimeDelta[i] = 0
-				stDevDelta[i] = 0
+				varianceOfTimeDelta[i] = 0
 			}
 			for _, event := range lp.events {
 				lpEventSendCount[event.companionLP]++
 				delta := event.receiveTime - event.sendTime
 				aveSendTimeDelta[event.companionLP] = aveSendTimeDelta[event.companionLP] + delta
-				if minTimeDelta[event.companionLP] > delta {minTimeDelta[event.companionLP] = delta}
-				if maxTimeDelta[event.companionLP] < delta {maxTimeDelta[event.companionLP] = delta}
-			}
-			for _, event := range lp.events {
-				stDevDelta[event.companionLP] += math.Pow(((event.receiveTime - event.sendTime) - (aveSendTimeDelta[event.companionLP]/float64(lpEventSendCount[event.companionLP]))), 2)
+				// update the minimum delta only if the event is not part of the initial event
+				// pool.  we will be conservative on this and define an event as part of the
+				// initial pool if it's receive time is 0.0 or if it's send time is <= 0.0 
+				if (minTimeDelta[event.companionLP] > delta) && (event.receiveTime != 0.0) && (event.sendTime > 0.0) {minTimeDelta[event.companionLP] = delta}
+				if maxTimeDelta[event.companionLP] < delta {maxTimeDelta[event.companionLP] = delta} 
+				aveSendTimeDelta[event.companionLP], varianceOfTimeDelta[event.companionLP] =
+					updateRunningMeanVariance(aveSendTimeDelta[event.companionLP], varianceOfTimeDelta[event.companionLP], delta, lpEventSendCount[event.companionLP])
 			}
 			for i := range lpEventSendCount {
 				if lpEventSendCount[i] != 0 {
 					if i != j {
-						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
+						// remote event
+						fmt.Fprintf(outFile,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i],varianceOfTimeDelta[i]/(float64(lpEventSendCount[i])-1))
 					} else {
-						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i]/float64(lpEventSendCount[i]),math.Sqrt(stDevDelta[i]/float64(lpEventSendCount[i])))
+						// local event
+						fmt.Fprintf(outFile2,"%v,%v,%v,%v,%v,%v,%v\n", j, i, lpEventSendCount[i],minTimeDelta[i],maxTimeDelta[i],aveSendTimeDelta[i],varianceOfTimeDelta[i]/(float64(lpEventSendCount[i])-1))
 					}
 				}
 			}
@@ -735,60 +751,150 @@ func main() {
 		if err != nil {panic(err)}
 	}
 
+
+
+
+
+	// now we will will record information on the time deltas between
+	// subsequent events processed by each LP.  multiple events with the same receive time will be
+	// recorded only once.  
+
+	// we will report the total number of events processed in unique timesteps (thus two, or more, events
+	// with the same receiveTime will be recorded as one event processed).  we will also record the number
+	// of times that an event occurs with a receive time shared by another event.  we will also record the
+	// min, max, mean/variance in the receive times between two adjacent (in time) events for each LP.
+	// finally we will also partition the time interval between the min/max time delta into "numIntervals"
+	// equidistant time intervals and count the number of times event deltas fall in that interval.
+
+	fmt.Printf("%v: Analyzing the distribution of time deltas between adjacent events in each LP.\n", getTime())
+
+	outFile, err = os.Create("analysisData/totalEventsProcessed-new.csv")
+        if err != nil {panic(err)}
+	
+	// this defines the number of subintervals between min/max to partition the deltas
+	numIntervals := 100
+	timeIntervals := make([]int, numIntervals)
+
+        fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
+        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp [,]*%v time intervals between min/max recording number of events in each.\n", numIntervals)
+	
+
+	for _, lp := range(lps) {
+
+		//reset counters for the next LP
+		lastEventTime := -1.0
+		numUniqueEvents := 0
+		minTimeDelta := math.MaxFloat64
+		maxTimeDelta := 0.0
+		mean := 0.0
+		variance := 0.0
+		frequencyOfSharedReceiveTime := 0
+
+		for _, event := range(lp.events) {
+			if event.receiveTime == lastEventTime {
+				// the previous event had the same receive time
+				frequencyOfSharedReceiveTime++
+			} else {
+				// the previous event had an earlier receive time (at least it should be earlier)
+				numUniqueEvents++
+				delta := event.receiveTime - lastEventTime
+				if delta <= 0.0 {log.Fatal("Something is amiss; it should not be possible to have a receive time delta  of zero or less.")}
+				mean, variance = updateRunningMeanVariance(mean, variance, delta, numUniqueEvents)
+				// update min/max TimeDelta; only update min after first event
+				if (delta < minTimeDelta) && (lastEventTime >= 0) {minTimeDelta = delta}
+				if (delta > maxTimeDelta) {maxTimeDelta = delta}
+				lastEventTime = event.receiveTime
+			}
+		}
+
+		// ok, now we have the min/max range, we will partition it into numIntervals subintervals
+		// (adjacent/unique) and partition the deltas accordingly
+		for i, _ := range(timeIntervals) {timeIntervals[i] = 0}
+
+		intervalWidth := (maxTimeDelta - minTimeDelta) / float64(numIntervals)
+		lastEventTime = -1.0
+
+		for _, event := range(lp.events) {
+			if lastEventTime < 0.0 {
+				// first event, record no delta
+				lastEventTime = event.receiveTime
+			} else {
+				if event.receiveTime != lastEventTime {
+					delta := event.receiveTime - lastEventTime
+					// in go, int() truncates, which in this case is ok.
+					interval := int((delta - minTimeDelta) / intervalWidth)
+					fmt.Printf("Bucketing: min: %v, max: %v, mean: %v, delta: %v, interval: %v, rt: %v, last: %v.\n", 
+						minTimeDelta, maxTimeDelta, mean, delta, interval,
+						event.receiveTime, lastEventTime)
+					timeIntervals[interval]++
+					lastEventTime = event.receiveTime
+				}
+			}
+		}
+		// now its a simple matter of writing the results
+		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v, %v",
+			lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance,
+			frequencyOfSharedReceiveTime)
+		for _, interval := range(timeIntervals) {fmt.Fprintf(outFile, ",%v", interval)}
+		fmt.Fprintf(outFile, "\n")
+	}			
+
+	// OLD----------------------------------------------------------------
 	// now we will create a total events processed file which will keep track of receiving LP, num events processed, min
 	// timestamp delta, max timestamp delta, average timestamp delta, standard deviation (of the mean). 
-
+	
 	outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
-	if err != nil {panic(err)}
-
-	fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
-	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
-
-	lpEventReceivedCount := make([]int, numOfLPs)
-	numEventsProcessed := make([]int, numOfLPs)
-	minTimeDelta := make([]float64, numOfLPs)
-	maxTimeDelta := make([]float64, numOfLPs)
-	aveTimeDelta := make([]float64, numOfLPs)
-	stanDeviation := make([]float64, numOfLPs)
-	//currLP := -1			// This shows where the process is at for analysis. 
-	for j, lp:= range(lps) {
-		// j is the received LP
-
-		// set all values to zero
-		for i := range lpEventReceivedCount {
-			lpEventReceivedCount[i] = 0
-			numEventsProcessed[i] = 0
-			minTimeDelta[i] = math.MaxFloat64
-			maxTimeDelta[i] = 0
-			aveTimeDelta[i] = 0
-			stanDeviation[i] = 0
-		}
-		for _, event := range lp.events {
-			lpEventReceivedCount[j]++
-			delta := event.receiveTime - event.sendTime
-			aveTimeDelta[j] += delta
-			if minTimeDelta[j] > delta {
-				minTimeDelta[j] = delta
-			}
-			if maxTimeDelta[j] < delta {
-				maxTimeDelta[j] = delta
-			}
-		}
-		for _, event := range lp.events {
-			stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
-		}
-
-		for i := range lpEventReceivedCount {
-	//		fmt.Println("Here")
-			if lpEventReceivedCount[i] != 0 {
-				fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
-			}
-		}
-		//err = outFile.Close()
-		//if err != nil {panic(err)}
-		//fmt.Println(err)
-	}
-fmt.Println("here")
+        if err != nil {panic(err)}
+	
+        fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
+        fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
+	
+        lpEventReceivedCount := make([]int, numOfLPs)
+        numEventsProcessed := make([]int, numOfLPs)
+        minTimeDelta := make([]float64, numOfLPs)
+        maxTimeDelta := make([]float64, numOfLPs)
+        aveTimeDelta := make([]float64, numOfLPs)
+        stanDeviation := make([]float64, numOfLPs)
+        //currLP := -1                  // This shows where the process is at for analysis.
+        for j, lp:= range(lps) {
+                // j is the received LP
+		
+                // set all values to zero
+                for i := range lpEventReceivedCount {
+                        lpEventReceivedCount[i] = 0
+                        numEventsProcessed[i] = 0
+                        minTimeDelta[i] = math.MaxFloat64
+                        maxTimeDelta[i] = 0
+                        aveTimeDelta[i] = 0
+                        stanDeviation[i] = 0
+                }
+                for _, event := range lp.events {
+                        lpEventReceivedCount[j]++
+                        delta := event.receiveTime - event.sendTime
+                        aveTimeDelta[j] += delta
+                        if minTimeDelta[j] > delta {
+                                minTimeDelta[j] = delta
+                        }
+                        if maxTimeDelta[j] < delta {
+                                maxTimeDelta[j] = delta
+                        }
+                }
+                for _, event := range lp.events {
+                        stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
+                }
+		
+                for i := range lpEventReceivedCount {
+			//              fmt.Println("Here")
+                        if lpEventReceivedCount[i] != 0 {
+                                fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
+                        }
+                }
+                //err = outFile.Close()
+                //if err != nil {panic(err)}
+                //fmt.Println(err)
+        }
+	fmt.Println("here")
+	// OLD----------------------------------------------------------------
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
