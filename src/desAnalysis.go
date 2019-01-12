@@ -751,14 +751,6 @@ func main() {
 		if err != nil {panic(err)}
 	}
 
-
-
-
-
-	// now we will will record information on the time deltas between
-	// subsequent events processed by each LP.  multiple events with the same receive time will be
-	// recorded only once.  
-
 	// we will report the total number of events processed in unique timesteps (thus two, or more, events
 	// with the same receiveTime will be recorded as one event processed).  we will also record the number
 	// of times that an event occurs with a receive time shared by another event.  we will also record the
@@ -768,12 +760,13 @@ func main() {
 
 	fmt.Printf("%v: Analyzing the distribution of time deltas between adjacent events in each LP.\n", getTime())
 
-	outFile, err = os.Create("analysisData/totalEventsProcessed-new.csv")
+	outFile, err = os.Create("analysisData/eventReceiveTimeDeltasByLP.csv")
         if err != nil {panic(err)}
 	
 	// this defines the number of subintervals between min/max to partition the deltas
 	numIntervals := 100
 	timeIntervals := make([]int, numIntervals)
+	numIntervals--
 
         fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
         fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp [,]*%v time intervals between min/max recording number of events in each.\n", numIntervals)
@@ -789,6 +782,9 @@ func main() {
 		mean := 0.0
 		variance := 0.0
 		frequencyOfSharedReceiveTime := 0
+
+		// if this LP has no events, move to the next LP.
+		if len(lp.events) == 0 {continue}
 
 		for _, event := range(lp.events) {
 			if event.receiveTime == lastEventTime {
@@ -823,9 +819,6 @@ func main() {
 					delta := event.receiveTime - lastEventTime
 					// in go, int() truncates, which in this case is ok.
 					interval := int((delta - minTimeDelta) / intervalWidth)
-					fmt.Printf("Bucketing: min: %v, max: %v, mean: %v, delta: %v, interval: %v, rt: %v, last: %v.\n", 
-						minTimeDelta, maxTimeDelta, mean, delta, interval,
-						event.receiveTime, lastEventTime)
 					timeIntervals[interval]++
 					lastEventTime = event.receiveTime
 				}
