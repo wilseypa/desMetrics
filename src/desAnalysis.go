@@ -803,10 +803,14 @@ func main() {
 			}
 		}
 
+		// if the events do not define a time interval skip this LP
+		if maxTimeDelta < minTimeDelta {continue}
+
 		// ok, now we have the min/max range, we will partition it into numIntervals subintervals
 		// (adjacent/unique) and partition the deltas accordingly
 		for i, _ := range(timeIntervals) {timeIntervals[i] = 0}
 
+		// ok, what do we do when maxTimeDelta = minTimeDelta, that is the question.....
 		intervalWidth := (maxTimeDelta - minTimeDelta) / float64(numIntervals)
 		lastEventTime = -1.0
 
@@ -819,6 +823,7 @@ func main() {
 					delta := event.receiveTime - lastEventTime
 					// in go, int() truncates, which in this case is ok.
 					interval := int((delta - minTimeDelta) / intervalWidth)
+					fmt.Printf("interval %v, delta %v, intervalWidth %v, minTime %v, maxTime %v\n",interval, delta,minTimeDelta, maxTimeDelta, intervalWidth)
 					timeIntervals[interval]++
 					lastEventTime = event.receiveTime
 				}
