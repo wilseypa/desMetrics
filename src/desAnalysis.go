@@ -806,6 +806,9 @@ func main() {
 
 		// now its a simple matter of writing the results
 		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v\n",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
+
+		// the next step in this should be the sampling of random time windows of the events executed by the LP in an attempt to discover if they are stable in their event processing throughout the total runtime.
+
 	}			
 
 	// OLD----------------------------------------------------------------
