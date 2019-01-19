@@ -376,13 +376,11 @@ func main() {
 	var zeroSentLPs = 0
 	for i := range lps {
 		if lps[i].sentEvents == 0 {
-// 			fmt.Printf("LP %v sent ZERO messages.\n", mapIntToLPName[i])	
 			zeroSentLPs++
 		}
 		if maxLPSentArray < lps[i].sentEvents {maxLPSentArray = lps[i].sentEvents}
-		// if maxLPSentArray < len(lps[i].sentEvents) {maxLPSentArray = len(lps[i].sentEvents)}
 	}
-	fmt.Printf("%v LP's sent ZERO messages.\n", zeroSentLPs)
+	fmt.Printf("    %v LP's sent ZERO messages.\n", zeroSentLPs)
 
 
 	// let's check to see if all LPs received an event (not necessarily a huge problem, but something we
@@ -392,12 +390,11 @@ func main() {
 	var zeroReceivedLPs = 0
 	for i := range lps {
 		if len(lps[i].events) == 0 {
-// 			fmt.Printf("WARNING: LP %v received zero messages.\n", mapIntToLPName[i])
 			zeroReceivedLPs++
 		}
 		if maxLPEventArray < len(lps[i].events) {maxLPEventArray = len(lps[i].events)}
 	}
-	fmt.Printf("%v LP's received ZERO messages.\n", zeroReceivedLPs)
+	fmt.Printf("    %v LP's received ZERO messages.\n", zeroReceivedLPs)
 	
 	// we now need to sort the event lists by receive time.  for this we'll use the sort package.
 	fmt.Printf("%v: Sorting the events in each LP by receive time.\n", getTime())
@@ -763,73 +760,55 @@ func main() {
 	outFile, err = os.Create("analysisData/eventReceiveTimeDeltasByLP.csv")
         if err != nil {panic(err)}
 	
-	// this defines the number of subintervals between min/max to partition the deltas
-	numIntervals := 100
-	timeIntervals := make([]int, numIntervals)
-	numIntervals--
-
         fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
-        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp [,]*%v time intervals between min/max recording number of events in each.\n", numIntervals)
+        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp\n")
 	
 
 	for _, lp := range(lps) {
 
 		//reset counters for the next LP
-		lastEventTime := -1.0
+		lastEventTime := 0.0
 		numUniqueEvents := 0
 		minTimeDelta := math.MaxFloat64
 		maxTimeDelta := 0.0
 		mean := 0.0
 		variance := 0.0
 		frequencyOfSharedReceiveTime := 0
+		firstEventSeen := false
 
 		// if this LP has no events, move to the next LP.
 		if len(lp.events) == 0 {continue}
 
 		for _, event := range(lp.events) {
+
+			// skip all events at time zero (they are part of the inital event pool)
+			if event.receiveTime == 0.0 {continue}
+
+			if firstEventSeen == false {
+				firstEventSeen = true
+				numUniqueEvents++
+				lastEventTime = event.receiveTime
+				continue
+			}
 			if event.receiveTime == lastEventTime {
-				// the previous event had the same receive time
 				frequencyOfSharedReceiveTime++
 			} else {
-				// the previous event had an earlier receive time (at least it should be earlier)
-				numUniqueEvents++
 				delta := event.receiveTime - lastEventTime
-				if delta <= 0.0 {log.Fatal("Something is amiss; it should not be possible to have a receive time delta  of zero or less.")}
+				if delta <= 0.0 {log.Fatal("Something is amiss; it should not be possible to have a receive time delta (%v) of zero or less.\n", delta)}
 				mean, variance = updateRunningMeanVariance(mean, variance, delta, numUniqueEvents)
-				// update min/max TimeDelta; only update min after first event
-				if (delta < minTimeDelta) && (lastEventTime >= 0) {minTimeDelta = delta}
+				if (delta < minTimeDelta) {minTimeDelta = delta}
 				if (delta > maxTimeDelta) {maxTimeDelta = delta}
 				lastEventTime = event.receiveTime
+				numUniqueEvents++
 			}
 		}
+		variance = variance / float64(numUniqueEvents - 1)
 
-		// ok, now we have the min/max range, we will partition it into numIntervals subintervals
-		// (adjacent/unique) and partition the deltas accordingly
-		for i, _ := range(timeIntervals) {timeIntervals[i] = 0}
-
-		intervalWidth := (maxTimeDelta - minTimeDelta) / float64(numIntervals)
-		lastEventTime = -1.0
-
-		for _, event := range(lp.events) {
-			if lastEventTime < 0.0 {
-				// first event, record no delta
-				lastEventTime = event.receiveTime
-			} else {
-				if event.receiveTime != lastEventTime {
-					delta := event.receiveTime - lastEventTime
-					// in go, int() truncates, which in this case is ok.
-					interval := int((delta - minTimeDelta) / intervalWidth)
-					timeIntervals[interval]++
-					lastEventTime = event.receiveTime
-				}
-			}
-		}
 		// now its a simple matter of writing the results
-		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v, %v",
-			lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance,
-			frequencyOfSharedReceiveTime)
-		for _, interval := range(timeIntervals) {fmt.Fprintf(outFile, ",%v", interval)}
-		fmt.Fprintf(outFile, "\n")
+		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v\n",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
+
+		// the next step in this should be the sampling of random time windows of the events executed by the LP in an attempt to discover if they are stable in their event processing throughout the total runtime.
+
 	}			
 
 	// OLD----------------------------------------------------------------
