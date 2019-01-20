@@ -419,9 +419,13 @@ func main() {
 			int(float64(regionWidth) / 2.0) -
 			int(float64(numEventsInSample) / 2.0)
 		
-			for i := 0; i < numSamples; i++ {
-			sampleRanges[i].start = sampleStart
-			sampleRanges[i].stop = sampleStart + numEventsInSample
+		for i := 0; i < numSamples; i++ {
+			sampleRanges[i].stop = sampleStart
+			sampleRanges[i].start = sampleStart + numEventsInSample
+		//	fmt.Printf("sampleRanges[%v].start: %v\n", i, sampleRanges[i].start)
+		//	fmt.Printf("sampleRanges[%v].stop: %v\n", i, sampleRanges[i].stop)
+//			sampleRanges[i].start = sampleStart
+//			sampleRanges[i].stop = sampleStart + numEventsInSample
 			sampleStart = sampleStart + regionWidth
 		}
 	} else {
@@ -439,6 +443,7 @@ func main() {
 
 	// record where we are at in the original file
 	fileLocation := 0
+	fmt.Printf("numSamples: %v\n", numSamples)
 	samplingLoop: for i := 0; i < numSamples; i++ {
 
 		log.Printf("Writing sample %v with events in range %v-%v.\n",
@@ -475,15 +480,19 @@ func main() {
 
 		sampleFile, err := os.Create(fmt.Sprintf("%v/desMetrics.csv", sampleDir))
 		if err != nil {panic(err)}
-
+		//fmt.Printf("Start: %v\n", sampleRanges[i].start)
+		//fmt.Printf("Stop: %v\n", sampleRanges[i].stop)
+		//fmt.Printf("fileLocation: %v\n", fileLocation)
 		for ; fileLocation < sampleRanges[i].stop; fileLocation ++ {
 			eventRecord, err := csvReader.Read()
 			if err != nil { if err == io.EOF {break samplingLoop} else { panic(err) }}
 			//			err = sampleFile.Write(eventRecord)
 			//			if err != nil { panic(err) }
 			separator := ""
+			//fmt.Printf("Length: i\n", len(eventRecord))
 			for _, field := range(eventRecord) {
-				fmt.Fprintf(sampleFile, "%v%v", separator, field)
+				_, err = fmt.Fprintf(sampleFile, "%v%v", separator, field)
+				if err != nil {panic(err)}	
 				separator = ","
 			}
 			fmt.Fprintf(sampleFile, "\n")
