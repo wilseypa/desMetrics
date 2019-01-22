@@ -67,7 +67,7 @@ func main() {
 
 	var numSamples int
 	flag.IntVar(&numSamples, "num-samples", -1,
-		"prepare N samples (after trimming) of events at evenly distributed including head/tail")
+		"prepare N samples (after trimming) of events at evenly distributed including head/tail; if unspecified the entire sample except for trimmed events will be saved")
 
 	var sampleSize int
 	flag.IntVar(&sampleSize, "sample-size", -1,
@@ -403,6 +403,7 @@ func main() {
 		sampleRanges[0].stop = numOfEvents
 		sampleRanges[0].start = numEventsToSkip
 		if !(trimOnlyHead) {sampleRanges[0].stop = numOfEvents - numEventsToSkip}
+		numSamples = 1
 	} else {
 		sampleRanges = make([]sampleRangeType, numSamples)
 		log.Printf("Setting the bounds to extract %v samples.\n", numSamples)
