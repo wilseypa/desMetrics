@@ -396,23 +396,26 @@ func main() {
 	}
 	
 	var sampleRanges []sampleRangeType
-	if numSamples != -1 {
+
+	// if numSamples is -1, then we're just trimming the file; the only question is, are we trimming the front only, or both the front and back
+	if numSamples == -1 {
+		sampleRanges = make([]sampleRangeType, 1)
+		sampleRanges[0].stop = numOfEvents
+		sampleRanges[0].start = numEventsToSkip
+		if !(trimOnlyHead) {sampleRanges[0].stop = numOfEvents - numEventsToSkip}
+	} else {
 		sampleRanges = make([]sampleRangeType, numSamples)
 		log.Printf("Setting the bounds to extract %v samples.\n", numSamples)
 		// find the size of events in the (trimmed) source file for each prospective sample
 		regionWidth := int((float64(numOfEvents) - (2.0 * float64(numEventsToSkip))) / float64(numSamples))
 		if (trimOnlyHead) {
 			regionWidth = int((float64(numOfEvents) - float64(numEventsToSkip)) / float64(numSamples))
-
-
-			//_ = regionWidth
 		}
-//		_ = regionWidth
 		// let's verify that our samples don't overlap
 		if ((numEventsToSkip * 2) + (numEventsInSample * numSamples)) > numOfEvents {
 			log.Fatal("Overlapping Samples, choose fewer or smaller samples.  Num Samples: %v, Num Events: %v, Sample size: %v, Num Events to Skip: %v\n", numSamples, numOfEvents, numEventsInSample, numEventsToSkip)
 		}
-
+		
 		// location to take first sample
 		sampleStart :=
 			numEventsToSkip +
@@ -422,14 +425,8 @@ func main() {
 		for i := 0; i < numSamples; i++ {
 			sampleRanges[i].stop = sampleStart
 			sampleRanges[i].start = sampleStart + numEventsInSample
-		//	fmt.Printf("sampleRanges[%v].start: %v\n", i, sampleRanges[i].start)
-		//	fmt.Printf("sampleRanges[%v].stop: %v\n", i, sampleRanges[i].stop)
-//			sampleRanges[i].start = sampleStart
-//			sampleRanges[i].stop = sampleStart + numEventsInSample
 			sampleStart = sampleStart + regionWidth
 		}
-	} else {
-		log.Fatal("Program does not yet support other sampling styles\n")
 	}
 
 	eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
