@@ -806,26 +806,24 @@ func main() {
 		// now its a simple matter of writing the results
 		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
 
-		// next we will select random (but equal length) time sequences through the total simulation
-		// time and compare the number of events executed by the LP in each.  the idea is to see if
-		// the LP executes events at a mostly stationary rate throughout the execution or if there are
-		// time intervals where the LPs processes substantially more (or fewer) events than others.
-		// the number of events
+		// next we will examine the number of events executed in a fixed time interval at random
+		// locations of the LP's executed events.  the idea is to see if the LP executes events at a
+		// mostly stationary rate throughout the execution or if there are hot/cold spots during the
+		// simulation run where the LP executes significantly more (less) events.  we will capture
+		// numEventDeltaSamples (initially set at 20, but the code will support changing this value to
+		// any integer).
 
 		// given that we have no common base timeline for an input simulation model, we will first
-		// examine several sets of a fixed number of events (ordered by receive time) at random
-		// locations in the LP's event stream.  we will use the average of them to define the time
-		// window.  
+		// compute the mean taken from several random sequences of numSamleEvents (initially set to
+		// 100, but the code will support changing this value to any integer) of events from the LP's
+		// list of events.
 
-		// the numEventDeltaSamples variable will be used to define how many samples to capture; to
-		// keep things simple, we will also use this variable to define the number of sequences
-		// examined to compute the common base timeline. 
-		// this should probably be a command line parameter
+		// the outcome of this will be the number of samples and then the number of events counted in
+		// each sampled locations in the event list.  if a sample finishes the list of events in the
+		// LP before reaching the end of the time interval, it is rejected and a new count is started
+		// at a different location.
+
 		numEventDeltaSamples := 10
-
-		// the numSampleEvents variable will be used to define the number of events that will be
-		// grouped together to define the time intervals from the LPs event list to examine for a
-		// sampling time interval
 		numSampleEvents := 100
 
 		// ok, this analysis requires that the LP have processed at least numSampleEvents; if it
@@ -856,44 +854,40 @@ func main() {
 		}				
 		variance = variance / float64(numEventDeltaSamples - 1)
 	
-		// ok, we will use the mean time from the above study of the LP events to define the length of
-		// the time intervals that we will examine.  essentially we're going to randomly chose an
-		// event to begin with and then we will count the number of events executed by the LP for the
-		// next events that fall into that time interval (beginning at
-		// lp.event[random()].receiveTime).  
-		
 		fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, mean)
-		sampleCount := numEventDeltaSamples
-		// can you belive this language doesn't have a while loop??  what idiot does that??
-		//while sampleCount > 0 {
-		for {
-			if sampleCount > 0 {break}
+		sampleCount := 0
+		allSamplesLoop: for {
+			// have we captured the necessary samples?
+			if sampleCount == numEventDeltaSamples {break}
 			// again, let's ensure that all samples are taken after the first event and try to
-			// avoid using initial state events in this computation 
+			// avoid using initial state events in this computation
 			start := int(rand.Int31n(int32(len(lp.events) - 1))) + 1
 			startTime := lp.events[start].receiveTime
 			count := 1
-			start++
-			//while start < len(lp.events) && lp.events[start].receiveTime < (startTime + mean) {
-			for {
-				if (start < len(lp.events) && lp.events[start].receiveTime < (startTime + mean)) {break}
-				count++
-				start++
+			oneSampleLoop: for {
+				// reject the sample
+				if ((start + count) > (len(lp.events) - 1)) {break allSamplesLoop}
+				if (lp.events[start + count].receiveTime <= (startTime + mean)) {
+					// accept event as a member of this sample
+					count++
+				} else {
+					// we've found the end of a complete sample
+					break oneSampleLoop
+				}
 			}
-			// if we're at the end of the list but haven't closed the time interval, reject this sample
-			if start == len(lp.events) && lp.events[start].receiveTime < (startTime + mean) {
-				continue
-			} else {
-				// accept this sample
-				fmt.Fprintf(outFile, ", %v", count)
-				sampleCount--
-			}
+			// record this sample
+			fmt.Fprintf(outFile, ", %v", count)
+			sampleCount++
 		}
 		fmt.Fprintf(outFile, "\n")
-	}			
+	}
+	
+	err = outFile.Close()
+	if err != nil {panic(err)}
 
-	// now we will create a total events processed file which will keep track of receiving LP, num events processed, min
-	// timestamp delta, max timestamp delta, average timestamp delta, standard deviation (of the mean). 
+	// now we will create a total events processed file which will keep track of receiving LP, num events
+	// processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation
+	// (of the mean).
 	
 	outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
         if err != nil {panic(err)}
@@ -945,7 +939,6 @@ func main() {
                 //if err != nil {panic(err)}
                 //fmt.Println(err)
         }
-	fmt.Println("here")
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
