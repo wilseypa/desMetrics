@@ -32,7 +32,7 @@ import "encoding/json"
 import "compress/gzip"
 import "compress/bzip2"
 import "encoding/csv"
-
+import "math/rand"
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -761,8 +761,7 @@ func main() {
         if err != nil {panic(err)}
 	
         fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
-        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp\n")
-	
+        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp, num of sampling windows, length of time interval sampled, [,num of sampling windows] events falling in said window\n")
 
 	for _, lp := range(lps) {
 
@@ -805,13 +804,94 @@ func main() {
 		variance = variance / float64(numUniqueEvents - 1)
 
 		// now its a simple matter of writing the results
-		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v\n",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
+		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
 
-		// the next step in this should be the sampling of random time windows of the events executed by the LP in an attempt to discover if they are stable in their event processing throughout the total runtime.
+		// next we will select random (but equal length) time sequences through the total simulation
+		// time and compare the number of events executed by the LP in each.  the idea is to see if
+		// the LP executes events at a mostly stationary rate throughout the execution or if there are
+		// time intervals where the LPs processes substantially more (or fewer) events than others.
+		// the number of events
 
+		// given that we have no common base timeline for an input simulation model, we will first
+		// examine several sets of a fixed number of events (ordered by receive time) at random
+		// locations in the LP's event stream.  we will use the average of them to define the time
+		// window.  
+
+		// the numEventDeltaSamples variable will be used to define how many samples to capture; to
+		// keep things simple, we will also use this variable to define the number of sequences
+		// examined to compute the common base timeline. 
+		// this should probably be a command line parameter
+		numEventDeltaSamples := 10
+
+		// the numSampleEvents variable will be used to define the number of events that will be
+		// grouped together to define the time intervals from the LPs event list to examine for a
+		// sampling time interval
+		numSampleEvents := 100
+
+		// ok, this analysis requires that the LP have processed at least numSampleEvents; if it
+		// doesn't, what do we do??  of course we wouldn't normally expect to encounter this, but i've
+		// already run into it with testing (fortunately).  to my mind, we have two choices, either
+		// (i) reduce the numSampleEvents or (ii) skip this part of the analysis and have the
+		// visualization tools deal with the missing data.  for now, i'm gonna take the second option
+		// and simply output -1's for the results; actually i'm gonna require that the LP have at
+		// least 2x the numSampleEvents before the real computation actually occurs....why 2x?
+		// essentially i just needed something....
+		if len(lp.events) < (2 * numSampleEvents) {
+			fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, -1.0)
+			for i := 0; i < numEventDeltaSamples; i++ {fmt.Fprintf(outFile, ", %v", -1.0)}
+			fmt.Fprintf(outFile, "\n")
+			continue
+		}
+
+		// ok, so let's get the mean of the time interval for numSampleEvents at various points of the
+		// executed events
+		mean = 0.0
+		variance = 0.0
+		for i := 0; i < numEventDeltaSamples; i++ {
+			// give us a random number to start our index into the event list of the LP; but let's
+			// skip the first event as it sometimes holds an event from an init state
+			start := int(rand.Int31n(int32(len(lp.events) - (numSampleEvents + 2)))) + 1
+			mean, variance = updateRunningMeanVariance(mean, variance,
+				lp.events[start + numSampleEvents].receiveTime - lp.events[start].receiveTime, i+1)
+		}				
+		variance = variance / float64(numEventDeltaSamples - 1)
+	
+		// ok, we will use the mean time from the above study of the LP events to define the length of
+		// the time intervals that we will examine.  essentially we're going to randomly chose an
+		// event to begin with and then we will count the number of events executed by the LP for the
+		// next events that fall into that time interval (beginning at
+		// lp.event[random()].receiveTime).  
+		
+		fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, mean)
+		sampleCount := numEventDeltaSamples
+		// can you belive this language doesn't have a while loop??  what idiot does that??
+		//while sampleCount > 0 {
+		for {
+			if sampleCount > 0 {break}
+			// again, let's ensure that all samples are taken after the first event and try to
+			// avoid using initial state events in this computation 
+			start := int(rand.Int31n(int32(len(lp.events) - 1))) + 1
+			startTime := lp.events[start].receiveTime
+			count := 1
+			start++
+			//while start < len(lp.events) && lp.events[start].receiveTime < (startTime + mean) {
+			for {
+				if (start < len(lp.events) && lp.events[start].receiveTime < (startTime + mean)) {break}
+				count++
+				start++
+			}
+			// if we're at the end of the list but haven't closed the time interval, reject this sample
+			if start == len(lp.events) && lp.events[start].receiveTime < (startTime + mean) {
+				continue
+			} else {
+				// accept this sample
+				fmt.Fprintf(outFile, ", %v", count)
+				sampleCount--
+			}
+		}
+		fmt.Fprintf(outFile, "\n")
 	}			
 
-	// OLD----------------------------------------------------------------
 	// now we will create a total events processed file which will keep track of receiving LP, num events processed, min
 	// timestamp delta, max timestamp delta, average timestamp delta, standard deviation (of the mean). 
 	
@@ -866,7 +946,6 @@ func main() {
                 //fmt.Println(err)
         }
 	fmt.Println("here")
-	// OLD----------------------------------------------------------------
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
