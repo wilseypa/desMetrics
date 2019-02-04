@@ -775,12 +775,12 @@ func main() {
 			frequencyOfSharedReceiveTime := 0
 			firstEventSeen := false
 			
-			// if this LP has no events, move to the next LP.
+			// if this LP has zero events, move to the next LP.
 			if len(lp.events) == 0 {continue}
 			
 			for _, event := range(lp.events) {
 				
-				// skip all events at time zero (they are part of the inital event pool)
+				// skip all events at time zero (assumption: they are part of the inital event pool)
 				if event.receiveTime == 0.0 {continue}
 				
 				if firstEventSeen == false {
@@ -804,13 +804,13 @@ func main() {
 			variance = variance / float64(numUniqueEvents - 1)
 			
 			// now its a simple matter of writing the results
-			fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
+			fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,", mapIntToLPName[lp.lpId], numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
 			
 			// next we will examine the number of events executed in a fixed time interval at random
 			// locations of the LP's executed events.  the idea is to see if the LP executes events at a
 			// mostly stationary rate throughout the execution or if there are hot/cold spots during the
 			// simulation run where the LP executes significantly more (less) events.  we will capture
-			// numEventDeltaSamples (initially set at 20, but the code will support changing this value to
+			// numEventDeltaSamples (initially set at 10, but the code will support changing this value to
 			// any integer).
 			
 			// given that we have no common base timeline for an input simulation model, we will first
@@ -832,9 +832,10 @@ func main() {
 			// (i) reduce the numSampleEvents or (ii) skip this part of the analysis and have the
 			// visualization tools deal with the missing data.  for now, i'm gonna take the second option
 			// and simply output -1's for the results; actually i'm gonna require that the LP have at
-			// least 2x the numSampleEvents before the real computation actually occurs....why 2x?
-			// essentially i just needed something....
-			if len(lp.events) < (2 * numSampleEvents) {
+			// least numEventDeltaSamples times the numSampleEvents before the real computation
+			// actually occurs....why i suppose smaller would still suffice, but let's take a more
+			// conservative stance
+			if len(lp.events) < (numEventDeltaSamples * numSampleEvents) {
 				fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, -1.0)
 				for i := 0; i < numEventDeltaSamples; i++ {fmt.Fprintf(outFile, ", %v", -1.0)}
 				fmt.Fprintf(outFile, "\n")
@@ -865,8 +866,8 @@ func main() {
 				startTime := lp.events[start].receiveTime
 				count := 1
 				oneSampleLoop: for {
-					// reject the sample
-					if ((start + count) > (len(lp.events) - 1)) {break allSamplesLoop}
+					// we've walked off the end of the event list, reject this sample
+					if ((start + count) > (len(lp.events) - 1)) {continue allSamplesLoop}
 					if (lp.events[start + count].receiveTime <= (startTime + mean)) {
 						// accept event as a member of this sample
 						count++
@@ -1072,9 +1073,9 @@ func main() {
 	err = outFile.Close()
 	if err != nil {panic(err)}
 
+	if analyzeAllData || analyzeReceiveTimeData {analyzeEventsByReceiveTime()}
+
 	fmt.Printf("%v: Finished.\n", getTime())
 	return
-
-	if analyzeAllData || analyzeReceiveTimeData {analyzeEventsByReceiveTime()}
 
 } 
