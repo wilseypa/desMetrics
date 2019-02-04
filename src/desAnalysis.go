@@ -71,27 +71,29 @@ func main() {
 	// i am removing this next argument for now; it is my belief that we should have a json profile for every
 	// sampled data set so we can trace it back to it's origins 
 
+	// switches to turn on/off the different types of analysis to perform
+	var analyzeAllData bool
+	flag.BoolVar(&analyzeAllData, "analyze-everything", false, "Turn on all analysis capabilities")
+
+	var analyzeReceiveTimeData bool
+	flag.BoolVar(&analyzeReceiveTimeData, "analyze-event-receiveTimes", false, "Turn on an analysis of an LP's events by receiveTime")
 
 	// for large event trace files, it is sometimes necessary to analyze only samples of the full event trace data.
 	// this argument permits the user to define an alternate event trace data file for analysis.
 
 	// this file can be large, so we provide an options to turn it off.
 	var commSwitchOff bool
-	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false,
-		"turn off generation of the file eventsExchanged.csv")
+	flag.BoolVar(&commSwitchOff, "no-comm-matrix", false, "turn off generation of the file eventsExchanged.csv")
 
 	// turns on a bunch of debug printing
 	var debug bool
-	flag.BoolVar(&debug, "debug", false,
-		"turn on debugging.")
+	flag.BoolVar(&debug, "debug", false, "turn on debugging.")
 	
 	// the default help out from the flag library doesn't include a way to include argument definitions; these
 	// definitions permit us to define our own output from the -help flag.
 	var help bool
-	flag.BoolVar(&help, "help", false,
-		"print out help.")
-	flag.BoolVar(&help, "h", help,
-		"print out help.")
+	flag.BoolVar(&help, "help", false, "print out help.")
+	flag.BoolVar(&help, "h", help, "print out help.")
 
 	flag.Parse()
 	
@@ -748,197 +750,196 @@ func main() {
 		if err != nil {panic(err)}
 	}
 
-	// we will report the total number of events processed in unique timesteps (thus two, or more, events
-	// with the same receiveTime will be recorded as one event processed).  we will also record the number
-	// of times that an event occurs with a receive time shared by another event.  we will also record the
-	// min, max, mean/variance in the receive times between two adjacent (in time) events for each LP.
-	// finally we will also partition the time interval between the min/max time delta into "numIntervals"
-	// equidistant time intervals and count the number of times event deltas fall in that interval.
+	// collect analysis data on the events processed by an LP.  most of this will be relating to the
+	// intervals of receive time between adjacent in an LP.
 
-	fmt.Printf("%v: Analyzing the distribution of time deltas between adjacent events in each LP.\n", getTime())
+	analyzeEventsByReceiveTime := func() {
 
-	outFile, err = os.Create("analysisData/eventReceiveTimeDeltasByLP.csv")
-        if err != nil {panic(err)}
-	
-        fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
-        fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp, num of sampling windows, length of time interval sampled, [,num of sampling windows] events falling in said window\n")
-
-	for _, lp := range(lps) {
-
-		//reset counters for the next LP
-		lastEventTime := 0.0
-		numUniqueEvents := 0
-		minTimeDelta := math.MaxFloat64
-		maxTimeDelta := 0.0
-		mean := 0.0
-		variance := 0.0
-		frequencyOfSharedReceiveTime := 0
-		firstEventSeen := false
-
-		// if this LP has no events, move to the next LP.
-		if len(lp.events) == 0 {continue}
-
-		for _, event := range(lp.events) {
-
-			// skip all events at time zero (they are part of the inital event pool)
-			if event.receiveTime == 0.0 {continue}
-
-			if firstEventSeen == false {
-				firstEventSeen = true
-				numUniqueEvents++
-				lastEventTime = event.receiveTime
-				continue
-			}
-			if event.receiveTime == lastEventTime {
-				frequencyOfSharedReceiveTime++
-			} else {
-				delta := event.receiveTime - lastEventTime
-				if delta <= 0.0 {log.Fatal("Something is amiss; it should not be possible to have a receive time delta (%v) of zero or less.\n", delta)}
-				mean, variance = updateRunningMeanVariance(mean, variance, delta, numUniqueEvents)
-				if (delta < minTimeDelta) {minTimeDelta = delta}
-				if (delta > maxTimeDelta) {maxTimeDelta = delta}
-				lastEventTime = event.receiveTime
-				numUniqueEvents++
-			}
-		}
-		variance = variance / float64(numUniqueEvents - 1)
-
-		// now its a simple matter of writing the results
-		fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
-
-		// next we will examine the number of events executed in a fixed time interval at random
-		// locations of the LP's executed events.  the idea is to see if the LP executes events at a
-		// mostly stationary rate throughout the execution or if there are hot/cold spots during the
-		// simulation run where the LP executes significantly more (less) events.  we will capture
-		// numEventDeltaSamples (initially set at 20, but the code will support changing this value to
-		// any integer).
-
-		// given that we have no common base timeline for an input simulation model, we will first
-		// compute the mean taken from several random sequences of numSamleEvents (initially set to
-		// 100, but the code will support changing this value to any integer) of events from the LP's
-		// list of events.
-
-		// the outcome of this will be the number of samples and then the number of events counted in
-		// each sampled locations in the event list.  if a sample finishes the list of events in the
-		// LP before reaching the end of the time interval, it is rejected and a new count is started
-		// at a different location.
-
-		numEventDeltaSamples := 10
-		numSampleEvents := 100
-
-		// ok, this analysis requires that the LP have processed at least numSampleEvents; if it
-		// doesn't, what do we do??  of course we wouldn't normally expect to encounter this, but i've
-		// already run into it with testing (fortunately).  to my mind, we have two choices, either
-		// (i) reduce the numSampleEvents or (ii) skip this part of the analysis and have the
-		// visualization tools deal with the missing data.  for now, i'm gonna take the second option
-		// and simply output -1's for the results; actually i'm gonna require that the LP have at
-		// least 2x the numSampleEvents before the real computation actually occurs....why 2x?
-		// essentially i just needed something....
-		if len(lp.events) < (2 * numSampleEvents) {
-			fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, -1.0)
-			for i := 0; i < numEventDeltaSamples; i++ {fmt.Fprintf(outFile, ", %v", -1.0)}
-			fmt.Fprintf(outFile, "\n")
-			continue
-		}
-
-		// ok, so let's get the mean of the time interval for numSampleEvents at various points of the
-		// executed events
-		mean = 0.0
-		variance = 0.0
-		for i := 0; i < numEventDeltaSamples; i++ {
-			// give us a random number to start our index into the event list of the LP; but let's
-			// skip the first event as it sometimes holds an event from an init state
-			start := int(rand.Int31n(int32(len(lp.events) - (numSampleEvents + 2)))) + 1
-			mean, variance = updateRunningMeanVariance(mean, variance,
-				lp.events[start + numSampleEvents].receiveTime - lp.events[start].receiveTime, i+1)
-		}				
-		variance = variance / float64(numEventDeltaSamples - 1)
-	
-		fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, mean)
-		sampleCount := 0
-		allSamplesLoop: for {
-			// have we captured the necessary samples?
-			if sampleCount == numEventDeltaSamples {break}
-			// again, let's ensure that all samples are taken after the first event and try to
-			// avoid using initial state events in this computation
-			start := int(rand.Int31n(int32(len(lp.events) - 1))) + 1
-			startTime := lp.events[start].receiveTime
-			count := 1
-			oneSampleLoop: for {
-				// reject the sample
-				if ((start + count) > (len(lp.events) - 1)) {break allSamplesLoop}
-				if (lp.events[start + count].receiveTime <= (startTime + mean)) {
-					// accept event as a member of this sample
-					count++
+		fmt.Printf("%v: Analyzing the events in an LP organized by their receive time.\n", getTime())
+		
+		outFile, err = os.Create("analysisData/eventReceiveTimeDeltasByLP.csv")
+		if err != nil {panic(err)}
+		
+		fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
+		fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp, num of sampling windows, length of time interval sampled, [,num of sampling windows] events falling in said window\n")
+		
+		for _, lp := range(lps) {
+			
+			//reset counters for the next LP
+			lastEventTime := 0.0
+			numUniqueEvents := 0
+			minTimeDelta := math.MaxFloat64
+			maxTimeDelta := 0.0
+			mean := 0.0
+			variance := 0.0
+			frequencyOfSharedReceiveTime := 0
+			firstEventSeen := false
+			
+			// if this LP has no events, move to the next LP.
+			if len(lp.events) == 0 {continue}
+			
+			for _, event := range(lp.events) {
+				
+				// skip all events at time zero (they are part of the inital event pool)
+				if event.receiveTime == 0.0 {continue}
+				
+				if firstEventSeen == false {
+					firstEventSeen = true
+					numUniqueEvents++
+					lastEventTime = event.receiveTime
+					continue
+				}
+				if event.receiveTime == lastEventTime {
+					frequencyOfSharedReceiveTime++
 				} else {
-					// we've found the end of a complete sample
-					break oneSampleLoop
+					delta := event.receiveTime - lastEventTime
+					if delta <= 0.0 {log.Fatal("Something is amiss; it should not be possible to have a receive time delta (%v) of zero or less.\n", delta)}
+					mean, variance = updateRunningMeanVariance(mean, variance, delta, numUniqueEvents)
+					if (delta < minTimeDelta) {minTimeDelta = delta}
+					if (delta > maxTimeDelta) {maxTimeDelta = delta}
+					lastEventTime = event.receiveTime
+					numUniqueEvents++
 				}
 			}
-			// record this sample
-			fmt.Fprintf(outFile, ", %v", count)
-			sampleCount++
-		}
-		fmt.Fprintf(outFile, "\n")
-	}
-	
-	err = outFile.Close()
-	if err != nil {panic(err)}
+			variance = variance / float64(numUniqueEvents - 1)
+			
+			// now its a simple matter of writing the results
+			fmt.Fprintf(outFile, "%v, %v, %v, %v, %v, %v, %v,",	lp.lpId, numUniqueEvents, minTimeDelta, maxTimeDelta, mean, variance, frequencyOfSharedReceiveTime)
+			
+			// next we will examine the number of events executed in a fixed time interval at random
+			// locations of the LP's executed events.  the idea is to see if the LP executes events at a
+			// mostly stationary rate throughout the execution or if there are hot/cold spots during the
+			// simulation run where the LP executes significantly more (less) events.  we will capture
+			// numEventDeltaSamples (initially set at 20, but the code will support changing this value to
+			// any integer).
+			
+			// given that we have no common base timeline for an input simulation model, we will first
+			// compute the mean taken from several random sequences of numSamleEvents (initially set to
+			// 100, but the code will support changing this value to any integer) of events from the LP's
+			// list of events.
+			
+			// the outcome of this will be the number of samples and then the number of events counted in
+			// each sampled locations in the event list.  if a sample finishes the list of events in the
+			// LP before reaching the end of the time interval, it is rejected and a new count is started
+			// at a different location.
+			
+			numEventDeltaSamples := 10
+			numSampleEvents := 100
 
-	// now we will create a total events processed file which will keep track of receiving LP, num events
-	// processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation
-	// (of the mean).
-	
-	outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
-        if err != nil {panic(err)}
-	
-        fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
-        fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
-	
-        lpEventReceivedCount := make([]int, numOfLPs)
-        numEventsProcessed := make([]int, numOfLPs)
-        minTimeDelta := make([]float64, numOfLPs)
-        maxTimeDelta := make([]float64, numOfLPs)
-        aveTimeDelta := make([]float64, numOfLPs)
-        stanDeviation := make([]float64, numOfLPs)
-        //currLP := -1                  // This shows where the process is at for analysis.
-        for j, lp:= range(lps) {
-                // j is the received LP
+			// ok, this analysis requires that the LP have processed at least numSampleEvents; if it
+			// doesn't, what do we do??  of course we wouldn't normally expect to encounter this, but i've
+			// already run into it with testing (fortunately).  to my mind, we have two choices, either
+			// (i) reduce the numSampleEvents or (ii) skip this part of the analysis and have the
+			// visualization tools deal with the missing data.  for now, i'm gonna take the second option
+			// and simply output -1's for the results; actually i'm gonna require that the LP have at
+			// least 2x the numSampleEvents before the real computation actually occurs....why 2x?
+			// essentially i just needed something....
+			if len(lp.events) < (2 * numSampleEvents) {
+				fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, -1.0)
+				for i := 0; i < numEventDeltaSamples; i++ {fmt.Fprintf(outFile, ", %v", -1.0)}
+				fmt.Fprintf(outFile, "\n")
+				continue
+			}
+
+			// ok, so let's get the mean of the time interval for numSampleEvents at various points of the
+			// executed events
+			mean = 0.0
+			variance = 0.0
+			for i := 0; i < numEventDeltaSamples; i++ {
+				// give us a random number to start our index into the event list of the LP; but let's
+				// skip the first event as it sometimes holds an event from an init state
+				start := int(rand.Int31n(int32(len(lp.events) - (numSampleEvents + 2)))) + 1
+				mean, variance = updateRunningMeanVariance(mean, variance,
+					lp.events[start + numSampleEvents].receiveTime - lp.events[start].receiveTime, i+1)
+			}				
+			variance = variance / float64(numEventDeltaSamples - 1)
+			
+			fmt.Fprintf(outFile, "%v, %v", numEventDeltaSamples, mean)
+			sampleCount := 0
+			allSamplesLoop: for {
+				// have we captured the necessary samples?
+				if sampleCount == numEventDeltaSamples {break}
+				// again, let's ensure that all samples are taken after the first event and try to
+				// avoid using initial state events in this computation
+				start := int(rand.Int31n(int32(len(lp.events) - 1))) + 1
+				startTime := lp.events[start].receiveTime
+				count := 1
+				oneSampleLoop: for {
+					// reject the sample
+					if ((start + count) > (len(lp.events) - 1)) {break allSamplesLoop}
+					if (lp.events[start + count].receiveTime <= (startTime + mean)) {
+						// accept event as a member of this sample
+						count++
+					} else {
+						// we've found the end of a complete sample
+						break oneSampleLoop
+					}
+				}
+				// record this sample
+				fmt.Fprintf(outFile, ", %v", count)
+				sampleCount++
+			}
+			fmt.Fprintf(outFile, "\n")
+		}
 		
-                // set all values to zero
-                for i := range lpEventReceivedCount {
-                        lpEventReceivedCount[i] = 0
-                        numEventsProcessed[i] = 0
-                        minTimeDelta[i] = math.MaxFloat64
-                        maxTimeDelta[i] = 0
-                        aveTimeDelta[i] = 0
-                        stanDeviation[i] = 0
-                }
-                for _, event := range lp.events {
-                        lpEventReceivedCount[j]++
-                        delta := event.receiveTime - event.sendTime
-                        aveTimeDelta[j] += delta
-                        if minTimeDelta[j] > delta {
-                                minTimeDelta[j] = delta
-                        }
-                        if maxTimeDelta[j] < delta {
-                                maxTimeDelta[j] = delta
-                        }
-                }
-                for _, event := range lp.events {
-                        stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
-                }
+		err = outFile.Close()
+		if err != nil {panic(err)}
+
+		// now we will create a total events processed file which will keep track of receiving LP, num events
+		// processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation
+		// (of the mean).
 		
-                for i := range lpEventReceivedCount {
-			//              fmt.Println("Here")
-                        if lpEventReceivedCount[i] != 0 {
-                                fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
-                        }
-                }
-                //err = outFile.Close()
-                //if err != nil {panic(err)}
-                //fmt.Println(err)
-        }
+		outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
+		if err != nil {panic(err)}
+		
+		fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
+		fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
+		
+		lpEventReceivedCount := make([]int, numOfLPs)
+		numEventsProcessed := make([]int, numOfLPs)
+		minTimeDelta := make([]float64, numOfLPs)
+		maxTimeDelta := make([]float64, numOfLPs)
+		aveTimeDelta := make([]float64, numOfLPs)
+		stanDeviation := make([]float64, numOfLPs)
+		//currLP := -1                  // This shows where the process is at for analysis.
+		for j, lp:= range(lps) {
+			// j is the received LP
+			
+			// set all values to zero
+			for i := range lpEventReceivedCount {
+				lpEventReceivedCount[i] = 0
+				numEventsProcessed[i] = 0
+				minTimeDelta[i] = math.MaxFloat64
+				maxTimeDelta[i] = 0
+				aveTimeDelta[i] = 0
+				stanDeviation[i] = 0
+			}
+			for _, event := range lp.events {
+				lpEventReceivedCount[j]++
+				delta := event.receiveTime - event.sendTime
+				aveTimeDelta[j] += delta
+				if minTimeDelta[j] > delta {
+					minTimeDelta[j] = delta
+				}
+				if maxTimeDelta[j] < delta {
+					maxTimeDelta[j] = delta
+				}
+			}
+			for _, event := range lp.events {
+				stanDeviation[j] += math.Pow(((event.receiveTime - event.sendTime) - (aveTimeDelta[j]/float64(lpEventReceivedCount[j]))), 2)
+			}
+			
+			for i := range lpEventReceivedCount {
+				//              fmt.Println("Here")
+				if lpEventReceivedCount[i] != 0 {
+					fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n", j, lpEventReceivedCount[j], minTimeDelta[j], maxTimeDelta[j], aveTimeDelta[j]/float64(lpEventReceivedCount[j]), math.Sqrt(stanDeviation[j]/float64(lpEventReceivedCount[j])))
+				}
+			}
+			//err = outFile.Close()
+			//if err != nil {panic(err)}
+			//fmt.Println(err)
+		}
+	}
 
 	// events available for execution: here we will assume all events execute in unit time and evaluate the
 	// events as executable by simulation cycle.  basically we will advance the simulation time to the lowest
@@ -1073,4 +1074,7 @@ func main() {
 
 	fmt.Printf("%v: Finished.\n", getTime())
 	return
+
+	if analyzeAllData || analyzeReceiveTimeData {analyzeEventsByReceiveTime()}
+
 } 
