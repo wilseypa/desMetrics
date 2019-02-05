@@ -126,6 +126,7 @@ func main() {
 		OriginalCaptureDate string `json:"original_capture_date"`
 		CaptureHistory [] string `json:"capture_history"`
 		TotalLPs int `json:"total_lps"`
+		NumInitialEvents int `json:"number_of_initial_events"`
 		EventData struct {
 			EventFile string `json:"file_name"`
 			FileFormat []string `json:"format"`
@@ -155,6 +156,7 @@ func main() {
 	desTraceData.TotalLPs = -1
 	desTraceData.EventData.NumEvents = -1
 	desTraceData.DateAnalyzed = ""
+	desTraceData.NumInitialEvents = 0
 
 	// so we need to map the csv fields from the event data file to the order we need for our internal data
 	// structures (sLP, sTS, rLP, rTS).  the array eventDataOrderTable will indicate which csv entry corresponds;
@@ -252,6 +254,7 @@ func main() {
 	// enumerate unique integers for each LP recorded; set during the first pass over the JSON file.
 	numOfLPs := 0
 	numOfEvents := 0
+	numOfInitialEvents := 0
 
 	// record a unique int value for each LP and store the total number of sent and received events by that LP.
 	type lpMap struct {
@@ -287,6 +290,8 @@ func main() {
 		lp.sentEvents++
 		lp = defineLP(rLP)
 		lp.receivedEvents++
+		// we will count all events with a sending time stamp less or equal to zero as an initial event
+		if sTS <= 0 {numOfInitialEvents++}
 	}
 
 	// this is the event processing function for the second pass over the JSON file; basically
@@ -416,6 +421,7 @@ func main() {
 
 	desTraceData.TotalLPs = numOfLPs
 	desTraceData.EventData.NumEvents = numOfEvents
+	desTraceData.NumInitialEvents = numOfInitialEvents
 	desTraceData.DateAnalyzed = getTime()
 
 	jsonEncoder := json.NewEncoder(outFile)
