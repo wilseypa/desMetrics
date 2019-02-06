@@ -126,6 +126,7 @@ func main() {
 		OriginalCaptureDate string `json:"original_capture_date"`
 		CaptureHistory [] string `json:"capture_history"`
 		TotalLPs int `json:"total_lps"`
+		NumOfEvents int `json:"total_events"`
 		NumInitialEvents int `json:"number_of_initial_events"`
 		EventData struct {
 			EventFile string `json:"file_name"`
@@ -156,6 +157,7 @@ func main() {
 	desTraceData.TotalLPs = -1
 	desTraceData.EventData.NumEvents = -1
 	desTraceData.DateAnalyzed = ""
+	desTraceData.NumOfEvents = 0
 	desTraceData.NumInitialEvents = 0
 
 	// so we need to map the csv fields from the event data file to the order we need for our internal data
@@ -422,6 +424,7 @@ func main() {
 	desTraceData.TotalLPs = numOfLPs
 	desTraceData.EventData.NumEvents = numOfEvents
 	desTraceData.NumInitialEvents = numOfInitialEvents
+	desTraceData.NumOfEvents = numOfEvents
 	desTraceData.DateAnalyzed = getTime()
 
 	jsonEncoder := json.NewEncoder(outFile)
