@@ -32,7 +32,29 @@ import (
 	"compress/bzip2"
 	"runtime"
 	"time"
+	"io"
+	"strconv"
 )
+/****************************** GLOBAL VARIABLES ******************************/
+
+// Moved out of main, global variables are initialized to 0 or 0.0 if not declared.
+var numOfLPs 							int
+var numOfEvents 					int
+var numOfInitialEvents 		int
+var lpNameMap = make(map[string]*lpMap)
+var lps 									[]lpData
+var lpIndex 							[]int
+
+
+// numOfLPs = 0 
+// numOfEvents := 0
+// numOfInitialEvents := 0
+// lpNameMap := make(map[string]*lpMap)
+// var lps 			[]lpData
+// var lpIndex		[]int
+
+
+/****************************** DATA STRUCTURES ******************************/
 
 // DS for events. Internally store LP names w/ integer map value. 
 // Storing events into an array by LP in question (sender or receiver), we will only store
@@ -57,26 +79,36 @@ type lpData struct {
 	sentEvents		int
 }
 
+// Moved to main. Data structure maps integer to LP, holds number of sent/received events
+type lpMap struct {
+	toInt							int
+	sentEvents				int
+	receivedEvents 		int
+}
+
 // Format of JSON file describing model and location (CSV file) of event data
 var desTraceData struct {
-	SimulatorName 				string
-	ModelName							string
-	OriginalCaptureData		string
-	CaptureHistory				[]string
-	TotalLPs							int
-	NumInitialEvents			int
-	EventData struct {
-		EventFile						string
-		FileFormat					[]string
-		NumEvents						int		
-	}
-	DateAnalyzed					string
+	SimulatorName 					string `json:"simulator_name"`
+	ModelName 							string `json:"model_name"`
+	OriginalCaptureDate 		string `json:"original_capture_date"`
+	CaptureHistory 					[]string `json:"capture_history"`
+	TotalLPs 								int `json:"total_lps"`
+	NumInitialEvents 				int `json:"number_of_initial_events"`
+	EventData struct {			
+		EventFile 						string `json:"file_name"`
+		FileFormat 						[]string `json:"format"`
+		NumEvents 						int `json:"total_events"`
+	} 											`json:"event_data"`
+	DateAnalyzed 						string `json:"date_analyzed"`
 }
+
 
 type byReceiveTime []eventData
 func (a byReceiveTime) Len() int 						{return len(a)}
 func (a byReceiveTime) Swap(i, j int)				{a[i], a[j] = a[j], a[i]}
 func (a byReceiveTime) Less(i, j int) bool	{return a[i].receiveTime < a[j].receiveTime}
+
+/****************************** GLOBAL FUNCTIONS ******************************/
 
 func check(e error) {
 	if e != nil {
@@ -121,6 +153,30 @@ func openEventFile(fileName string) (*os.File, *csv.Reader) {
 	return eventFile, inFile
 }
 
+// Move this out of main
+func processEvent(sLP string, sTS float64, rLP string, rTS float64) {
+	numOfEvents++	
+	lp := defineLP(sLP)
+	lp.sentEvents++
+	lp = defineLP(rLP)
+	lp.receivedEvents++
+
+	if sTS <= 0 {
+		numOfInitialEvents++
+	}
+}
+
+	// Move this out of main
+func defineLP(lp string) *lpMap {
+	item, present := lpNameMap[lp]
+	if !present {
+		lpNameMap[lp] = new(lpMap)
+		lpNameMap[lp].toInt = numOfLPs
+		item = lpNameMap[lp]
+		numOfLPs++
+	}
+	return item
+}
 
 
 func main() {
@@ -158,7 +214,7 @@ func main() {
 	}
 
 	if flag.NArg() != 1 {
-		fmt.Printf("Invalid number of argumnets (%v); only one expected.\n\n", flag.NArg())
+		fmt.Printf("Invalid number of arguments (%v); only one expected.\n\n", flag.NArg())
 		fmt.Print("Usage: desAnalysis [options...] FILE \nAnalyze the event trace data described by the JSON file FILE.\n\n")
 		flag.PrintDefaults()
 		os.Exit(0)
@@ -182,22 +238,21 @@ func main() {
 		fmt.Printf("JSON file parsed successfully. Summary info: \n Simulator Name: %s\n Model Name: %s\n Oiginal Capture Date: %s\n Capture History: %s \n CSV File of Event Data: %s\n Format of Event Data: %v\n",
 			desTraceData.SimulatorName,
 			desTraceData.ModelName,
-			desTraceData.OriginalCaptureData,
+			desTraceData.OriginalCaptureDate,
 			desTraceData.CaptureHistory,
 			desTraceData.EventData.EventFile,
 			desTraceData.EventData.FileFormat)
 	}
 
 	desTraceData.TotalLPs = -1
-	desTraceData.EventData.NumEvents = 01
+	desTraceData.EventData.NumEvents = 0
 	desTraceData.DateAnalyzed = ""
 	desTraceData.NumInitialEvents = 0
 
 	// Map the CSV fields from event data file to order we need for our internal DS's (sLP, sTS, rLP, rTS).
 	// eventDataOrderTable indicates which CSV entry corresponds. For example, eventDataOrderTable[0] will 
 	// hold the index where the sLP field lies in desTraceData.EventData.FileFormat
-
-	eventDataOrderTable := [4]int{ -1, -1, -1, -1}
+	eventDataOrderTable := [4]int{ -1, -1, -1, -1 }
 	for i, entry := range desTraceData.EventData.FileFormat {
 		switch entry {
 		case "sLP":
@@ -209,17 +264,16 @@ func main() {
 		case "rTS":
 			eventDataOrderTable[3] = i
 		default:
-			fmt.Printf("Ignoring unknown element %v from event_data->format field of the model JSON file.\n", entry)
+			fmt.Printf("Ignoring unknown element %v from event_data->format field of the model json file.\n", entry)
 		}
-	}
+}
 
 	if debug {
 		fmt.Printf("File Format: %v\n eventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable) 
 	}
-
 	for _, entry := range eventDataOrderTable {
 		if entry == -1 {
-			log.Fatal("Missing critical filed in event_data->format of model JSON file. Run with --debug flag to view relevant data.\n")
+			log.Fatal("Missing critical field in event_data->format of model JSON file. Run with --debug flag to view relevant data.\n")
 		}
 	}
 
@@ -230,12 +284,62 @@ func main() {
 	// for kvack
 	runtime.GOMAXPROCS(16)
 	
-	
 	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", getTime(), numThreads)
 
 
+	// Memory is the big issue, to minimize the size of our data structures, we process the JSON file twice.
+	// 1st: map -> int array for the LPs, count total number of LPs, and total number of events.
+	// Used to build principle DS to hold events by LPs (by assuming that the events are more or less 
+	// uniformly distributed among LPs). 
+	// 2nd: Store events in our internal DS. use processEvent function to manage each step. Between parses
+	// it will be changed to point to the addEvent function
+
+	// lpNameMap := make(map[string]*lpMap)
 
 
+
+
+	processEventDataFile := func() {
+		eventFile, csvReader := openEventFile(desTraceData.EventData.EventFile)
+		fmt.Println(eventFile)
+		readLoop: for {
+			eventRecord, err := csvReader.Read()
+			fmt.Println(eventRecord)
+			if err != nil { if err == io.EOF { break readLoop } else {panic(err)}	}
+
+			for i := range eventRecord {
+				eventRecord[i] = strings.Trim(eventRecord[i], "'")
+				eventRecord[i] = strings.Trim(eventRecord[i], "`")
+			}
+
+			sendTime, _ := strconv.ParseFloat(eventRecord[eventDataOrderTable[1]], 64)
+			receiveTime, _ := strconv.ParseFloat(eventRecord[eventDataOrderTable[3]], 64)
+
+			if sendTime > receiveTime {
+				log.Fatal("Event has send time greater than receive time: %v %v %v %v\n", 
+							eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
+				log.Fatal("Aborting")
+			}
+
+			if debug {
+				fmt.Printf("Event recorded: %v, %v, %v, %v\n", eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
+			}
+
+			processEvent(eventRecord[eventDataOrderTable[2]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
+
+			
+		}
+		err = eventFile.Close()
+		check(err)
+	}
+
+	/**************************************************************************************************/
+	// Process event data and populate our internal data structures
+
+	// 1st Pass: Collect info on number of events and number of LPs
+
+	fmt.Printf("%v: Processing %v to capture event and LP counts.\n", getTime(), desTraceData.EventData.EventFile)
+	processEventDataFile()
 
 
 
