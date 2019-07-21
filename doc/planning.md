@@ -163,8 +163,8 @@ suggest we put this on the back burner and focus on direct analysis for the mome
 ### Approach
 
 For this part of the project, I propose to develop/use a tool to import the JSON file and
-produce various graphs/data for analysis.  The output of this analysis tool will be comma
-separated csv files that we can use for graphical visualization of the results.  Because
+produce various graphs/data for analysis.  The output of this analysis tool will be CSV files 
+that we can use for graphical visualization of the results.  Because
 of the size of these files, it will probably be necessary to use offline visualization
 tools to present the data.  Initial experiments with web-based javascript tools (e.g.,
 nvd3) have, so far, proven to be inadequate for this task.  In particular I am working up
