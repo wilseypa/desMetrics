@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -58,7 +60,7 @@ type eventSentData struct {
 }
 
 /*
-Data structure for LPs; each LP has unique ID and list of correlating events it generates.
+	Data structure for LPs; each LP has unique ID and list of correlating events it generates.
 */
 type lpData struct {
 	lpID       int
@@ -66,12 +68,21 @@ type lpData struct {
 	sentEvents int
 }
 
+/*
+	Records a unique integer value for each LP and store number of sent/received events
+*/
+type lpMap struct {
+	toInt          int
+	sentEvents     int
+	receivedEvents int
+}
+
 // Functions to support sorting of events by their receive time
 type byReceiveTime []eventData
 
-func (b byReceiveTime) Len() int      { return len(b) }
-func (b byReceiveTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b byReceiveTime) Less(i, j int) { return a[i].receiveTime < a[j].receiveTime }
+func (b byReceiveTime) Len() int           { return len(b) }
+func (b byReceiveTime) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byReceiveTime) Less(i, j int) bool { return b[i].receiveTime < b[j].receiveTime }
 
 // ReadInputFile : store into a struct and return
 func ReadInputFile(fileName string) (d DesTraceData) {
@@ -84,7 +95,7 @@ func ReadInputFile(fileName string) (d DesTraceData) {
 }
 
 // ReadDataOrder : returns the order of the four fields: "sLP", "rLP", "sTS", "rTS"
-func ReadDataOrder(d *DesTraceData) []int {
+func ReadDataOrder(d *DesTraceData) [4]int {
 	var ret = [4]int{-1, -1, -1, -1}
 	for i, entry := range d.EventData.FileFormat {
 		switch entry {
@@ -109,33 +120,33 @@ func GetTime() string {
 }
 
 // OpenEventFile : creates pointers to a new CSV reader.
-func OpenEventFile(fileName string) (*os.File, *csv.Reader) {
+func OpenEventFile(fileName string, d DesTraceData) (*os.File, *csv.Reader) {
 	eventFile, err := os.Open(fileName)
 	check(err)
 
-	var inputFile *csv.Reader
+	var inFile *csv.Reader
 	if strings.HasSuffix(fileName, ".gz") || strings.HasSuffix(fileName, ".gzip") {
 		unpack, err := gzip.NewReader(eventFile)
 		check(err)
-		infile = csv.NewReader(unpack)
+		inFile = csv.NewReader(unpack)
 	} else {
-		if strings.HasSuffix(file, "bz2") || strings.HasSuffix(fileName, "bzip2") {
+		if strings.HasSuffix(fileName, "bz2") || strings.HasSuffix(fileName, "bzip2") {
 			unpack := bzip2.NewReader(eventFile)
 			inFile = csv.NewReader(unpack)
 		} else {
-			infile = csv.NewReader(eventFile)
+			inFile = csv.NewReader(eventFile)
 		}
 	}
-	infile.Comment = '#'
-	infile.FieldsPerRecord = len(desTraceData.EventData.FileFormat)
+	inFile.Comment = '#'
+	inFile.FieldsPerRecord = len(d.EventData.FileFormat)
 
 	return eventFile, inFile
 }
 
 func updateRunningMeanVariance(curMean, varSum, newValue float64, numValues int) (float64, float64) {
-	inc := newValue - curMean
+	incr := newValue - curMean
 	curMean += (incr / float64(numValues))
-	varSum += (increment * (newValue - curMean))
+	varSum += (incr * (newValue - curMean))
 	return curMean, varSum
 }
 
@@ -214,7 +225,7 @@ func main() {
 
 	eventDataOrder := ReadDataOrder(&desTraceData)
 	if debug {
-		fmt.Printf("FileFormat: %v\neventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrderTable)
+		fmt.Printf("FileFormat: %v\neventDataOrderTable %v\n", desTraceData.EventData.FileFormat, eventDataOrder)
 	}
 
 	// Generate an error if there is a value of -1 in eventDataOrder, indicating not all values are filled in
@@ -238,6 +249,93 @@ func main() {
 	numEvents := 0
 	numInitialEvents := 0
 
+	// Map of all the LPs and count of sent/received events.
 	lpNameMap := make(map[string]*lpMap)
 
+	// Use LPs to hold event data and lpIndex to record advancements of analysis among the LPs
+	// TODO - Do we need the lpIndex variable?
+	var lps []lpData
+	var lpIndex []int
+
+	// Build lpNameMap for each new LP, return pointer to the new lpMap struct
+	defineLP := func(lp string) *lpMap {
+		val, has := lpNameMap[lp]
+		if !has {
+			lpNameMap[lp] = new(lpMap)
+			lpNameMap[lp].toInt = len(lpNameMap)
+			val = lpNameMap[lp]
+			numLPs++
+		}
+		return val
+	}
+
+	processEvent := func(sLP, rLP string, sTS, rTS float64) {
+		numEvents++
+		lp := defineLP(sLP)
+		lp.sentEvents++
+		lp = defineLP(rLP)
+		lp.receivedEvents++
+
+		// Count all events w/ sending time stamp <= 0 as an initial event
+		if sTS <= 0 {
+			numInitialEvents++
+		}
+	}
+
+	// Event processing function. Fill in information for the LPs matrix that records events received
+	// events received by each LP
+	// TODO - move awawy from this, this creates a need for a lot of space
+	addEvent := func(sLP, rLP string, sTS, rTS float64) {
+		rLPint := lpNameMap[rLP].toInt
+		lpIndex[rLPint]++
+		if lpIndex[rLPint] > cap(lps[rLPint].events) {
+			log.Fatal("Something went wrong, we should have computed the appropriate size on the first parse.\n")
+		}
+		lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
+		lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
+		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
+	}
+
+	// TODO - get rid of this after using/removing addEvent function
+	_ = addEvent
+
+	// First pass through the Event Data file
+	eventFile, csvReader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
+
+	for {
+		eventRecord, err := csvReader.Read()
+		if err == io.EOF {
+			break
+		} else {
+			check(err)
+		}
+
+		// Remove leading/trailing quoteation characters
+		for i := range eventRecord {
+			eventRecord[i] = strings.Trim(eventRecord[i], "'")
+			eventRecord[i] = strings.Trim(eventRecord[i], "`")
+		}
+
+		// Convert timestamps to floats
+		sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrder[1]], 64)
+		receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrder[3]], 64)
+
+		// Send time needs to be less than the receive time.
+		// ROSS data actually has data with the send/receive times, so we will weaken this constraint TODO - ??? What does this mean
+		if sendTime > receiveTime {
+			log.Fatal("Event has send time greater than receive time: %v %v %v %v\n",
+				eventRecord[eventDataOrder[0]],
+				sendTime,
+				eventRecord[eventDataOrder[2]],
+				receiveTime,
+			)
+			log.Fatal("Aborting")
+		}
+
+		processEvent(eventRecord[eventDataOrder[0]], eventRecord[eventDataOrder[2]], sendTime, receiveTime)
+
+	}
+
+	err := eventFile.Close()
+	check(err)
 }
