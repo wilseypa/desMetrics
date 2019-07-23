@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -95,18 +97,18 @@ func ReadInputFile(fileName string) (d DesTraceData) {
 }
 
 // ReadDataOrder : returns the order of the four fields: "sLP", "rLP", "sTS", "rTS"
-func ReadDataOrder(d *DesTraceData) [4]int {
-	var ret = [4]int{-1, -1, -1, -1}
+func ReadDataOrder(d *DesTraceData) map[string]int {
+	ret := make(map[string]int)
 	for i, entry := range d.EventData.FileFormat {
 		switch entry {
 		case "sLP":
-			ret[0] = i
+			ret["SLP"] = i
 		case "sTS":
-			ret[1] = i
+			ret["sTS"] = i
 		case "rLP":
-			ret[2] = i
+			ret["rLP"] = i
 		case "rTS":
-			ret[3] = i
+			ret["rTS"] = i
 		default:
 			fmt.Printf("Ignoring unknown element %v from EventData->Format of input JSON file.\n", entry)
 		}
@@ -150,6 +152,145 @@ func updateRunningMeanVariance(curMean, varSum, newValue float64, numValues int)
 	return curMean, varSum
 }
 
+// ProcessLine : does the dirty work for each line, removing unnecessary characters, parsing floats
+func ProcessLine(eventRecord *[]string, eventDataOrder map[string]int) (float64, float64) {
+	for i := range *eventRecord {
+		(*eventRecord)[i] = strings.Trim((*eventRecord)[i], "'")
+		(*eventRecord)[i] = strings.Trim((*eventRecord)[i], "`")
+	}
+
+	// Convert timestamps to floats
+	sendTime, err := strconv.ParseFloat((*eventRecord)[eventDataOrder["sTS"]], 64)
+	check(err)
+	receiveTime, err := strconv.ParseFloat((*eventRecord)[eventDataOrder["rTS"]], 64)
+	check(err)
+
+	if sendTime > receiveTime {
+		log.Fatal("Event has send time greater than receive time: %v %v %v %v\n",
+			(*eventRecord)[eventDataOrder["sLP"]],
+			sendTime,
+			(*eventRecord)[eventDataOrder["rLP"]],
+			receiveTime)
+		log.Fatal("Aborting analysis.")
+	}
+
+	return sendTime, receiveTime
+}
+
+// TimesXEventsAvailable : total events processed per LP.
+func TimesXEventsAvailable(reader *csv.Reader, lpNameMap map[string]*lpMap, eventDataOrder map[string]int) {
+
+	available := make(map[float64]int)
+	var receiveTimes []float64
+
+	for {
+		eventRecord, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else {
+			check(err)
+		}
+
+		_, receiveTime := ProcessLine(&eventRecord, eventDataOrder)
+
+		if _, has := available[receiveTime]; has {
+			available[receiveTime]++
+		} else {
+			available[receiveTime] = 1
+			receiveTimes = append(receiveTimes, receiveTime)
+		}
+
+	}
+
+	// Now write them to file
+	sort.Float64s(receiveTimes)
+
+	// Now write the file out to analysisData/timesXeventsavailable.csv
+	outFile, err := os.Create("analysisData/timesXeventsAvailable.csv")
+	check(err)
+	fmt.Fprintf(outFile, "# times X events are available for execution\n")
+	fmt.Fprintf(outFile, "# X, num of occurrences\n")
+
+	for _, t := range receiveTimes {
+		val := available[t]
+		fmt.Fprintf(outFile, "%v,%v\n", t, val)
+	}
+
+	err = outFile.Close()
+	check(err)
+
+}
+
+// LPData : data structure for creating the totalEventsProcessedFile
+type LPData struct {
+	recLPId         string
+	eventsProcessed int
+	minTSDelta      float64
+	maxTSDelta      float64
+	avgTSDelta      float64
+	varianceSum     float64
+}
+
+// Update the running mean and standard deviation of a receiving LP while running through the
+// trace file. Update min/max timestamp deltas as well.
+func updateLPDataStatistics(val *LPData, newTS float64) {
+	val.eventsProcessed++
+	incr := newTS - val.avgTSDelta
+	val.avgTSDelta += (incr / float64(val.eventsProcessed))
+	val.varianceSum += (incr * (newTS - val.avgTSDelta))
+}
+
+func totalEventsProcessed(reader *csv.Reader, lpNameMap map[string]*lpMap, eventDataOrder map[string]int) {
+
+	recLPs := make(map[string]*LPData)
+
+	for {
+		eventRecord, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else {
+			check(err)
+		}
+
+		sendTime, receiveTime := ProcessLine(&eventRecord, eventDataOrder)
+
+		timestamp := receiveTime - sendTime
+
+		if _, has := recLPs[eventRecord[eventDataOrder["rLP"]]]; !has {
+			newData := new(LPData)
+			newData.recLPId = eventRecord[eventDataOrder["rLP"]]
+			newData.eventsProcessed = 1
+			newData.minTSDelta = timestamp
+			newData.maxTSDelta = timestamp
+			newData.avgTSDelta = timestamp
+			newData.varianceSum = 0
+		} else {
+			updateLPDataStatistics(recLPs[eventRecord[eventDataOrder["rLP"]]], timestamp)
+		}
+
+	}
+
+	// Now write out the file and release the memory (done through garbage collection technically)
+	// These are not written out in any order, and I don't believe that it should matter
+	// TODO - wilsey - does it matter whether or not they are in order?
+
+	outFile, err := os.Create("analysisData/totalEventsProcessed.csv")
+	check(err)
+	fmt.Fprintf(outFile, "#  Total Events Processed Data (per LP)")
+	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.")
+
+	for _, data := range recLPs {
+		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n",
+			data.recLPId,
+			data.eventsProcessed,
+			data.minTSDelta,
+			data.maxTSDelta,
+			data.avgTSDelta,
+			math.Sqrt(data.varianceSum/float64(data.eventsProcessed)))
+	}
+
+}
+
 func main() {
 
 	var AnalyzeAllData bool
@@ -189,8 +330,8 @@ func main() {
 	var EventsAvailableSimCycle bool
 	flag.BoolVar(&EventsAvailableSimCycle, "events-available-sim-cycle", false, "Compute the events available per simulation cycle")
 
-	var TimesXEventsAvailable bool
-	flag.BoolVar(&TimesXEventsAvailable, "times-x-events-available", false, "Times X Events are available for execution")
+	var XEventsAvailable bool
+	flag.BoolVar(&XEventsAvailable, "times-x-events-available", false, "Times X Events are available for execution")
 
 	var debug bool
 	flag.BoolVar(&debug, "debug", false, "Turn on debugging print statements")
@@ -284,7 +425,7 @@ func main() {
 
 	// Event processing function. Fill in information for the LPs matrix that records events received
 	// events received by each LP
-	// TODO - move awawy from this, this creates a need for a lot of space
+	// TODO - move awawy from this, this creates a need fOpenEor a lot of space
 	addEvent := func(sLP, rLP string, sTS, rTS float64) {
 		rLPint := lpNameMap[rLP].toInt
 		lpIndex[rLPint]++
@@ -302,6 +443,12 @@ func main() {
 	// First pass through the Event Data file
 	eventFile, csvReader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
 
+	// Create the output directory
+	err := os.MkdirAll("analysisData", 0777)
+	check(err)
+
+	TimesXEventsAvailable(csvReader, lpNameMap, eventDataOrder)
+
 	for {
 		eventRecord, err := csvReader.Read()
 		if err == io.EOF {
@@ -317,25 +464,26 @@ func main() {
 		}
 
 		// Convert timestamps to floats
-		sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrder[1]], 64)
-		receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrder[3]], 64)
+		sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["sTS"]], 64)
+		receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["rTS"]], 64)
 
 		// Send time needs to be less than the receive time.
 		// ROSS data actually has data with the send/receive times, so we will weaken this constraint TODO - ??? What does this mean
 		if sendTime > receiveTime {
 			log.Fatal("Event has send time greater than receive time: %v %v %v %v\n",
-				eventRecord[eventDataOrder[0]],
+				eventRecord[eventDataOrder["sLP"]],
 				sendTime,
-				eventRecord[eventDataOrder[2]],
+				eventRecord[eventDataOrder["rLP"]],
 				receiveTime,
 			)
 			log.Fatal("Aborting")
 		}
 
-		processEvent(eventRecord[eventDataOrder[0]], eventRecord[eventDataOrder[2]], sendTime, receiveTime)
+		// processEvent(eventRecord[eventDataOrder["sLP"]], eventRecord[eventDataOrder["rLP"]], sendTime, receiveTime)
 
 	}
 
-	err := eventFile.Close()
+	err = eventFile.Close()
 	check(err)
+
 }
