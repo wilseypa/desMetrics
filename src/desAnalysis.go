@@ -17,22 +17,34 @@
 
 package main
 
-import "io"
-import "os"
-import "fmt"
-import "sort"
-import "math"
-import "strconv"
+import (
+	"compress/bzip2"
+	"compress/gzip"
+	"encoding/csv"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"math"
+	"math/rand"
+	"os"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+)
 
-import "runtime"
-import "flag"
-import "log"
-import "strings"
-import "encoding/json"
-import "compress/gzip"
-import "compress/bzip2"
-import "encoding/csv"
-import "math/rand"
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func getTime() string {
+	return time.Now().Format(time.RFC850)
+}
 
 // setup a data structure for events.  internally we're going to store LP names with their integer map value.
 // since we're storing events into an array indexed by the LP in question (sender or receiver), we will only
@@ -160,22 +172,20 @@ func main() {
 	// temp solution for kvack....for some reason it doesn't fork to 32
 	runtime.GOMAXPROCS(16)
 
-	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", GetTime(), numThreads)
+	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", getTime(), numThreads)
 
 	// --------------------------------------------------------------------------------
 	// function to connect to compressed (gz or bz2) and uncompressed eventData csv files
 
 	openEventFile := func(fileName string) (*os.File, *csv.Reader) {
 		eventFile, err := os.Open(fileName)
-		if err != nil {
-			panic(err)
-		}
+		check(err)
+
 		var inFile *csv.Reader
 		if strings.HasSuffix(fileName, ".gz") || strings.HasSuffix(fileName, ".gzip") {
 			unpackRdr, err := gzip.NewReader(eventFile)
-			if err != nil {
-				panic(err)
-			}
+			check(err)
+
 			inFile = csv.NewReader(unpackRdr)
 		} else {
 			if strings.HasSuffix(fileName, "bz2") || strings.HasSuffix(fileName, "bzip2") {
@@ -289,16 +299,15 @@ func main() {
 		for {
 
 			eventRecord, err := csvReader.Read()
-			if err != nil {
-				if err == io.EOF {
-					break readLoop
-				} else {
-					panic(err)
-				}
+
+			if err == io.EOF {
+				break readLoop
+			} else {
+				check(err)
 			}
 
 			// remove leading/trailing quote characters (double quotes are stripped automatically by the csvReader.Read() fn
-			for i, _ := range eventRecord {
+			for i := range eventRecord {
 				eventRecord[i] = strings.Trim(eventRecord[i], "'")
 				eventRecord[i] = strings.Trim(eventRecord[i], "`")
 			}
@@ -322,10 +331,9 @@ func main() {
 
 			processEvent(eventRecord[eventDataOrderTable[0]], sendTime, eventRecord[eventDataOrderTable[2]], receiveTime)
 		}
-		err = eventFile.Close()
-		if err != nil {
-			panic(err)
-		}
+		err := eventFile.Close()
+		check(err)
+
 	}
 
 	// --------------------------------------------------------------------------------
@@ -401,18 +409,14 @@ func main() {
 	// on to analysis....
 
 	// create the directory to store the resulting data files (if it is not already there)
-	err = os.MkdirAll("analysisData", 0777)
-	if err != nil {
-		panic(err)
-	}
+	err := os.MkdirAll("analysisData", 0777)
+	check(err)
 
 	// --------------------------------------------------------------------------------
 	// create a json formatted config file in the output directory
 
 	outFile, err := os.Create("analysisData/modelSummary.json")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	desTraceData.TotalLPs = numOfLPs
 	desTraceData.EventData.NumEvents = numOfEvents
@@ -426,9 +430,7 @@ func main() {
 	//	os.Exit(0)
 
 	err = outFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	// --------------------------------------------------------------------------------
 
 	fmt.Printf("%v: Analysis (parallel) of events organized by receiving LP.\n", getTime())
@@ -596,39 +598,31 @@ func main() {
 	// PAW: change the comment headers of chains/covers to for loops so the numbers will automatically grow
 	// with the variable setting....
 	localChainFile, err := os.Create("analysisData/localEventChainsByLP.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	fmt.Fprintf(localChainFile, "# local event chains by LP\n")
 	fmt.Fprintf(localChainFile, "# LP, local chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	linkedChainFile, err := os.Create("analysisData/linkedEventChainsByLP.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	fmt.Fprintf(linkedChainFile, "# linked event chains by LP\n")
 	fmt.Fprintf(linkedChainFile, "# LP, linked chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	globalChainFile, err := os.Create("analysisData/globalEventChainsByLP.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	fmt.Fprintf(globalChainFile, "# global event chains by LP\n")
 	fmt.Fprintf(globalChainFile, "# LP, global chains of length: 1, 2, 3, 4, ... , >= n\n")
 
 	// location to write summaries of local and remote events received
 	eventSummaries, err := os.Create("analysisData/eventsExecutedByLP.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
+
 	fmt.Fprintf(eventSummaries, "# summary of local and remote events executed\n")
 	fmt.Fprintf(eventSummaries, "# LP, local, remote, total\n")
 
 	// location to write percentage of LPs to cover percentage of events received
 	numToCover, err := os.Create("analysisData/numOfLPsToCoverPercentEventMessagesSent.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
+
 	fmt.Fprintf(numToCover, "# number of destination LPs (sorted by largest messages sent to) to cover percentage of total events\n")
 	fmt.Fprintf(numToCover, "# LP name, total events sent, num of LPs to cover: 75, 80, 90, 95, and 100 percent of the total events sent.\n")
 
@@ -695,25 +689,15 @@ func main() {
 	close(c)
 
 	err = eventSummaries.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	err = numToCover.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	err = localChainFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	err = linkedChainFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	err = globalChainFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	// number of LPs with n event chains of length X number of LPs with average event chains of length X
 
@@ -721,9 +705,7 @@ func main() {
 	// specifically we will sum the local/global event chains for all of the LPs in the system
 
 	outFile, err = os.Create("analysisData/eventChainsSummary.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	fmt.Fprintf(outFile, "# number of event chains of length X\n")
 	fmt.Fprintf(outFile, "# chain length, num of local chains, num of linked chains, num of global chains\n")
 	for i := 0; i < chainLength; i++ {
@@ -731,9 +713,7 @@ func main() {
 			localEventChainSummary[i], linkedEventChainSummary[i], globalEventChainSummary[i])
 	}
 	err = outFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	//  now we will compute and print a summary matrix of the number of events exchanged between two LPs; while we
 	// do this, we will also capture the minimum, maximum, and average delta between the send and receive time (for
@@ -743,14 +723,10 @@ func main() {
 
 	if commSwitchOff == false {
 		outFile, err = os.Create("analysisData/eventsExchanged-remote.csv")
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 
 		outFile2, err := os.Create("analysisData/eventsExchanged-local.csv")
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 
 		fmt.Fprintf(outFile, "# event exchanged matrix data (remote)\n")
 		fmt.Fprintf(outFile, "# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta\n")
@@ -800,9 +776,7 @@ func main() {
 			}
 		}
 		err = outFile.Close()
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 	}
 
 	// collect analysis data on the events processed by an LP.  most of this will be relating to the
@@ -813,9 +787,7 @@ func main() {
 		fmt.Printf("%v: Analyzing the events in an LP organized by their receive time.\n", getTime())
 
 		outFile, err = os.Create("analysisData/eventReceiveTimeDeltasByLP.csv")
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 
 		fmt.Fprintf(outFile, "# Record of the timestamp deltas (receiveTime[LP_i+1] - receiveTime[LP_i]) of events in each LP\n")
 		fmt.Fprintf(outFile, "# receiving LP, number of events processed in unique timesteps, min time delta, max time delta, mean time delta (of all but initial events), variance of mean, num times events share a timestamp, num of sampling windows, length of time interval sampled, [,num of sampling windows] events falling in said window\n")
@@ -959,18 +931,14 @@ func main() {
 		}
 
 		err = outFile.Close()
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 
 		// now we will create a total events processed file which will keep track of receiving LP, num events
 		// processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation
 		// (of the mean).
 
 		outFile, err = os.Create("analysisData/totalEventsProcessed.csv")
-		if err != nil {
-			panic(err)
-		}
+		check(err)
 
 		fmt.Fprintf(outFile, "# Total Events Processed Data (per LP)\n")
 		fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
@@ -1016,7 +984,7 @@ func main() {
 				}
 			}
 			//err = outFile.Close()
-			//if err != nil {panic(err)}
+			//check(err)
 			//fmt.Println(err)
 		}
 	}
@@ -1082,9 +1050,7 @@ func main() {
 	}
 
 	outFile, err = os.Create("analysisData/eventsAvailableBySimCycle.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	fmt.Fprintf(outFile, "# events available by simulation cycle\n")
 	fmt.Fprintf(outFile, "# num of events ready for execution\n")
 
@@ -1154,24 +1120,19 @@ func main() {
 	}
 
 	err = outFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	// write out summary of events available
 	outFile, err = os.Create("analysisData/timesXeventsAvailable.csv")
-	if err != nil {
-		panic(err)
-	}
+	check(err)
+
 	fmt.Fprintf(outFile, "# times X events are available for execution\n")
 	fmt.Fprintf(outFile, "# X, num of occurrences\n")
 	for i := 0; i < maxEventsAvailable; i++ {
 		fmt.Fprintf(outFile, "%v,%v\n", i+1, timesXEventsAvailable[i+1])
 	}
 	err = outFile.Close()
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	if analyzeAllData || analyzeReceiveTimeData {
 		analyzeEventsByReceiveTime()
