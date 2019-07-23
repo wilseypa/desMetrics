@@ -177,7 +177,7 @@ func ProcessLine(eventRecord *[]string, eventDataOrder map[string]int) (float64,
 	return sendTime, receiveTime
 }
 
-// TimesXEventsAvailable : total events processed per LP.
+// TimesXEventsAvailable : counts how many events are available for execution at a given point
 func TimesXEventsAvailable(reader *csv.Reader, lpNameMap map[string]*lpMap, eventDataOrder map[string]int) {
 
 	available := make(map[float64]int)
@@ -202,7 +202,17 @@ func TimesXEventsAvailable(reader *csv.Reader, lpNameMap map[string]*lpMap, even
 
 	}
 
-	// Now write them to file
+	availableCount := make(map[int]int)
+
+	for _, count := range available {
+		if _, has := availableCount[count]; !has {
+			availableCount[count] = 1
+		} else {
+			availableCount[count] = availableCount[count] + 1
+		}
+	}
+
+	// Now sort by first receive time and write them to file
 	sort.Float64s(receiveTimes)
 
 	// Now write the file out to analysisData/timesXeventsavailable.csv
@@ -238,6 +248,12 @@ func updateLPDataStatistics(val *LPData, newTS float64) {
 	incr := newTS - val.avgTSDelta
 	val.avgTSDelta += (incr / float64(val.eventsProcessed))
 	val.varianceSum += (incr * (newTS - val.avgTSDelta))
+
+	if newTS < val.minTSDelta {
+		val.minTSDelta = newTS
+	} else if newTS > val.maxTSDelta {
+		val.maxTSDelta = newTS
+	}
 }
 
 func totalEventsProcessed(reader *csv.Reader, lpNameMap map[string]*lpMap, eventDataOrder map[string]int) {
@@ -276,8 +292,8 @@ func totalEventsProcessed(reader *csv.Reader, lpNameMap map[string]*lpMap, event
 
 	outFile, err := os.Create("analysisData/totalEventsProcessed.csv")
 	check(err)
-	fmt.Fprintf(outFile, "#  Total Events Processed Data (per LP)")
-	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.")
+	fmt.Fprintf(outFile, "#  Total Events Processed Data (per LP)\n")
+	fmt.Fprintf(outFile, "# receiving LP, number of events processed, min timestamp delta, max timestamp delta, average timestamp delta, standard deviation.\n")
 
 	for _, data := range recLPs {
 		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v\n",
@@ -315,6 +331,7 @@ func eventsExchangedLocal(reader *csv.Reader, eventDataOrder map[string]int) {
 				newData.maxTSDelta = timestampDelta
 				newData.avgTSDelta = timestampDelta
 				newData.varianceSum = 0
+				recLPs[eventRecord[eventDataOrder["rLP"]]] = newData
 			} else {
 				updateLPDataStatistics(recLPs[eventRecord[eventDataOrder["rLP"]]], timestampDelta)
 			}
@@ -324,13 +341,71 @@ func eventsExchangedLocal(reader *csv.Reader, eventDataOrder map[string]int) {
 	outFile, err := os.Create("analysisData/eventsExchanged-local.csv")
 	check(err)
 
-	fmt.Fprintf(outFile, "# event exchanged matrix data (local)")
-	fmt.Fprintf(outFile, "# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta")
+	fmt.Fprintf(outFile, "# event exchanged matrix data (local)\n")
+	fmt.Fprintf(outFile, "# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta\n")
 
 	for _, data := range recLPs {
 		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v,%v\n",
 			data.recLPId,
 			data.recLPId,
+			data.eventsProcessed,
+			data.minTSDelta,
+			data.maxTSDelta,
+			data.avgTSDelta,
+			data.varianceSum/float64(data.eventsProcessed))
+	}
+}
+
+// LPPair : for holding data on remove events exchanged
+type LPPair struct {
+	sendingLP string
+	receiveLP string
+}
+
+func eventsExchangedRemote(reader *csv.Reader, eventDataOrder map[string]int) {
+
+	// var remoteMap = make(map[string]map[string]*LPData)
+
+	remoteMap := make(map[LPPair]*LPData)
+
+	for {
+		eventRecord, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		check(err)
+
+		sendTime, receiveTime := ProcessLine(&eventRecord, eventDataOrder)
+
+		timestampDelta := receiveTime - sendTime
+
+		if eventRecord[eventDataOrder["rLP"]] != eventRecord[eventDataOrder["sLP"]] {
+			if _, has := remoteMap[LPPair{eventRecord[eventDataOrder["rLP"]], eventRecord[eventDataOrder["sLP"]]}]; !has {
+				newData := new(LPData)
+				pair := LPPair{eventRecord[eventDataOrder["rLP"]], eventRecord[eventDataOrder["sLP"]]}
+				newData.recLPId = eventRecord[eventDataOrder["rLP"]]
+				newData.eventsProcessed = 1
+				newData.minTSDelta = timestampDelta
+				newData.maxTSDelta = timestampDelta
+				newData.avgTSDelta = timestampDelta
+				newData.varianceSum = 0
+				remoteMap[pair] = newData
+			} else {
+				updateLPDataStatistics(remoteMap[LPPair{eventRecord[eventDataOrder["rLP"]], eventRecord[eventDataOrder["sLP"]]}], timestampDelta)
+			}
+		}
+	}
+
+	outFile, err := os.Create("analysisData/eventsExchanged-remote.csv")
+	check(err)
+
+	fmt.Fprintf(outFile, "# event exchanged matrix data (remote)\n.")
+	fmt.Fprintf(outFile, "# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta")
+
+	for pair, data := range remoteMap {
+		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v,%v\n",
+			pair.receiveLP,
+			pair.sendingLP,
 			data.eventsProcessed,
 			data.minTSDelta,
 			data.maxTSDelta,
@@ -498,56 +573,63 @@ func main() {
 	err := os.MkdirAll("analysisData", 0777)
 	check(err)
 
-	fmt.Printf("%v: Computing times X events available.\n", GetTime(), numThreads)
+	fmt.Printf("%v: Computing times X events available.\n", GetTime())
 	// First pass through the Event Data file
 	eventFile, csvReader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
 	TimesXEventsAvailable(csvReader, lpNameMap, eventDataOrder)
 	eventFile.Close()
 
-	fmt.Printf("%v: Calculating total events processed per LP.\n", GetTime(), numThreads)
+	fmt.Printf("%v: Calculating total events processed per LP.\n", GetTime())
 	eventFile, csvReader = OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
 	totalEventsProcessed(csvReader, lpNameMap, eventDataOrder)
 	eventFile.Close()
 
-	fmt.Printf("%v: Computing statistics on local events exchanged.\n", GetTime(), numThreads)
+	fmt.Printf("%v: Computing statistics on local events exchanged.\n", GetTime())
 	eventFile, csvReader = OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
 	eventsExchangedLocal(csvReader, eventDataOrder)
 	eventFile.Close()
 
+	fmt.Printf("%v: Computing statistics on remote events exchanged.\n", GetTime())
+	eventFile, csvReader = OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
+	eventsExchangedRemote(csvReader, eventDataOrder)
 	eventFile.Close()
-	for {
-		eventRecord, err := csvReader.Read()
-		if err == io.EOF {
-			break
-		} else {
-			check(err)
+
+	/*
+		for {
+			eventRecord, err := csvReader.Read()
+			if err == io.EOF {
+				break
+			} else {
+				check(err)
+			}
+
+			// Remove leading/trailing quoteation characters
+			for i := range eventRecord {
+				eventRecord[i] = strings.Trim(eventRecord[i], "'")
+				eventRecord[i] = strings.Trim(eventRecord[i], "`")
+			}
+
+			// Convert timestamps to floats
+			sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["sTS"]], 64)
+			receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["rTS"]], 64)
+
+			// Send time needs to be less than the receive time.
+			// ROSS data actually has data with the send/receive times, so we will weaken this constraint TODO - ??? What does this mean
+			if sendTime > receiveTime {
+				log.Fatal("Event has send time greater than receive time: %v %v %v %v\n",
+					eventRecord[eventDataOrder["sLP"]],
+					sendTime,
+					eventRecord[eventDataOrder["rLP"]],
+					receiveTime,
+				)
+				log.Fatal("Aborting")
+			}
+
+			// processEvent(eventRecord[eventDataOrder["sLP"]], eventRecord[eventDataOrder["rLP"]], sendTime, receiveTime)
+
 		}
 
-		// Remove leading/trailing quoteation characters
-		for i := range eventRecord {
-			eventRecord[i] = strings.Trim(eventRecord[i], "'")
-			eventRecord[i] = strings.Trim(eventRecord[i], "`")
-		}
-
-		// Convert timestamps to floats
-		sendTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["sTS"]], 64)
-		receiveTime, err := strconv.ParseFloat(eventRecord[eventDataOrder["rTS"]], 64)
-
-		// Send time needs to be less than the receive time.
-		// ROSS data actually has data with the send/receive times, so we will weaken this constraint TODO - ??? What does this mean
-		if sendTime > receiveTime {
-			log.Fatal("Event has send time greater than receive time: %v %v %v %v\n",
-				eventRecord[eventDataOrder["sLP"]],
-				sendTime,
-				eventRecord[eventDataOrder["rLP"]],
-				receiveTime,
-			)
-			log.Fatal("Aborting")
-		}
-
-		// processEvent(eventRecord[eventDataOrder["sLP"]], eventRecord[eventDataOrder["rLP"]], sendTime, receiveTime)
-
-	}
+	*/
 
 	// Write out the JSON file again in the output directory
 	outFile, err := os.Create("analysisData/modelSummary.json")
