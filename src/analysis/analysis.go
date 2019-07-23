@@ -291,6 +291,54 @@ func totalEventsProcessed(reader *csv.Reader, lpNameMap map[string]*lpMap, event
 
 }
 
+func eventsExchangedLocal(reader *csv.Reader, eventDataOrder map[string]int) {
+	recLPs := make(map[string]*LPData)
+
+	for {
+		eventRecord, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		check(err)
+
+		sendTime, receiveTime := ProcessLine(&eventRecord, eventDataOrder)
+
+		timestampDelta := receiveTime - sendTime
+
+		// event-exchanged locally, otherwise indicates sent to a different LP and therefore a global LP
+		if eventRecord[eventDataOrder["rLP"]] == eventRecord[eventDataOrder["sLP"]] {
+			if _, has := recLPs[eventRecord[eventDataOrder["rLP"]]]; !has {
+				newData := new(LPData)
+				newData.recLPId = eventRecord[eventDataOrder["rLP"]]
+				newData.eventsProcessed = 1
+				newData.minTSDelta = timestampDelta
+				newData.maxTSDelta = timestampDelta
+				newData.avgTSDelta = timestampDelta
+				newData.varianceSum = 0
+			} else {
+				updateLPDataStatistics(recLPs[eventRecord[eventDataOrder["rLP"]]], timestampDelta)
+			}
+		}
+	}
+
+	outFile, err := os.Create("analysisData/eventsExchanged-local.csv")
+	check(err)
+
+	fmt.Fprintf(outFile, "# event exchanged matrix data (local)")
+	fmt.Fprintf(outFile, "# receiving LP, sending LP, num of events sent, minimum timestamp delta, maximum timestamp delta, average timestamp delta, variance of ave delta")
+
+	for _, data := range recLPs {
+		fmt.Fprintf(outFile, "%v,%v,%v,%v,%v,%v,%v\n",
+			data.recLPId,
+			data.recLPId,
+			data.eventsProcessed,
+			data.minTSDelta,
+			data.maxTSDelta,
+			data.avgTSDelta,
+			data.varianceSum/float64(data.eventsProcessed))
+	}
+}
+
 func main() {
 
 	var AnalyzeAllData bool
@@ -399,29 +447,35 @@ func main() {
 	var lpIndex []int
 
 	// Build lpNameMap for each new LP, return pointer to the new lpMap struct
-	defineLP := func(lp string) *lpMap {
-		val, has := lpNameMap[lp]
-		if !has {
-			lpNameMap[lp] = new(lpMap)
-			lpNameMap[lp].toInt = len(lpNameMap)
-			val = lpNameMap[lp]
-			numLPs++
+	// This isn't used yet. Not sure if it will be used yet.
+	/*
+		defineLP := func(lp string) *lpMap {
+			val, has := lpNameMap[lp]
+			if !has {
+				lpNameMap[lp] = new(lpMap)
+				lpNameMap[lp].toInt = len(lpNameMap)
+				val = lpNameMap[lp]
+				numLPs++
+			}
+			return val
 		}
-		return val
-	}
+	*/
 
-	processEvent := func(sLP, rLP string, sTS, rTS float64) {
-		numEvents++
-		lp := defineLP(sLP)
-		lp.sentEvents++
-		lp = defineLP(rLP)
-		lp.receivedEvents++
+	// This isn't used yet. Not sure if it will be used yet.
+	/*
+		processEvent := func(sLP, rLP string, sTS, rTS float64) {
+			numEvents++
+			lp := defineLP(sLP)
+			lp.sentEvents++
+			lp = defineLP(rLP)
+			lp.receivedEvents++
 
-		// Count all events w/ sending time stamp <= 0 as an initial event
-		if sTS <= 0 {
-			numInitialEvents++
+			// Count all events w/ sending time stamp <= 0 as an initial event
+			if sTS <= 0 {
+				numInitialEvents++
+			}
 		}
-	}
+	*/
 
 	// Event processing function. Fill in information for the LPs matrix that records events received
 	// events received by each LP
@@ -440,15 +494,27 @@ func main() {
 	// TODO - get rid of this after using/removing addEvent function
 	_ = addEvent
 
-	// First pass through the Event Data file
-	eventFile, csvReader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
-
 	// Create the output directory
 	err := os.MkdirAll("analysisData", 0777)
 	check(err)
 
+	fmt.Printf("%v: Computing times X events available.\n", GetTime(), numThreads)
+	// First pass through the Event Data file
+	eventFile, csvReader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
 	TimesXEventsAvailable(csvReader, lpNameMap, eventDataOrder)
+	eventFile.Close()
 
+	fmt.Printf("%v: Calculating total events processed per LP.\n", GetTime(), numThreads)
+	eventFile, csvReader = OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
+	totalEventsProcessed(csvReader, lpNameMap, eventDataOrder)
+	eventFile.Close()
+
+	fmt.Printf("%v: Computing statistics on local events exchanged.\n", GetTime(), numThreads)
+	eventFile, csvReader = OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
+	eventsExchangedLocal(csvReader, eventDataOrder)
+	eventFile.Close()
+
+	eventFile.Close()
 	for {
 		eventRecord, err := csvReader.Read()
 		if err == io.EOF {
@@ -483,7 +549,21 @@ func main() {
 
 	}
 
-	err = eventFile.Close()
+	// Write out the JSON file again in the output directory
+	outFile, err := os.Create("analysisData/modelSummary.json")
+	check(err)
+
+	desTraceData.TotalLPs = numLPs
+	desTraceData.EventData.NumEvents = numEvents
+	desTraceData.NumInitialEvents = numInitialEvents
+	desTraceData.DateAnalyzed = GetTime()
+
+	jsonEncoder := json.NewEncoder(outFile)
+	jsonEncoder.SetIndent("", "\t")
+	err = jsonEncoder.Encode(&desTraceData)
+	check(err)
+
+	err = outFile.Close()
 	check(err)
 
 }
