@@ -289,6 +289,7 @@ func totalEventsProcessed(reader *csv.Reader, lpNameMap map[string]*lpMap, event
 	// Now write out the file and release the memory (done through garbage collection technically)
 	// These are not written out in any order, and I don't believe that it should matter
 	// TODO - wilsey - does it matter whether or not they are in order?
+	// It probably doesn't matter whether they are in order, but if it could be retained then it should.
 
 	outFile, err := os.Create("analysisData/totalEventsProcessed.csv")
 	check(err)
@@ -366,6 +367,9 @@ func eventsExchangedRemote(reader *csv.Reader, eventDataOrder map[string]int) {
 
 	// var remoteMap = make(map[string]map[string]*LPData)
 
+	// For now this is a map of the Pair data structure defined above.
+	// TODO - potentially change this to implementing a graph structure using a map[string]map[string]*LPData instead
+	// This could be more efficient, but the code might be more verbose and harder to debug, will revisit
 	remoteMap := make(map[LPPair]*LPData)
 
 	for {
@@ -465,7 +469,7 @@ func main() {
 	flag.Parse()
 
 	if help {
-		fmt.Println("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n")
+		fmt.Printf("Usage: desAnalysis [options...] FILE \n Analyze the event trace data described by the json file FILE.\n\n\n")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -473,7 +477,7 @@ func main() {
 	desTraceData := ReadInputFile(flag.Arg(0))
 
 	if debug {
-		fmt.Printf("JSON file parsed successfully. Summary info:\n\tSimulator Name: %s\n\tOriginal Capture Date: %s\n\tCapture history: %s\n\tCSV File of Event Data: %s\n\tFormat of Event Data: %v\n",
+		fmt.Printf("JSON file parsed successfully. Summary info:\n\tSimulator Name: %s\n\tModel Name: %s\n\tOriginal Capture Date: %s\n\tCapture history: %s\n\tCSV File of Event Data: %s\n\tFormat of Event Data: %v\n",
 			desTraceData.SimulatorName,
 			desTraceData.ModelName,
 			desTraceData.OriginalCaptureDate,
@@ -495,31 +499,67 @@ func main() {
 	// Generate an error if there is a value of -1 in eventDataOrder, indicating not all values are filled in
 	for _, entry := range eventDataOrder {
 		if entry == -1 {
+			fmt.Printf("Fields of the event_data.format field in the JSON file: %v.\n", eventDataOrder)
 			log.Fatal("Missing critical field in EventData->Format of JSON file.\nRun with --debug to view more data.\n")
 		}
 	}
 
 	// Enable the use of all CPUs on a system
 	numThreads := runtime.NumCPU()
-	// runtime.GOMAXPROCS(numThreads)
-	// temp solution for kvack, doesn't fork to 32
-	runtime.GOMAXPROCS(16)
+	runtime.GOMAXPROCS(numThreads)
 
 	fmt.Printf("%v: Parallelism setup to support up to %v threads.\n", GetTime(), numThreads)
 
 	// Now to connect to to CSV file (compressed (gz or bz2) or uncompressed)
-
 	numLPs := 0
 	numEvents := 0
 	numInitialEvents := 0
 
 	// Map of all the LPs and count of sent/received events.
 	lpNameMap := make(map[string]*lpMap)
+	eventFile, reader := OpenEventFile(desTraceData.EventData.EventFile, desTraceData)
+
+	fmt.Printf("%v: Counting number of initial events, total events, and total LPs. Mapping LP's to integers\n", GetTime())
+	for {
+		eventRecord, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		check(err)
+
+		// Should
+		sentTime, _ := ProcessLine(&eventRecord, eventDataOrder)
+		if sentTime <= 0 {
+			numInitialEvents++
+		}
+
+		if _, has := lpNameMap[eventRecord[eventDataOrder["rLP"]]]; !has {
+			data := new(lpMap)
+			data.toInt = len(lpNameMap)
+			data.receivedEvents = 1
+			numLPs++
+		} else {
+			lpNameMap[eventRecord[eventDataOrder["rLP"]]].receivedEvents++
+		}
+
+		if _, has := lpNameMap[eventRecord[eventDataOrder["sLP"]]]; !has {
+			data := new(lpMap)
+			data.toInt = len(lpNameMap)
+			data.sentEvents = 1
+			numLPs++
+		} else {
+			lpNameMap[eventRecord[eventDataOrder["sLP"]]].sentEvents++
+		}
+
+		numEvents++
+
+	}
+	eventFile.Close()
 
 	// Use LPs to hold event data and lpIndex to record advancements of analysis among the LPs
 	// TODO - Do we need the lpIndex variable?
-	var lps []lpData
-	var lpIndex []int
+	// var lps []lpData
+	// var lpIndex []int
 
 	// Build lpNameMap for each new LP, return pointer to the new lpMap struct
 	// This isn't used yet. Not sure if it will be used yet.
@@ -555,19 +595,16 @@ func main() {
 	// Event processing function. Fill in information for the LPs matrix that records events received
 	// events received by each LP
 	// TODO - move awawy from this, this creates a need fOpenEor a lot of space
-	addEvent := func(sLP, rLP string, sTS, rTS float64) {
-		rLPint := lpNameMap[rLP].toInt
-		lpIndex[rLPint]++
-		if lpIndex[rLPint] > cap(lps[rLPint].events) {
-			log.Fatal("Something went wrong, we should have computed the appropriate size on the first parse.\n")
-		}
-		lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
-		lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
-		lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
-	}
-
-	// TODO - get rid of this after using/removing addEvent function
-	_ = addEvent
+	// addEvent := func(sLP, rLP string, sTS, rTS float64) {
+	// 	rLPint := lpNameMap[rLP].toInt
+	// 	lpIndex[rLPint]++
+	// 	if lpIndex[rLPint] > cap(lps[rLPint].events) {
+	// 		log.Fatal("Something went wrong, we should have computed the appropriate size on the first parse.\n")
+	// 	}
+	// 	lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
+	// 	lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
+	// 	lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
+	// }
 
 	// Create the output directory
 	err := os.MkdirAll("analysisData", 0777)
@@ -603,7 +640,7 @@ func main() {
 				check(err)
 			}
 
-			// Remove leading/trailing quoteation characters
+			// Remove leading/trailing quotation characters
 			for i := range eventRecord {
 				eventRecord[i] = strings.Trim(eventRecord[i], "'")
 				eventRecord[i] = strings.Trim(eventRecord[i], "`")
