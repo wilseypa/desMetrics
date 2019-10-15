@@ -24,68 +24,6 @@ func check(err error) {
 	}
 }
 
-// DesTraceData : Format of the modelSummary.json file
-type DesTraceData struct {
-	SimulatorName       string   `json:"simulator_name"`
-	ModelName           string   `json:"model_name"`
-	OriginalCaptureDate string   `json:"original_capture_date"`
-	CaptureHistory      []string `json:"capture_history"`
-	TotalLPs            int      `json:"total_lps"`
-	NumInitialEvents    int      `json:"number_of_initial_events"`
-	DateAnalyzed        string   `json:"date_analyzed"`
-	EventData           struct {
-		EventFile  string   `json:"file_name"`
-		FileFormat []string `json:"format"`
-		NumEvents  int      `json:"total_events"`
-	} `json:"event_data"`
-}
-
-/*
-	Data structure for events. Internally storing LP names with integer map value.
-	Since we're storing events into an array indexed by the LP in question (sender or receiver)
-	We will only store the other "companion" LP internally
-	TODO - Do we need to do this? Can we just always store based on the sending LPs
-*/
-type eventData struct {
-	companionLP int
-	sendTime    float64
-	receiveTime float64
-}
-
-/*
-	Data structure for sent events, stored w/ their integer map value
-*/
-type eventSentData struct {
-	companionLP int
-	sendTime    float64
-	receiveTime float64
-}
-
-/*
-	Data structure for LPs; each LP has unique ID and list of correlating events it generates.
-*/
-type lpData struct {
-	lpID       int
-	events     []eventData
-	sentEvents int
-}
-
-/*
-	Records a unique integer value for each LP and store number of sent/received events
-*/
-type lpMap struct {
-	toInt          int
-	sentEvents     int
-	receivedEvents int
-}
-
-// Functions to support sorting of events by their receive time
-type byReceiveTime []eventData
-
-func (b byReceiveTime) Len() int           { return len(b) }
-func (b byReceiveTime) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byReceiveTime) Less(i, j int) bool { return b[i].receiveTime < b[j].receiveTime }
-
 // ReadInputFile : store into a struct and return
 func ReadInputFile(fileName string) (d DesTraceData) {
 	traceDataFile, err := os.Open(fileName)
@@ -231,16 +169,6 @@ func TimesXEventsAvailable(reader *csv.Reader, lpNameMap map[string]*lpMap, even
 
 }
 
-// LPData : data structure for creating the totalEventsProcessedFile
-type LPData struct {
-	recLPId         string
-	eventsProcessed int
-	minTSDelta      float64
-	maxTSDelta      float64
-	avgTSDelta      float64
-	varianceSum     float64
-}
-
 // Update the running mean and standard deviation of a receiving LP while running through the
 // trace file. Update min/max timestamp deltas as well.
 func updateLPDataStatistics(val *LPData, newTS float64) {
@@ -357,12 +285,6 @@ func eventsExchangedLocal(reader *csv.Reader, eventDataOrder map[string]int) {
 	}
 }
 
-// LPPair : for holding data on remove events exchanged
-type LPPair struct {
-	sendingLP string
-	receiveLP string
-}
-
 func eventsExchangedRemote(reader *csv.Reader, eventDataOrder map[string]int) {
 
 	// var remoteMap = make(map[string]map[string]*LPData)
@@ -416,6 +338,45 @@ func eventsExchangedRemote(reader *csv.Reader, eventDataOrder map[string]int) {
 			data.avgTSDelta,
 			data.varianceSum/float64(data.eventsProcessed))
 	}
+}
+
+// build lpNameMap for each new LP, returning pointer to the new lpMap struct
+func defineLP(lp string) *lpMap {
+	val, has := lpNameMap[lp]
+	if !has {
+		lpNameMap[lp] = new(lpMap)
+		lpNameMap[lp].toInt = len(lpNameMap)
+		val = lpNameMap[lp]
+		numLPs++
+	}
+	return val
+}
+
+// ProcessEvent will update lpNameMap with each additional event
+func ProcessEvent(sLP, rLP string, sTS, rTS float64) {
+	numEvents++
+	lp := defineLP(sLP)
+	lp.sentEvents++
+	lp = defineLP(rLP)
+	lp.receivedEvents++
+
+	if sTS <= 0 {
+		numInitialEvents++
+	}
+}
+
+// Event processing function. Fill in information for the LPs matrix that records events received
+// events received by each LP
+func addEvent(sLP, rLP string, sTS, rTS float64) {
+	rLPint := lpNameMap[rLP].toInt
+	lpIndex[rLPint]++
+	if lpIndex[rLPint] > cap(lps[rLPint].events) {
+		log.Fatal("Something went wrong, we should have computed the appropriate size on the first parse.\n")
+	}
+	lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
+	lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
+	lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
+
 }
 
 func main() {
@@ -555,56 +516,6 @@ func main() {
 
 	}
 	eventFile.Close()
-
-	// Use LPs to hold event data and lpIndex to record advancements of analysis among the LPs
-	// TODO - Do we need the lpIndex variable?
-	// var lps []lpData
-	// var lpIndex []int
-
-	// Build lpNameMap for each new LP, return pointer to the new lpMap struct
-	// This isn't used yet. Not sure if it will be used yet.
-	/*
-		defineLP := func(lp string) *lpMap {
-			val, has := lpNameMap[lp]
-			if !has {
-				lpNameMap[lp] = new(lpMap)
-				lpNameMap[lp].toInt = len(lpNameMap)
-				val = lpNameMap[lp]
-				numLPs++
-			}
-			return val
-		}
-	*/
-
-	// This isn't used yet. Not sure if it will be used yet.
-	/*
-		processEvent := func(sLP, rLP string, sTS, rTS float64) {
-			numEvents++
-			lp := defineLP(sLP)
-			lp.sentEvents++
-			lp = defineLP(rLP)
-			lp.receivedEvents++
-
-			// Count all events w/ sending time stamp <= 0 as an initial event
-			if sTS <= 0 {
-				numInitialEvents++
-			}
-		}
-	*/
-
-	// Event processing function. Fill in information for the LPs matrix that records events received
-	// events received by each LP
-	// TODO - move awawy from this, this creates a need fOpenEor a lot of space
-	// addEvent := func(sLP, rLP string, sTS, rTS float64) {
-	// 	rLPint := lpNameMap[rLP].toInt
-	// 	lpIndex[rLPint]++
-	// 	if lpIndex[rLPint] > cap(lps[rLPint].events) {
-	// 		log.Fatal("Something went wrong, we should have computed the appropriate size on the first parse.\n")
-	// 	}
-	// 	lps[rLPint].events[lpIndex[rLPint]].companionLP = lpNameMap[sLP].toInt
-	// 	lps[rLPint].events[lpIndex[rLPint]].receiveTime = rTS
-	// 	lps[rLPint].events[lpIndex[rLPint]].sendTime = sTS
-	// }
 
 	// Create the output directory
 	err := os.MkdirAll("analysisData", 0777)
