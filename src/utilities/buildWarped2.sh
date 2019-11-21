@@ -55,7 +55,7 @@ autoreconf -i
 # tell mpicxx to use clang
 export OMPI_CXX=clang++
 #./configure --with-warped=$CUR_LOC/warped2/local CXXFLAGS='-g -O3 -std=c++11 -Wno-inconsistent-missing-override -Wno-unused-private-field' LDFLAGS='-lprofiler' CXX=mpicxx
-./configure --with-warped=$CUR_LOC/warped2/local CXXFLAGS='-g -O3 -std=c++11' LDFLAGS='-lprofiler' CXX=mpicxx
+./configure --with-warped=$CUR_LOC/warped2/local CXXFLAGS='-g -O3 -std=c++11 -Wno-unused-private-field' LDFLAGS='-lprofiler' CXX=mpicxx
 
 make -j 8
 date
