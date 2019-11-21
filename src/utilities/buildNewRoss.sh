@@ -18,7 +18,7 @@ cd ROSS
 mkdir build
 cd build
 export ROSS_BUILD=`pwd`
-ARCH=x86_64 CC=mpicc CXX=mpicxx cmake -DCMAKE_INSTALL_PREFIX=../install ../
+ARCH=x86_64 CC=mpicc CXX=mpicxx LDFLAGS='-lprofiler' cmake -DCMAKE_INSTALL_PREFIX=../install ../
 export ROSS_LIB=`pwd`/../install/lib/pkgconfig/
 make -j 8
 make install
@@ -41,7 +41,7 @@ cd codes/
 ./prepare.sh 
 mkdir build
 cd build
-../configure --prefix=$ROSS_BUILD CC=mpicc CXX=mpicxx PKG_CONFIG_PATH=$ROSS_LIB
+../configure --prefix=$ROSS_BUILD CC=mpicc CXX=mpicxx LDFLAGS='-lprofiler' PKG_CONFIG_PATH=$ROSS_LIB
 #../configure --prefix=/home/paw/wk/new-ross/ROSS/build/codes/build CC=mpicc CXX=mpicxx PKG_CONFIG_PATH=/home/paw/wk/new-ross/ROSS/install/lib/pkgconfig/
 make -j 8
 make install
