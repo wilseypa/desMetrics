@@ -22,8 +22,7 @@ autoreconf -i
 # configure with openmpi for google-proftools 
 #
 
-# let's try clang....built successfully....
-#./configure --with-mpi-includedir=/usr/lib/x86_64-linux-gnu/openmpi/include --prefix=$CUR_LOC/warped2/local CXXFLAGS='-g -O3 -Wno-inconsistent-missing-override -Wno-reserved-id-macro -Wno-keyword-macro -Wno-redundant-move -Wno-pessimizing-move -Wno-infinite-recursion' LDFLAGS='-lprofiler' CXX=clang++
+# build with clang
 ./configure --with-mpi-includedir=/usr/lib/x86_64-linux-gnu/openmpi/include --prefix=$CUR_LOC/warped2/local CXXFLAGS='-g -O3' LDFLAGS='-lprofiler' CXX=clang++
 
 make -j 8 install
