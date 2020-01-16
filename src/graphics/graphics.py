@@ -74,6 +74,7 @@ def plot_data(sampleNames, data_samples, x_range, nameOfAnalysis):
         pylab.scatter(x_index, data, marker='o', color=colors[color_index], alpha=alpha_value, label=sampleNames[i])
       color_index = (color_index + 1) % len(colors)
       alpha_value = alpha_subsequent
+
     display_plot(f'{nameOfAnalysis}_{y_axis_type}_{plot_type}')
   return
 
@@ -100,11 +101,11 @@ def events_availble(model_dirs):
     raw_data = np.loadtxt(model[0] + "/analysisData/eventsAvailableBySimCycle.csv", delimiter=',', comments='#')
     model_data.append(np.array(sorted(raw_data, reverse=True)))
 
-# removing, it just doesn't add anything
-#        plot_title = 'Events Available by Simulation Cycle'
-#        xAxisLabel = 'Simulation Cycle'
-#        yAxisLabel = 'Number of Events'
-#        plot_data([model_names[num_models]], [model_data[num_models]], 0, out_dir + "/eventsAvailableBySimCycle_raw")
+    plot_title = 'Events Available by Simulation Cycle'
+    x_axis_label = 'Simulation Cycle'
+    y_axis_label = 'Number of Events'
+    plot_data([model_names[num_models]], [model_data[num_models]], 0, out_dir + "/eventsAvailableBySimCycle_raw")
+
     plot_title = ''
     x_axis_label = 'Sim Cycles (sorted)'
     y_axis_label = 'Number of Events'
@@ -117,7 +118,15 @@ def events_availble(model_dirs):
     normalized_events_avail_sim_cycle.append((model_data[num_models]/float(model_totals[model[0]][0]))*100.0)
     plot_data([model_names[num_models]], [normalized_events_avail_sim_cycle[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted_normalized")
     num_models = num_models + 1
+  
 
+  print("\tCreating Summary Graphic for All Models (Events Available by Sim Cycle)")
+  plot_title = '% of LPs with Events Available (sorted)'
+  x_axis_label = ''
+  y_axis_label = '% of LPs with Events Available'
+  plot_data(model_names, normalized_events_avail_sim_cycle, 100, plotsDir + "/eventsAvailableBySimCycle_sorted_normalized")
+
+  return
 
 def total_events_processed(model_dirs):
 
@@ -180,6 +189,7 @@ def event_time_deltas(model_dirs):
   global x_axis_label
   global y_axis_label
   global colors
+  global model_totals
 
   model_names = []
   model_data = []
@@ -219,29 +229,83 @@ def event_time_deltas(model_dirs):
 
     # TODO - Left off here Line 254 in visualizations.py
 
-    plotTitle = 'STDDEV of event receive time delta by LP'
-    xAxisLabel = 'LPs (sorted)'
-    yAxisLabel = 'STDDEV'
+    plot_title = 'STDDEV of event receive time delta by LP'
+    x_axis_label = 'LPs (sorted)'
+    y_axis_label = 'STDDEV'
     plot_data([model_names[num_models]],[std_dev_receive_timedelta_means[num_models]], 0, out_dir + "/relativeReceiveTimeStdDev")
 
     # now we'll plot the coefficient of variation 
-    plotTitle = 'Coefficient of Variation of Receive Time Deltas'
-    xAxisLabel = 'LPs (sorted)'
-    yAxisLabel = r'$\mathrm{(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
+    plot_title = 'Coefficient of Variation of Receive Time Deltas'
+    x_axis_label = 'LPs (sorted)'
+    y_axis_label = r'$\mathrm{(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
     plot_data([model_names[num_models]],[coeff_var_receivetime_delta_means[num_models]], 0, out_dir + "/coefficientOfVariationOfReceiveTimeDeltasMean")
 
     # next up is the number of times events occur at the same time
-    xAxisLabel = 'LPs (sorted)'
-    yAxisLabel = 'Times an event had the same receive time'
+    x_axis_label = 'LPs (sorted)'
+    y_axis_label = 'Times an event had the same receive time'
     plot_data([model_names[num_models]],[times_lp_event_had_same_receivetime[num_models]], 0, out_dir + "/timesAnEventHadSameReceiveTime")
 
     # now to the real challenge; reporting the sampling results (number of events in a time interval sampled at random
 
     # ok, so first let's plot the mean time interval for 100 events that was used for each LP.  we'll actually normalize this to the mean
-    plotTitle = 'Relative Time Interval that an LP executes 100 events'
-    xAxisLabel = 'LPs (sorted)'
-    yAxisLabel = r'$\mathrm{(mean \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; all \; LPs)}$'
+    plot_title = 'Relative Time Interval that an LP executes 100 events'
+    x_axis_label = 'LPs (sorted)'
+    y_axis_label = r'$\mathrm{(mean \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; all \; LPs)}$'
     plot_data([model_names[num_models]],[normalized_time_interval_to_execute_100[num_models]], 0, out_dir + "/relativeTimeIntervalToExecute100Events")
+
+    # what do to for the sampled event totals in the mean subinterval??  let's try this, but i don't think it's gonna work
+    plot_title = 'Coefficient Of Variation of Sampled intervals'
+    x_axis_label = 'LPs (sorted)'
+    y_axis_label = r'$\mathrm{(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
+    coeffOfVariation = []
+    # foreach LP in the model compute the coefficient of variation of the samples
+    for j in model_data[num_models]:
+        coeffOfVariation.append(np.std(j[8:])/np.mean(j[8:]))
+    coeff_variation_samples.append(sorted(coeffOfVariation, reverse=True))
+    plot_data([model_names[num_models]],[coeff_variation_samples[num_models]], 0, out_dir + "/coefficientOfVariationOfSamples")
+
+    num_models += 1
+  
+
+  normalized_time_interval_to_execute_100 = []
+  coeff_variation_samples = []
+  print("\tCreating Summary Graphic of All Models (LP receiveTime delta data)")
+
+  plot_title = 'Event receive time delta by LP'
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = r'$\mathrm{(mean \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; all \; LPs)}$'
+  plot_data(model_names, normalized_time_delta_means, 100, plotsDir + "/relativeReceiveTimeDeltaMeans")
+  
+  plot_title = 'STDDEV of event receive time delta by LP'
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = 'STDDEV'
+  plot_data(model_names, std_dev_receive_timedelta_means, 100, plotsDir + "/relativeReceiveTimeStdDev")
+  
+  # now we'll plot the coefficient of variation 
+  plot_title = 'Coefficient of Variation of Receive Time Deltas'
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = r'$(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
+  plot_data(model_names, coeff_var_receivetime_delta_means, 100, plotsDir + "/coefficientOfVariationOfReceiveTimeDeltasMean")
+
+  # next up is the number of times events occur at the same time
+  plot_title = ''
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = 'Times an event had the same receive time'
+  plot_data(model_names, times_lp_event_had_same_receivetime, 100, plotsDir + "/timesAnEventHadSameReceiveTime")
+
+  # ok, so first let's plot the mean time interval for 100 events that was used for each LP.  we'll actually normalize this to the mean
+  plot_title = 'Relative Time Interval that an LP executes 100 events'
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = r'$\mathrm{(mean \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; all \; LPs)}$'
+  plot_data(model_names, normalized_time_interval_to_execute_100, 100, plotsDir + "/relativeTimeIntervalToExecute100Events")
+
+  plot_title = 'Coefficient Of Variation of Sampled intervals'
+  x_axis_label = 'LPs (sorted)'
+  y_axis_label = r'$\mathrm{(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
+  coeffOfVariation = []
+  plot_data(model_names, coeff_variation_samples, 100, plotsDir + "/coefficientOfVariationOfSamples")
+
+  return
 
 
 
@@ -268,19 +332,25 @@ plotsDir = args.plotsDir
 if not os.path.exists(plotsDir):
   os.makedirs(plotsDir)
 
+mpl.style.use('seaborn-whitegrid')
+
+plot_title = ''
+x_axis_label = ''
+y_axis_label = ''
+
 # All the directories to walk 
-modelDirectories = np.loadtxt(args.modelDirList, dtype=np.str, delimiter=',', comments='#')
+model_directories = np.loadtxt(args.modelDirList, dtype=np.str, delimiter=',', comments='#')
 
 # Event and LP data for each simulation run
 model_totals = {}
-for dir in modelDirectories:
+for dir in model_directories:
   jsonData = open(dir[0] + "/analysisData/modelSummary.json")
   modelSummary = json.load(jsonData)
   model_totals[dir[0]] = [modelSummary["total_lps"], modelSummary["event_data"]["total_events"]]
 
-# if args.gen_all or args.gen_events_available:
-#   events_availble(modelDirectories)
+if args.gen_all or args.gen_events_available:
+  events_availble(model_directories)
 if args.gen_all or args.gen_events_processed:
-  total_events_processed(modelDirectories)
+  total_events_processed(model_directories)
 if args.gen_all or args.gen_event_time_deltas:
-  event_time_deltas(modelDirectories)
+  event_time_deltas(model_directories)

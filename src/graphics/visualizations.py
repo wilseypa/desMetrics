@@ -197,10 +197,6 @@ def total_events_processed(modelDirs) :
         plot_data([modelNames[index]], [normalizedTimestampDelta[index]], 0, outDir + "/normalizedAverageTimestampDelta")
     
     print "    Creating Summary Graphic of All Models (Normalized Average TimeStamp Deltas)"
-    # keep the same labeling
-#    plotTitle = ''
-#    xAxisLabel = 'LPs'
-#    yAxisLabel = 'ave(ReceiveTime-SendTime)/max(ReceiveTime-SendTime)'
     plot_data(modelNames, normalizedTimestampDelta, 100, plotsDir + "/normalizedAverageTimestampDelta")
 
     return
