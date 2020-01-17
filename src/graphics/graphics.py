@@ -13,11 +13,101 @@ import itertools
 from palettable.colorbrewer.qualitative import Set1_9
 from palettable.tableau import Tableau_20
 
+#### Global Variables ####
+total_num_of_sim_cycles = 0 # need this as a global variable for the axis printing function
+xLabelOffsetVal = 0 # need this as a global variable for x-axis printing function on trimmed plots
+
+
+
+# Helper Functions
 def display_plot(fileName):
+  # Function to save the plot
   print(f"\t\tCreating pdf graphic of: {fileName}")
   pylab.savefig(fileName+".pdf", bbox_inches='tight')
   pylab.clf()
   return
+
+def reject_outliers(data, m=2):
+  out_data = data[abs(data - np.mean(data)) < m * np.std(data)]
+  if len(out_data > 0): 
+    return out_data
+  return data
+
+# Function to remove the first and last 1% of events as outliers
+def reject_first_last_outliers(data):
+  trim_length = int((len(data)+1)/100)
+  return data[trim_length-1 : len(data)-trim_length]
+
+# def toPercentOfTotalLPs(x, pos=0):
+#   return f"{round((100*(x/total_lps)), 3)}"
+
+def toPercent(x, pos=0):
+  return '%.1f%%'%(100*x)
+
+def toPercentOfTotalSimCycles(x, pos=0):
+  return '%.1f%%'%((100*x)/total_num_of_sim_cycles)
+
+def xlabelsOffset(x, pos=0):
+  return int(x+xLabelOffsetVal)
+
+
+def setNumOfSimCycles(x):
+    global total_num_of_sim_cycles
+    total_num_of_sim_cycles = x
+    return
+
+
+def setxLabelOffset(x):
+    global xLabelOffsetVal
+    xLabelOffsetVal = x
+    return
+
+def percent_of_LP_events_local(data):
+  local_events = []
+  for i in np.arange(len(data)):
+    local = float(data[i, 0])
+    total = float(data[i, 2])
+    percent = round((local / total) * 100, 2)
+    local_events.append(percent)
+  return local_events
+
+def histograms_of_events_exec_by_lp(model_dirs):
+  global plot_title
+  global x_axis_label
+  global y_axis_label
+  global colors
+  global model_totals
+
+  model_names = []
+  model_data = []
+
+  x_axis_label = 'Percent of Total Events that are Local'
+  y_axis_label = 'Number of LPs'
+
+
+  for model in model_dirs:
+    out_dir = plotsDir + model[0]
+
+    if not os.path.exists(out_dir):
+      os.makedirs(out_dir)
+
+    model_names.append(out_dir[1])
+    print(f"\tWorking on: {model[0]}")
+    raw_data = np.loadtxt(model[0] + "/analysisData/eventsExecutedByLP.csv")
+    pylab.hist(sorted(percent_of_LP_events_local(raw_data)), bins=100)
+    display_plot(out_dir + "/localEventsAsPercentofTotalByLP-histogram")
+
+    plot_title = 'Local and Remote Events Execute by the LPs'
+    x_axis_label = 'Number of Events'
+    y_axis_label = 'Number of LPs'
+    out_file = out_dir + '/localandRemoteEventsExecute-histogram-stacked'
+    pylab.hist((raw_data[:, 0], raw_data[:1]), histtype='barstacked', label=('Local', 'Remote'), color=(colors[0], colors[1]), bins=100)
+    display_plot(out_file)
+  
+  return
+
+
+
 
 #### function to generate overlay plots analysis data from the various samples
 
@@ -78,7 +168,7 @@ def plot_data(sampleNames, data_samples, x_range, nameOfAnalysis):
     display_plot(f'{nameOfAnalysis}_{y_axis_type}_{plot_type}')
   return
 
-def events_availble(model_dirs):
+def events_available(model_dirs):
   global plot_title
   global x_axis_label
   global y_axis_label
@@ -88,6 +178,7 @@ def events_availble(model_dirs):
   model_names = []
   model_data = []
   normalized_events_avail_sim_cycle = []
+  trimmed_data = []
   num_models = 0
 
   for model in model_dirs:
@@ -97,7 +188,7 @@ def events_availble(model_dirs):
       os.makedirs(out_dir)
 
     model_names.append(out_dir[1])
-    print(f"\tWorking on: {dir[0]}")
+    print(f"\tWorking on: {model[0]}")
     raw_data = np.loadtxt(model[0] + "/analysisData/eventsAvailableBySimCycle.csv", delimiter=',', comments='#')
     model_data.append(np.array(sorted(raw_data, reverse=True)))
 
@@ -117,8 +208,22 @@ def events_availble(model_dirs):
 
     normalized_events_avail_sim_cycle.append((model_data[num_models]/float(model_totals[model[0]][0]))*100.0)
     plot_data([model_names[num_models]], [normalized_events_avail_sim_cycle[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted_normalized")
+    
+    # Trimmed data
+    plot_title = 'Events Available by Simulation Cycle Trimmed'
+    y_axis_label = 'Number of Events'
+    trimmed_data.append(reject_first_last_outliers(model_data[num_models]))
+    plot_data([model_names[num_models]], [trimmed_data[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle-trimmed")
+    
+    # Outliers Removed
+    plot_title = 'Events Available by Simulation Cycle (Outliers Removed)'
+    plot_data( [model_data[num_models]], [reject_outliers(model_names[num_models])], 0, f"{out_dir}/eventsAvailableBySimCycle-outliersRemoved")
+
+
     num_models = num_models + 1
-  
+
+    
+
 
   print("\tCreating Summary Graphic for All Models (Events Available by Sim Cycle)")
   plot_title = '% of LPs with Events Available (sorted)'
@@ -214,7 +319,6 @@ def event_time_deltas(model_dirs):
     raw_data = (np.loadtxt(model[0] + "/analysisData/eventReceiveTimeDeltasByLP.csv", delimiter = ",", comments="#", usecols=range(1,18)))
 
     model_data.append(raw_data[raw_data[:, 4]>0])
-
     
     normalized_time_delta_means.append(sorted(model_data[num_models][:,3]/np.mean(model_data[num_models][:,3]), reverse=True))
     std_dev_receive_timedelta_means.append(sorted(np.sqrt(model_data[num_models][:,4]), reverse=True))
@@ -320,6 +424,7 @@ argparser.add_argument('--gen_events_processed', help='Generate total events pro
 argparser.add_argument('--gen_event_time_deltas', help='Generate LP event time deltas plots.', action="store_true")
 argparser.add_argument('--skip_scatter_plots', help='Do not generate scatter plots (saving time).', action="store_true")
 argparser.add_argument('--no_plot_titles', help='Do not generate plot titles.', action="store_true")
+argparser.add_argument('--histograms_of_events_exec_by_lp', help='Histograms of Events Executed By each LP', action='store_true')
 
 args = argparser.parse_args()
 
@@ -349,8 +454,12 @@ for dir in model_directories:
   model_totals[dir[0]] = [modelSummary["total_lps"], modelSummary["event_data"]["total_events"]]
 
 if args.gen_all or args.gen_events_available:
-  events_availble(model_directories)
+  events_available(model_directories)
 if args.gen_all or args.gen_events_processed:
   total_events_processed(model_directories)
 if args.gen_all or args.gen_event_time_deltas:
   event_time_deltas(model_directories)
+
+if args.histograms_of_events_exec_by_lp:
+  histograms_of_events_exec_by_lp(model_directories)
+  
