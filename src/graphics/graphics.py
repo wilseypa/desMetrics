@@ -889,3 +889,5 @@ if args.gen_all or args.event_chain_summaries:
   profile_of_local_events_by_lp(model_directories)
 if args.communication_data:
   plot_communication_data(model_directories)
+
+print('\nFinished plotting!')
