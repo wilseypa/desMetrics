@@ -62,6 +62,10 @@ def setxLabelOffset(x):
 def percent_of_LP_events_local(data):
     local_events = []
     for i in np.arange(len(data)) :
+        if total == 0:
+          # skip to avoid divide by zero condition
+          continue
+        
         local = float(data[i,0])
         total = float(data[i,2])
         percent = round((local / total) * 100,2)
