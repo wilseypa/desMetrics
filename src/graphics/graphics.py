@@ -381,32 +381,28 @@ def events_available(model_dirs):
     raw_data = np.loadtxt(model[0] + "/analysisData/eventsAvailableBySimCycle.csv", delimiter=',', comments='#')
     model_data.append(np.array(sorted(raw_data, reverse=True)))
 
-    plot_title = 'Events Available by Simulation Cycle'
-    x_axis_label = 'Simulation Cycle'
-    y_axis_label = 'Number of Events'
-    plot_data([model_names[num_models]], [model_data[num_models]], 0, out_dir + "/eventsAvailableBySimCycle_raw")
-
     plot_title = ''
     x_axis_label = 'Sim Cycles (sorted)'
     y_axis_label = 'Number of Events'
-    plot_data([model_names[num_models]], [model_data[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]], [model_data[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted")
 
     y_axis_label = 'Percent of LPs with Events Available'
-    normalized_events_avail_sim_cycle.append((model_data[num_models] / float(model_totals[model[0]][0]))*100.0)
-    plot_data([model_names[num_models]], [normalized_events_avail_sim_cycle[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted_normalized")
-
     normalized_events_avail_sim_cycle.append((model_data[num_models]/float(model_totals[model[0]][0]))*100.0)
-    plot_data([model_names[num_models]], [normalized_events_avail_sim_cycle[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted_normalized")
-    
+    if not args.skip_individual:
+      plot_data([model_names[num_models]], [normalized_events_avail_sim_cycle[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle_sorted_normalized")
+
     # Trimmed data
     plot_title = 'Events Available by Simulation Cycle Trimmed'
     y_axis_label = 'Number of Events'
     trimmed_data.append(reject_first_last_outliers(model_data[num_models]))
-    plot_data([model_names[num_models]], [trimmed_data[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle-trimmed")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]], [trimmed_data[num_models]], 0, f"{out_dir}/eventsAvailableBySimCycle-trimmed")
     
     # Outliers Removed
     plot_title = 'Events Available by Simulation Cycle (Outliers Removed)'
-    plot_data([model_names[num_models]], [reject_outliers(model_data[num_models])], 0, f"{out_dir}/eventsAvailableBySimCycle-outliersRemoved")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]], [reject_outliers(model_data[num_models])], 0, f"{out_dir}/eventsAvailableBySimCycle-outliersRemoved")
 
     num_models += 1
 
@@ -448,7 +444,8 @@ def total_events_processed(model_dirs):
     plot_title = ''
     x_axis_label = 'LPs'
     y_axis_label = 'Events Processed Relative to Max Processed by any LP'
-    plot_data([model_names[num_models]], [normalized_events_processed_by_lp[num_models]], 0, f"{out_dir}/eventsProcessedNormalizedToMax")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]], [normalized_events_processed_by_lp[num_models]], 0, f"{out_dir}/eventsProcessedNormalizedToMax")
 
   print('\tCreating Summary Graphic of All Models (eventsProcessedNormalized)')
   plot_title = 'Total Events Processed Normalized to the Max Processed'
@@ -468,7 +465,8 @@ def total_events_processed(model_dirs):
     plot_title = ''
     x_axis_label = 'LPs'
     y_axis_label = r'$\frac{\mathrm{ave(ReceiveTime - SendTime)}}{\mathrm{max(ReceiveTime-SendTime)}}$'
-    plot_data([model_names[i]], [normalized_timestamp_delta[i]], 0, f"{out_dir}/normalizedAverageTimestampDelta")
+    if not args.skip_individual:
+      plot_data([model_names[i]], [normalized_timestamp_delta[i]], 0, f"{out_dir}/normalizedAverageTimestampDelta")
 
   print('\tCreating Summary graphic of all models (Normalized Average TimeStamp Deltas)')
   plot_data(model_names, normalized_timestamp_delta, 100, f"{plotsDir}/normalizedAverageTimestampDelta")
@@ -514,23 +512,27 @@ def event_time_deltas(model_dirs):
     plot_title = 'Event Receive Time delta by LP'
     x_axis_label = 'LPs (sorted)'
     y_axis_label = r'$(mean \; of \; LP_i \; \mathbf{/} \; (mean \; of \; all \; LPs)$'
-    plot_data([model_names[num_models]],[normalized_time_delta_means[num_models]], 0, out_dir + "/relativeReceiveTimeDeltaMeans")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[normalized_time_delta_means[num_models]], 0, out_dir + "/relativeReceiveTimeDeltaMeans")
 
     plot_title = 'STDDEV of event receive time delta by LP'
     x_axis_label = 'LPs (sorted)'
     y_axis_label = 'STDDEV'
-    plot_data([model_names[num_models]],[std_dev_receive_timedelta_means[num_models]], 0, out_dir + "/relativeReceiveTimeStdDev")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[std_dev_receive_timedelta_means[num_models]], 0, out_dir + "/relativeReceiveTimeStdDev")
 
     # now we'll plot the coefficient of variation 
     plot_title = 'Coefficient of Variation of Receive Time Deltas'
     x_axis_label = 'LPs (sorted)'
     y_axis_label = r'$\mathrm{(std \; deviation \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; LP_i)}$'
-    plot_data([model_names[num_models]],[coeff_var_receivetime_delta_means[num_models]], 0, out_dir + "/coefficientOfVariationOfReceiveTimeDeltasMean")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[coeff_var_receivetime_delta_means[num_models]], 0, out_dir + "/coefficientOfVariationOfReceiveTimeDeltasMean")
 
     # next up is the number of times events occur at the same time
     x_axis_label = 'LPs (sorted)'
     y_axis_label = 'Times an event had the same receive time'
-    plot_data([model_names[num_models]],[times_lp_event_had_same_receivetime[num_models]], 0, out_dir + "/timesAnEventHadSameReceiveTime")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[times_lp_event_had_same_receivetime[num_models]], 0, out_dir + "/timesAnEventHadSameReceiveTime")
 
     # now to the real challenge; reporting the sampling results (number of events in a time interval sampled at random
 
@@ -538,7 +540,8 @@ def event_time_deltas(model_dirs):
     plot_title = 'Relative Time Interval that an LP executes 100 events'
     x_axis_label = 'LPs (sorted)'
     y_axis_label = r'$\mathrm{(mean \; of \; LP_i) \; \mathbf{/} \; (mean \; of \; all \; LPs)}$'
-    plot_data([model_names[num_models]],[normalized_time_interval_to_execute_100[num_models]], 0, out_dir + "/relativeTimeIntervalToExecute100Events")
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[normalized_time_interval_to_execute_100[num_models]], 0, out_dir + "/relativeTimeIntervalToExecute100Events")
 
     # what do to for the sampled event totals in the mean subinterval??  let's try this, but i don't think it's gonna work
     plot_title = 'Coefficient Of Variation of Sampled intervals'
@@ -549,7 +552,9 @@ def event_time_deltas(model_dirs):
     for j in model_data[num_models]:
         coeffOfVariation.append(np.std(j[8:])/np.mean(j[8:]))
     coeff_variation_samples.append(sorted(coeffOfVariation, reverse=True))
-    plot_data([model_names[num_models]],[coeff_variation_samples[num_models]], 0, out_dir + "/coefficientOfVariationOfSamples")
+
+    if not args.skip_individual:
+      plot_data([model_names[num_models]],[coeff_variation_samples[num_models]], 0, out_dir + "/coefficientOfVariationOfSamples")
 
     num_models += 1
   
@@ -840,6 +845,7 @@ argparser.add_argument('--no_plot_titles', help='Do not generate plot titles.', 
 argparser.add_argument('--histograms_of_events_exec_by_lp', help='Histograms of Events Executed By each LP', action='store_true')
 argparser.add_argument('--event_chain_summaries', help='Plots of event chain summaries', action='store_true')
 argparser.add_argument('--communication-data', action='store_true')
+argparser.add_argument('--skip_individual', action='store_true', help='Only plots the cumulative plots')
 args = argparser.parse_args()
 
 if args.gen_events_available or args.gen_events_processed or args.gen_event_time_deltas:
