@@ -2,3 +2,4 @@ src/graphics/allModelDirs.csv
 src/graphics/plotsDir/*
 src/graphics/test-data/*
 src/graphics/venv/*
+src/desAnalysis
